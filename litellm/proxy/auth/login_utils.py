@@ -53,7 +53,7 @@ def get_ui_credentials(master_key: Optional[str]) -> tuple[str, str]:
         ui_password = str(master_key) if master_key is not None else None
     if ui_password is None:
         raise ProxyException(
-            message="set Proxy master key to use UI. https://docs.litellm.ai/docs/proxy/virtual_keys. If set, use `--detailed_debug` to debug issue.",
+            message="set Proxy master key to use UI. Set `LITELLM_MASTER_KEY` in .env. If set, use `--detailed_debug` to debug issue.",
             type=ProxyErrorTypes.auth_error,
             param="UI_PASSWORD",
             code=500,
@@ -112,7 +112,7 @@ async def authenticate_user(  # noqa: PLR0915
     """
     if master_key is None:
         raise ProxyException(
-            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml.  https://docs.litellm.ai/docs/proxy/virtual_keys. If set, use `--detailed_debug` to debug issue.",
+            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml. If set, use `--detailed_debug` to debug issue.",
             type=ProxyErrorTypes.auth_error,
             param="master_key",
             code=500,

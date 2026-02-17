@@ -285,12 +285,12 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
             <div className="flex-1 min-w-0">
               <h4 className="text-gray-900 font-semibold text-sm m-0">Missing a provider?</h4>
               <p className="text-gray-500 text-xs m-0 mt-0.5">
-                The LiteLLM engineering team is constantly adding support for new LLM models, providers, endpoints. If
+                New model providers are constantly being added for new LLM models, providers, endpoints. If
                 you don&apos;t see the one you need, let us know and we&apos;ll prioritize it.
               </p>
             </div>
             <a
-              href="https://models.litellm.ai/?request=true"
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               className="flex-shrink-0 inline-flex items-center gap-2 px-4 py-2 bg-[#6366f1] hover:bg-[#5558e3] text-white text-sm font-medium rounded-lg transition-colors"

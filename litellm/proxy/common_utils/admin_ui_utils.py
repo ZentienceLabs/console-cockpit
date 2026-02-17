@@ -86,9 +86,8 @@ def missing_keys_form(missing_key_names: str):
             </div>
 
             <div class="container">
-            <h1>Need Help? Support</h1>
-            <p>Discord: <a href="https://discord.com/invite/wuPM9dRgDw" target="_blank">https://discord.com/invite/wuPM9dRgDw</a></p>
-            <p>Docs: <a href="https://docs.litellm.ai/docs/" target="_blank">https://docs.litellm.ai/docs/</a></p>
+            <h1>Need Help?</h1>
+            <p>Contact your Alchemi Studio Console administrator for assistance.</p>
             </div>
         </body>
         </html>
@@ -155,9 +154,8 @@ def admin_ui_disabled():
             </div>
 
             <div class="container">
-            <h1>Need Help? Support</h1>
-            <p>Discord: <a href="https://discord.com/invite/wuPM9dRgDw" target="_blank">https://discord.com/invite/wuPM9dRgDw</a></p>
-            <p>Docs: <a href="https://docs.litellm.ai/docs/" target="_blank">https://docs.litellm.ai/docs/</a></p>
+            <h1>Need Help?</h1>
+            <p>Contact your Alchemi Studio Console administrator for assistance.</p>
             </div>
         </body>
         </html>

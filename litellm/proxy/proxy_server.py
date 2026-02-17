@@ -577,25 +577,20 @@ from fastapi.staticfiles import StaticFiles
 
 from litellm.types.agents import AgentConfig
 
-# import enterprise folder
+# import alchemi modules
 enterprise_router = APIRouter()
 try:
-    # when using litellm cli
-    import litellm.proxy.enterprise as enterprise
-except Exception:
-    # when using litellm docker image
-    try:
-        import enterprise  # type: ignore
-    except Exception:
-        pass
+    from alchemi.config.settings import AlchemiProxyConfig
+    from alchemi.endpoints.account_endpoints import router as alchemi_account_router
+    from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
+except ImportError:
+    pass
 
 ###################
-# Import enterprise routes
+# Import enterprise routes (now via Alchemi)
 try:
-    from litellm_enterprise.proxy.enterprise_routes import router as _enterprise_router
-    from litellm_enterprise.proxy.proxy_server import EnterpriseProxyConfig
+    from alchemi.config.settings import AlchemiProxyConfig as EnterpriseProxyConfig
 
-    enterprise_router = _enterprise_router
     enterprise_proxy_config: Optional[EnterpriseProxyConfig] = EnterpriseProxyConfig()
 except ImportError:
     enterprise_proxy_config = None
@@ -603,7 +598,7 @@ except ImportError:
 
 server_root_path = get_server_root_path()
 _license_check = LicenseCheck()
-premium_user: bool = _license_check.is_premium()
+premium_user: bool = True  # Alchemi Studio Console is always premium
 premium_user_data: Optional[
     "EnterpriseLicenseData"
 ] = _license_check.airgapped_license_data
@@ -630,15 +625,15 @@ else:
 ui_link = f"{server_root_path}/ui"
 fallback_login_link = f"{server_root_path}/fallback/login"
 model_hub_link = f"{server_root_path}/ui/model_hub_table"
-ui_message = f"👉 [```LiteLLM Admin Panel on /ui```]({ui_link}). Create, Edit Keys with SSO. Having issues? Try [```Fallback Login```]({fallback_login_link})"
-ui_message += "\n\n💸 [```LiteLLM Model Cost Map```](https://models.litellm.ai/)."
+ui_message = f"[```Alchemi Studio Console on /ui```]({ui_link}). Create, Edit Keys with SSO. Having issues? Try [```Fallback Login```]({fallback_login_link})"
+ui_message += ""
 
-ui_message += f"\n\n🔎 [```LiteLLM Model Hub```]({model_hub_link}). See available models on the proxy. [**Docs**](https://docs.litellm.ai/docs/proxy/ai_hub)"
+ui_message += f"\n\n[```Model Hub```]({model_hub_link}). See available models on the proxy."
 
-custom_swagger_message = "[**Customize Swagger Docs**](https://docs.litellm.ai/docs/proxy/enterprise#swagger-docs---custom-routes--branding)"
+custom_swagger_message = ""
 
 ### CUSTOM BRANDING [ENTERPRISE FEATURE] ###
-_title = os.getenv("DOCS_TITLE", "LiteLLM API") if premium_user else "LiteLLM API"
+_title = os.getenv("DOCS_TITLE", "Alchemi Studio Console API") if premium_user else "Alchemi Studio Console API"
 _description = (
     os.getenv(
         "DOCS_DESCRIPTION",
@@ -800,6 +795,14 @@ async def proxy_startup_event(app: FastAPI):  # noqa: PLR0915
             proxy_logging_obj=proxy_logging_obj,
             user_api_key_cache=user_api_key_cache,
         )
+
+    # Alchemi: Wrap Prisma client with tenant-scoped filtering
+    if prisma_client is not None:
+        try:
+            from alchemi.db.tenant_scoped_prisma import TenantScopedPrismaClient
+            prisma_client.db = TenantScopedPrismaClient(prisma_client.db)
+        except ImportError:
+            pass
 
     ProxyStartupEvent._initialize_startup_logging(
         llm_router=llm_router,
@@ -1377,6 +1380,13 @@ app.add_middleware(
 )
 
 app.add_middleware(PrometheusAuthMiddleware)
+
+# Alchemi: Multi-tenant account context middleware
+try:
+    from alchemi.middleware.account_middleware import AccountContextMiddleware
+    app.add_middleware(AccountContextMiddleware)
+except ImportError:
+    pass
 
 
 def mount_swagger_ui():
@@ -2689,7 +2699,7 @@ class ProxyConfig:
                     )  # noqa
                 elif key == "cache_params":
                     # this is set in the cache branch
-                    # see usage here: https://docs.litellm.ai/docs/proxy/caching
+                    # cache_params are handled in the cache branch below
                     pass
                 elif key == "responses":
                     # Initialize global polling via cache settings
@@ -5518,7 +5528,7 @@ class ProxyStartupEvent:
         ### CHECK BATCH COST ###
         if llm_router is not None:
             try:
-                from litellm_enterprise.proxy.common_utils.check_batch_cost import (
+                from alchemi.enterprise_features.check_batch_cost import (
                     CheckBatchCost,
                 )
 
@@ -5549,7 +5559,7 @@ class ProxyStartupEvent:
         ### CHECK RESPONSES COST ###
         if llm_router is not None:
             try:
-                from litellm_enterprise.proxy.common_utils.check_responses_cost import (
+                from alchemi.enterprise_features.check_responses_cost import (
                     CheckResponsesCost,
                 )
 
@@ -9695,7 +9705,7 @@ async def model_info_v1(  # noqa: PLR0915
         raise HTTPException(
             status_code=500,
             detail={
-                "error": "LLM Model List not loaded in. Make sure you passed models in your config.yaml or on the LiteLLM Admin UI. - https://docs.litellm.ai/docs/proxy/configs"
+                "error": "LLM Model List not loaded in. Make sure you passed models in your config.yaml or on the Admin UI."
             },
         )
 
@@ -9703,7 +9713,7 @@ async def model_info_v1(  # noqa: PLR0915
         raise HTTPException(
             status_code=500,
             detail={
-                "error": "LLM Router is not loaded in. Make sure you passed models in your config.yaml or on the LiteLLM Admin UI. - https://docs.litellm.ai/docs/proxy/configs"
+                "error": "LLM Router is not loaded in. Make sure you passed models in your config.yaml or on the Admin UI."
             },
         )
 
@@ -9842,7 +9852,7 @@ async def model_group_info(
     -H 'Authorization: Bearersk-1234'
     ```
 
-    Learn how to use and set wildcard models [here](https://docs.litellm.ai/docs/wildcard_routing)
+    Wildcard models can be used to route requests to any matching deployment.
 
     Example Response:
     ```json
@@ -10363,6 +10373,18 @@ async def login_v2(request: Request):  # noqa: PLR0915
             premium_user=premium_user,
         )
 
+        # Alchemi: Add account_id and is_super_admin to JWT
+        from alchemi.auth.account_resolver import resolve_account_for_user, is_default_admin
+        if is_default_admin(username):
+            returned_ui_token_object["is_super_admin"] = True
+            returned_ui_token_object["account_id"] = None
+        else:
+            _account_id = await resolve_account_for_user(
+                login_result.user_email, prisma_client
+            )
+            returned_ui_token_object["account_id"] = _account_id
+            returned_ui_token_object["is_super_admin"] = False
+
         import jwt
 
         jwt_token = jwt.encode(
@@ -10409,6 +10431,67 @@ async def login_v2(request: Request):  # noqa: PLR0915
             )
 
 
+# Alchemi: Resolve login method from email domain
+@router.post("/v2/login/resolve", include_in_schema=False)
+async def login_resolve(request: Request):
+    """
+    Email-first login: resolve whether a user should use SSO or password login
+    based on their email domain.
+    """
+    global prisma_client
+    try:
+        body = await request.json()
+        email = str(body.get("email", ""))
+
+        if not email or "@" not in email:
+            return JSONResponse(
+                content={"method": "password"},
+                status_code=status.HTTP_200_OK,
+            )
+
+        # Check if this is the super admin
+        from alchemi.auth.account_resolver import is_default_admin
+        if is_default_admin(email):
+            return JSONResponse(
+                content={"method": "password"},
+                status_code=status.HTTP_200_OK,
+            )
+
+        if prisma_client is None:
+            return JSONResponse(
+                content={"method": "password"},
+                status_code=status.HTTP_200_OK,
+            )
+
+        # Resolve account by email domain
+        from alchemi.auth.sso_router import resolve_sso_for_email
+        sso_result = await resolve_sso_for_email(email, prisma_client)
+
+        if sso_result and sso_result.get("sso_enabled"):
+            return JSONResponse(
+                content={
+                    "method": "sso",
+                    "sso_url": sso_result.get("sso_url"),
+                    "account_id": sso_result.get("account_id"),
+                },
+                status_code=status.HTTP_200_OK,
+            )
+
+        return JSONResponse(
+            content={"method": "password"},
+            status_code=status.HTTP_200_OK,
+        )
+
+    except Exception as e:
+        verbose_proxy_logger.exception(
+            "litellm.proxy.proxy_server.login_resolve(): Exception - {}".format(str(e))
+        )
+        return JSONResponse(
+            content={"method": "password"},
+            status_code=status.HTTP_200_OK,
+        )
+
+
 @app.get("/onboarding/get_token", include_in_schema=False)
 async def onboarding(invite_link: str, request: Request):
     """
@@ -10423,7 +10506,7 @@ async def onboarding(invite_link: str, request: Request):
 
     if master_key is None:
         raise ProxyException(
-            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml.  https://docs.litellm.ai/docs/proxy/virtual_keys. If set, use `--detailed_debug` to debug issue.",
+            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml. If set, use `--detailed_debug` to debug issue.",
             type=ProxyErrorTypes.auth_error,
             param="master_key",
             code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -10619,7 +10702,7 @@ async def get_image():
 
     # get current_dir
     current_dir = os.path.dirname(os.path.abspath(__file__))
-    default_site_logo = os.path.join(current_dir, "logo.jpg")
+    default_site_logo = os.path.join(current_dir, "alchemi_logo.png")
 
     is_non_root = os.getenv("LITELLM_NON_ROOT", "").lower() == "true"
 
@@ -10642,7 +10725,7 @@ async def get_image():
 
     # Determine default logo path
     default_logo = (
-        os.path.join(assets_dir, "logo.jpg")
+        os.path.join(assets_dir, "alchemi_logo.png")
         if assets_dir != current_dir
         else default_site_logo
     )
@@ -10650,11 +10733,11 @@ async def get_image():
         default_logo = default_site_logo
 
     cache_dir = assets_dir if os.access(assets_dir, os.W_OK) else current_dir
-    cache_path = os.path.join(cache_dir, "cached_logo.jpg")
+    cache_path = os.path.join(cache_dir, "cached_logo.png")
 
     # [OPTIMIZATION] Check if the cached image exists first
     if os.path.exists(cache_path):
-        return FileResponse(cache_path, media_type="image/jpeg")
+        return FileResponse(cache_path, media_type="image/png")
 
     logo_path = os.getenv("UI_LOGO_PATH", default_logo)
     verbose_proxy_logger.debug("Reading logo from path: %s", logo_path)
@@ -10677,17 +10760,17 @@ async def get_image():
                     f.write(response.content)
 
                 # Return the cached image as a FileResponse
-                return FileResponse(cache_path, media_type="image/jpeg")
+                return FileResponse(cache_path, media_type="image/png")
             else:
                 # Handle the case when the image cannot be downloaded
-                return FileResponse(default_logo, media_type="image/jpeg")
+                return FileResponse(default_logo, media_type="image/png")
         except Exception as e:
             # Handle any exceptions during the download (e.g., timeout, connection error)
             verbose_proxy_logger.debug(f"Error downloading logo from {logo_path}: {e}")
-            return FileResponse(default_logo, media_type="image/jpeg")
+            return FileResponse(default_logo, media_type="image/png")
     else:
         # Return the local image file if the logo path is not an HTTP/HTTPS URL
-        return FileResponse(logo_path, media_type="image/jpeg")
+        return FileResponse(logo_path, media_type="image/png")
 
 
 #### INVITATION MANAGEMENT ####
@@ -12467,6 +12550,13 @@ app.include_router(ui_discovery_endpoints_router)
 app.include_router(agent_endpoints_router)
 app.include_router(a2a_router)
 app.include_router(access_group_router)
+
+# Alchemi Studio Console routers
+try:
+    app.include_router(alchemi_account_router)
+    app.include_router(alchemi_audit_router)
+except NameError:
+    pass
 ########################################################
 # MCP Server
 ########################################################

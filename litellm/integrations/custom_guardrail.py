@@ -398,12 +398,12 @@ class CustomGuardrail(CustomLogger):
             if self._event_hook_is_event_type(event_type):
                 if isinstance(self.event_hook, Mode):
                     try:
-                        from litellm_enterprise.integrations.custom_guardrail import (
-                            EnterpriseCustomGuardrailHelper,
+                        from alchemi.enterprise_features.guardrail_helpers import (
+                            AlchemiCustomGuardrailHelper as EnterpriseCustomGuardrailHelper,
                         )
                     except ImportError:
                         raise ImportError(
-                            "Setting tag-based guardrails is only available in litellm-enterprise. You must be a premium user to use this feature."
+                            "Tag-based guardrails require the alchemi module."
                         )
                     result = EnterpriseCustomGuardrailHelper._should_run_if_mode_by_tag(
                         data, self.event_hook
@@ -425,12 +425,12 @@ class CustomGuardrail(CustomLogger):
 
         if isinstance(self.event_hook, Mode):
             try:
-                from litellm_enterprise.integrations.custom_guardrail import (
-                    EnterpriseCustomGuardrailHelper,
+                from alchemi.enterprise_features.guardrail_helpers import (
+                    AlchemiCustomGuardrailHelper as EnterpriseCustomGuardrailHelper,
                 )
             except ImportError:
                 raise ImportError(
-                    "Setting tag-based guardrails is only available in litellm-enterprise. You must be a premium user to use this feature."
+                    "Tag-based guardrails require the alchemi module."
                 )
             result = EnterpriseCustomGuardrailHelper._should_run_if_mode_by_tag(
                 data, self.event_hook

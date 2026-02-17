@@ -9235,3 +9235,265 @@ export const deleteClaudeCodePlugin = async (accessToken: string, pluginName: st
     throw error;
   }
 };
+
+// ============================================================================
+// Alchemi Tenant Management API Functions
+// ============================================================================
+
+export interface AlchemiAccount {
+  account_id: string;
+  account_name: string;
+  account_alias?: string;
+  domain?: string;
+  status: string;
+  metadata: Record<string, any>;
+  max_budget?: number;
+  spend: number;
+  created_at: string;
+  created_by?: string;
+  updated_at: string;
+  admins?: AlchemiAccountAdmin[];
+}
+
+export interface AlchemiAccountAdmin {
+  id: string;
+  account_id: string;
+  user_email: string;
+  role: string;
+  created_at: string;
+  created_by?: string;
+}
+
+export const accountCreateCall = async (
+  accessToken: string,
+  formValues: {
+    account_name: string;
+    account_alias?: string;
+    domain?: string;
+    max_budget?: number;
+    metadata?: Record<string, any>;
+    admin_email?: string;
+  },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/account/new` : `/account/new`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formValues),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      handleError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create account:", error);
+    throw error;
+  }
+};
+
+export const accountListCall = async (accessToken: string): Promise<{ accounts: AlchemiAccount[] }> => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/account/list` : `/account/list`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      handleError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list accounts:", error);
+    throw error;
+  }
+};
+
+export const accountInfoCall = async (accessToken: string, accountId: string): Promise<AlchemiAccount> => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/account/${accountId}` : `/account/${accountId}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      handleError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to get account info:", error);
+    throw error;
+  }
+};
+
+export const accountUpdateCall = async (
+  accessToken: string,
+  accountId: string,
+  formValues: {
+    account_name?: string;
+    account_alias?: string;
+    domain?: string;
+    status?: string;
+    max_budget?: number;
+    metadata?: Record<string, any>;
+  },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/account/${accountId}` : `/account/${accountId}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(formValues),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      handleError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update account:", error);
+    throw error;
+  }
+};
+
+export const accountDeleteCall = async (accessToken: string, accountId: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/account/${accountId}` : `/account/${accountId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      handleError(errorData);
+      throw new Error(`Error suspending account: ${errorData}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to suspend account:", error);
+    throw error;
+  }
+};
+
+export const accountAdminAddCall = async (
+  accessToken: string,
+  accountId: string,
+  userEmail: string,
+  role: string = "account_admin",
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/account/${accountId}/admin`
+      : `/account/${accountId}/admin`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ user_email: userEmail, role }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      handleError(errorMessage);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to add account admin:", error);
+    throw error;
+  }
+};
+
+export const accountAdminRemoveCall = async (
+  accessToken: string,
+  accountId: string,
+  email: string,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/account/${accountId}/admin/${encodeURIComponent(email)}`
+      : `/account/${accountId}/admin/${encodeURIComponent(email)}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.text();
+      handleError(errorData);
+      throw new Error(`Error removing admin: ${errorData}`);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to remove account admin:", error);
+    throw error;
+  }
+};
+
+export const loginResolveCall = async (email: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/v2/login/resolve` : `/v2/login/resolve`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ email }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      const errorMessage = deriveErrorMessage(errorData);
+      throw new Error(errorMessage);
+    }
+
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to resolve login:", error);
+    throw error;
+  }
+};

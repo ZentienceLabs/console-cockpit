@@ -108,8 +108,9 @@ class UserManagementEventHooks:
         #########################################################
         ########## V2 USER INVITATION EMAIL ################
         #########################################################
+        # Alchemi: email notifications handled by alchemi.enterprise_features.email_notifications
         try:
-            from litellm_enterprise.enterprise_callbacks.send_emails.base_email import (
+            from alchemi.enterprise_features.email_notifications import (
                 BaseEmailLogger,
             )
 

@@ -12,7 +12,7 @@ from .responses_id_security import ResponsesIDSecurity
 ### CHECK IF ENTERPRISE HOOKS ARE AVAILABLE ####
 
 try:
-    from enterprise.enterprise_hooks import ENTERPRISE_PROXY_HOOKS
+    from alchemi.enterprise_features.hooks import ENTERPRISE_PROXY_HOOKS
 except ImportError:
     ENTERPRISE_PROXY_HOOKS = {}
 

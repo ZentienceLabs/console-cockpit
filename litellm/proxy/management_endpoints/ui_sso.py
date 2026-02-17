@@ -344,16 +344,14 @@ async def google_login(
     # check if user defined a custom auth sso sign in handler, if yes, use it
     if user_custom_ui_sso_sign_in_handler is not None:
         try:
-            from litellm_enterprise.proxy.auth.custom_sso_handler import (  # type: ignore[import-untyped]
-                EnterpriseCustomSSOHandler,
-            )
+            from alchemi.enterprise_features.custom_sso_handler import AlchemiCustomSSOHandler as EnterpriseCustomSSOHandler
 
             return await EnterpriseCustomSSOHandler.handle_custom_ui_sso_sign_in(
                 request=request,
             )
         except ImportError:
             raise ValueError(
-                "Enterprise features are not available. Custom UI SSO sign-in requires LiteLLM Enterprise."
+                "Enterprise features are not available. Custom UI SSO sign-in requires Alchemi Studio Console."
             )
 
     # Check if we should use SSO handler
@@ -1083,7 +1081,7 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
     # get url from request
     if master_key is None:
         raise ProxyException(
-            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml.  https://docs.litellm.ai/docs/proxy/virtual_keys. If set, use `--detailed_debug` to debug issue.",
+            message="Master Key not set for Proxy. Please set Master Key to use Admin UI. Set `LITELLM_MASTER_KEY` in .env or set general_settings:master_key in config.yaml. If set, use `--detailed_debug` to debug issue.",
             type=ProxyErrorTypes.auth_error,
             param="master_key",
             code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -1740,7 +1738,7 @@ class SSOAuthenticationHandler:
                 generic_authorization_endpoint=generic_authorization_endpoint,
             )
         raise ValueError(
-            "Unknown SSO provider. Please setup SSO with client IDs https://docs.litellm.ai/docs/proxy/admin_ui_sso"
+            "Unknown SSO provider. Please setup SSO with the appropriate client IDs (GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID, or GENERIC_CLIENT_ID)."
         )
 
     @staticmethod
@@ -2379,7 +2377,17 @@ class SSOAuthenticationHandler:
             ),
             disabled_non_admin_personal_key_creation=disabled_non_admin_personal_key_creation,
             server_root_path=get_server_root_path(),
+            account_id=None,
+            is_super_admin=False,
         )
+
+        # Alchemi: Resolve account_id for SSO user
+        try:
+            from alchemi.auth.account_resolver import resolve_account_for_user
+            _sso_account_id = await resolve_account_for_user(user_email, prisma_client)
+            returned_ui_token_object["account_id"] = _sso_account_id
+        except Exception:
+            pass
 
         jwt_token = jwt.encode(
             cast(dict, returned_ui_token_object),

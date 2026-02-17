@@ -811,7 +811,7 @@ const BulkCreateUsersButton: React.FC<BulkCreateUsersProps> = ({
                         <Text className="block text-sm text-blue-700 mt-1">
                           <span className="font-medium">Next step:</span> Download the credentials file containing
                           Virtual Keys and invitation links. Users will need these Virtual Keys to make LLM requests
-                          through LiteLLM.
+                          through the proxy.
                         </Text>
                       </div>
                     </div>

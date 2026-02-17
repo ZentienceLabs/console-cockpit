@@ -329,7 +329,7 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
       let errMsg = "Failed to add team member";
 
       if (error?.raw?.detail?.error?.includes("Assigning team admins is a premium feature")) {
-        errMsg = "Assigning admins is an enterprise-only feature. Please upgrade your LiteLLM plan to enable this.";
+        errMsg = "Assigning admins is an enterprise-only feature. This feature requires an enterprise license to enable this.";
       } else if (error?.message) {
         errMsg = error.message;
       }
@@ -369,7 +369,7 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
     } catch (error: any) {
       let errMsg = "Failed to update team member";
       if (error?.raw?.detail?.includes("Assigning team admins is a premium feature")) {
-        errMsg = "Assigning admins is an enterprise-only feature. Please upgrade your LiteLLM plan to enable this.";
+        errMsg = "Assigning admins is an enterprise-only feature. This feature requires an enterprise license to enable this.";
       } else if (error?.message) {
         errMsg = error.message;
       }
@@ -916,7 +916,7 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
                           Guardrails{" "}
                           <Tooltip title="Setup your first guardrail">
                             <a
-                              href="https://docs.litellm.ai/docs/proxy/guardrails/quick_start"
+                              href="#"
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
@@ -958,7 +958,7 @@ const TeamInfoView: React.FC<TeamInfoProps> = ({
                           Policies{" "}
                           <Tooltip title="Apply policies to this team to control guardrails and other settings">
                             <a
-                              href="https://docs.litellm.ai/docs/proxy/guardrails/guardrail_policies"
+                              href="#"
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}

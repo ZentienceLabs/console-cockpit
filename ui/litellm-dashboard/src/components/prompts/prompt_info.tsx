@@ -224,7 +224,7 @@ const PromptInfoView: React.FC<PromptInfoProps> = ({ promptId, onClose, accessTo
 
             {promptData.litellm_params && Object.keys(promptData.litellm_params).length > 0 && (
               <Card className="mt-6">
-                <Text className="font-medium">LiteLLM Parameters</Text>
+                <Text className="font-medium">Parameters</Text>
                 <div className="mt-2 p-3 bg-gray-50 rounded-md">
                   <pre className="text-xs text-gray-800 whitespace-pre-wrap">
                     {JSON.stringify(promptData.litellm_params, null, 2)}
@@ -310,7 +310,7 @@ const PromptInfoView: React.FC<PromptInfoProps> = ({ promptId, onClose, accessTo
                   </div>
 
                   <div>
-                    <Text className="font-medium">LiteLLM Parameters</Text>
+                    <Text className="font-medium">Parameters</Text>
                     <div className="mt-2 p-3 bg-gray-50 rounded-md border">
                       <pre className="text-xs text-gray-800 whitespace-pre-wrap overflow-auto max-h-96">
                         {JSON.stringify(promptData.litellm_params, null, 2)}

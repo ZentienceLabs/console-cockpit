@@ -17,6 +17,9 @@ class ReturnedUITokenObject(TypedDict):
     auth_header_name: str
     disabled_non_admin_personal_key_creation: bool
     server_root_path: str  # e.g. `/litellm`
+    # Alchemi: Multi-tenant fields
+    account_id: Optional[str]
+    is_super_admin: bool
 
 
 class ParsedOpenIDResult(TypedDict, total=False):

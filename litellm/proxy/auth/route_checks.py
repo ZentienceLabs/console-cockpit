@@ -22,7 +22,7 @@ class RouteChecks:
         Check if management route is disabled and raise exception
         """
         try:
-            from litellm_enterprise.proxy.auth.route_checks import EnterpriseRouteChecks
+            from alchemi.enterprise_features.route_checks import AlchemiRouteChecks as EnterpriseRouteChecks
 
             EnterpriseRouteChecks.should_call_route(route=route)
         except HTTPException as e:

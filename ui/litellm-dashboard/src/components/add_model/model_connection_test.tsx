@@ -281,7 +281,7 @@ ${formattedBody}
       )}
       <Divider style={{ margin: "24px 0 16px" }} />
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <Button type="link" href="https://docs.litellm.ai/docs/providers" target="_blank" icon={<InfoCircleOutlined />}>
+        <Button type="link" href="#" target="_blank" icon={<InfoCircleOutlined />}>
           View Documentation
         </Button>
       </div>

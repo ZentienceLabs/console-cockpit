@@ -7,8 +7,8 @@ import AntdGlobalProvider from "@/contexts/AntdGlobalProvider";
 const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "LiteLLM Dashboard",
-  description: "LiteLLM Proxy Admin UI",
+  title: "Alchemi Studio Console",
+  description: "Alchemi Studio Console",
   icons: { icon: "./favicon.ico" },
 };
 

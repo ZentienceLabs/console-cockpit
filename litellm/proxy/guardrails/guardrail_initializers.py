@@ -125,8 +125,8 @@ def initialize_presidio(litellm_params: LitellmParams, guardrail: Guardrail):
 
 def initialize_hide_secrets(litellm_params: LitellmParams, guardrail: Guardrail):
     try:
-        from litellm_enterprise.enterprise_callbacks.secret_detection import (
-            _ENTERPRISE_SecretDetection,
+        from alchemi.hooks.secret_detection import (
+            AlchemiSecretDetection as _ENTERPRISE_SecretDetection,
         )
     except ImportError:
         raise Exception(

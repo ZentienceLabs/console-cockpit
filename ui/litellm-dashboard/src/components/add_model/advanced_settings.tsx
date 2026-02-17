@@ -115,7 +115,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
                   Guardrails{" "}
                   <Tooltip title="Apply safety guardrails to this key to filter content or enforce policies">
                     <a
-                      href="https://docs.litellm.ai/docs/proxy/guardrails/quick_start"
+                      href="#"
                       target="_blank"
                       rel="noopener noreferrer"
                       onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -203,7 +203,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
               tooltip={
                 <span>
                   Allow using these credentials in pass through routes.{" "}
-                  <Link href="https://docs.litellm.ai/docs/pass_through/vertex_ai" target="_blank">
+                  <Link href="#" target="_blank">
                     Learn more
                   </Link>
                 </span>
@@ -218,9 +218,9 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
               onCacheControlChange={handleCacheControlChange}
             />
             <Form.Item
-              label="LiteLLM Params"
+              label="Params"
               name="litellm_extra_params"
-              tooltip="Optional litellm params used for making a litellm.completion() call."
+              tooltip="Optional params used for making a completion call."
               className="mb-4 mt-4"
               rules={[{ validator: formItemValidateJSON }]}
             >
@@ -237,8 +237,8 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
               <Col span={10}></Col>
               <Col span={10}>
                 <Text className="text-gray-600 text-sm">
-                  Pass JSON of litellm supported params{" "}
-                  <Link href="https://docs.litellm.ai/docs/completion/input" target="_blank">
+                  Pass JSON of supported params{" "}
+                  <Link href="#" target="_blank">
                     litellm.completion() call
                   </Link>
                 </Text>

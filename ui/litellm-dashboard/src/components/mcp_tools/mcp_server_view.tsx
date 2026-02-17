@@ -231,7 +231,7 @@ export const MCPServerView: React.FC<MCPServerViewProps> = ({
                     <div>{handleAuth(mcpServer.auth_type)}</div>
                   </div>
                   <div>
-                    <Text className="font-medium">Allow All LiteLLM Keys</Text>
+                    <Text className="font-medium">Allow All API Keys</Text>
                     <div className="flex items-center gap-2">
                       {mcpServer.allow_all_keys ? (
                         <span className="px-2 py-1 bg-green-50 text-green-700 rounded-md text-sm">

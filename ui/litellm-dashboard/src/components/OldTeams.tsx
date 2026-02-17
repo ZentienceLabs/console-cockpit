@@ -1078,7 +1078,7 @@ const Teams: React.FC<TeamProps> = ({
                                   <span>
                                     Organizations can have multiple teams. Learn more about{" "}
                                     <a
-                                      href="https://docs.litellm.ai/docs/proxy/user_management_heirarchy"
+                                      href="#"
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       style={{
@@ -1299,7 +1299,7 @@ const Teams: React.FC<TeamProps> = ({
                             Guardrails{" "}
                             <Tooltip title="Setup your first guardrail">
                               <a
-                                href="https://docs.litellm.ai/docs/proxy/guardrails/quick_start"
+                                href="#"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}
@@ -1353,7 +1353,7 @@ const Teams: React.FC<TeamProps> = ({
                             Policies{" "}
                             <Tooltip title="Apply policies to this team to control guardrails and other settings">
                               <a
-                                href="https://docs.litellm.ai/docs/proxy/guardrails/guardrail_policies"
+                                href="#"
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 onClick={(e) => e.stopPropagation()}

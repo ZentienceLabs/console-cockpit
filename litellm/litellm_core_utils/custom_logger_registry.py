@@ -99,16 +99,9 @@ class CustomLoggerRegistry:
     }
 
     try:
-        from litellm_enterprise.enterprise_callbacks.pagerduty.pagerduty import (
-            PagerDutyAlerting,
-        )
-        from litellm_enterprise.enterprise_callbacks.send_emails.resend_email import (
+        from alchemi.enterprise_features.email_notifications import (
             ResendEmailLogger,
-        )
-        from litellm_enterprise.enterprise_callbacks.send_emails.sendgrid_email import (
             SendGridEmailLogger,
-        )
-        from litellm_enterprise.enterprise_callbacks.send_emails.smtp_email import (
             SMTPEmailLogger,
         )
 
@@ -116,16 +109,16 @@ class CustomLoggerRegistry:
             GenericAPILogger,
         )
 
-        enterprise_loggers = {
-            "pagerduty": PagerDutyAlerting,
+        # PagerDutyAlerting not yet ported to alchemi
+        alchemi_loggers = {
             "generic_api": GenericAPILogger,
             "resend_email": ResendEmailLogger,
             "sendgrid_email": SendGridEmailLogger,
             "smtp_email": SMTPEmailLogger,
         }
-        CALLBACK_CLASS_STR_TO_CLASS_TYPE.update(enterprise_loggers)
+        CALLBACK_CLASS_STR_TO_CLASS_TYPE.update(alchemi_loggers)
     except ImportError:
-        pass  # enterprise not installed
+        pass  # alchemi modules not available
 
     @classmethod
     def get_callback_str_from_class_type(cls, class_type: type) -> Union[str, None]:

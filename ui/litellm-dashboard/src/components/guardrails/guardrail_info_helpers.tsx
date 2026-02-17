@@ -98,7 +98,7 @@ export const shouldRenderContentFilterConfigSettings = (provider: string | null)
   // Check both dynamic and legacy providers
   const currentProviders = getGuardrailProviders();
   const providerEnum = currentProviders[provider as keyof typeof currentProviders];
-  return providerEnum === "LiteLLM Content Filter";
+  return providerEnum === "Content Filter";
 };
 
 const asset_logos_folder = "../ui/assets/logos/";
@@ -123,7 +123,7 @@ export const guardrailLogoMap: Record<string, string> = {
   "OpenAI Moderation": `${asset_logos_folder}openai_small.svg`,
   EnkryptAI: `${asset_logos_folder}enkrypt_ai.avif`,
   "Prompt Security": `${asset_logos_folder}prompt_security.png`,
-  "LiteLLM Content Filter": `${asset_logos_folder}litellm_logo.jpg`,
+  "Content Filter": `${asset_logos_folder}litellm_logo.jpg`,
 };
 
 export const getGuardrailLogoAndName = (guardrailValue: string): { logo: string; displayName: string } => {

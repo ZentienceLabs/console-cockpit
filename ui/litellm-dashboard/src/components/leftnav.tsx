@@ -214,13 +214,15 @@ const menuGroups: MenuGroup[] = [
         label: "AI Hub",
         icon: <AppstoreOutlined />,
       },
+      /* Alchemi: Learning Resources menu item removed
       {
         key: "learning-resources",
         page: "learning-resources",
         label: "Learning Resources",
         icon: <BookOutlined />,
-        external_url: "https://models.litellm.ai/cookbook",
+        external_url: "#",
       },
+      */
       {
         key: "experimental",
         page: "experimental",

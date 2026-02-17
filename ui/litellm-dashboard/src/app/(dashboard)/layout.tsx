@@ -22,10 +22,13 @@ function withBase(path: string): string {
 }
 /** -------------------------------- */
 
+// Alchemi: Lazy-load Tenant Admin page for super admins
+const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
+
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { accessToken, userRole, userId, userEmail, premiumUser } = useAuthorized();
+  const { accessToken, userRole, userId, userEmail, premiumUser, isSuperAdmin } = useAuthorized();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [page, setPage] = useState(() => {
     return searchParams.get("page") || "api-keys";
@@ -43,6 +46,35 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   }, [searchParams]);
 
   const toggleSidebar = () => setSidebarCollapsed((v) => !v);
+
+  // Alchemi: Super admin sees only the Tenant Management page
+  if (isSuperAdmin) {
+    return (
+      <ThemeProvider accessToken={""}>
+        <div className="flex flex-col min-h-screen">
+          <Navbar
+            isPublicPage={false}
+            sidebarCollapsed={false}
+            onToggleSidebar={() => {}}
+            userID={userId}
+            userEmail={userEmail}
+            userRole="Super Admin"
+            premiumUser={true}
+            proxySettings={undefined}
+            setProxySettings={() => {}}
+            accessToken={accessToken}
+            isDarkMode={false}
+            toggleDarkMode={() => {}}
+          />
+          <main className="flex-1">
+            <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
+              <TenantAdminPage />
+            </React.Suspense>
+          </main>
+        </div>
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider accessToken={""}>

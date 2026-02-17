@@ -73,14 +73,11 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 pii_masking_object = _OPTIONAL_PresidioPIIMasking(**params)
                 imported_list.append(pii_masking_object)
             elif isinstance(callback, str) and callback == "llamaguard_moderations":
-                try:
-                    from litellm_enterprise.enterprise_callbacks.llama_guard import (
-                        _ENTERPRISE_LlamaGuard,
-                    )
-                except ImportError:
+                # Alchemi: llama_guard not yet re-implemented, optional
+                _ENTERPRISE_LlamaGuard = None
+                if _ENTERPRISE_LlamaGuard is None:
                     raise Exception(
-                        "MissingTrying to use Llama Guard"
-                        + CommonProxyErrors.missing_enterprise_package.value
+                        "Llama Guard is not available in Alchemi Studio Console."
                     )
 
                 if premium_user is not True:
@@ -93,8 +90,8 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 imported_list.append(llama_guard_object)
             elif isinstance(callback, str) and callback == "hide_secrets":
                 try:
-                    from litellm_enterprise.enterprise_callbacks.secret_detection import (
-                        _ENTERPRISE_SecretDetection,
+                    from alchemi.hooks.secret_detection import (
+                        AlchemiSecretDetection as _ENTERPRISE_SecretDetection,
                     )
                 except ImportError:
                     raise Exception(
@@ -112,7 +109,7 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 imported_list.append(_secret_detection_object)
             elif isinstance(callback, str) and callback == "openai_moderations":
                 try:
-                    from enterprise.enterprise_hooks.openai_moderation import (
+                    from alchemi.enterprise_features.openai_moderation import (
                         _ENTERPRISE_OpenAI_Moderation,
                     )
                 except ImportError:
@@ -148,7 +145,7 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 imported_list.append(aporia_guardrail_object)
             elif isinstance(callback, str) and callback == "google_text_moderation":
                 try:
-                    from enterprise.enterprise_hooks.google_text_moderation import (
+                    from alchemi.enterprise_features.google_text_moderation import (
                         _ENTERPRISE_GoogleTextModeration,
                     )
                 except ImportError:
@@ -166,14 +163,11 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 google_text_moderation_obj = _ENTERPRISE_GoogleTextModeration()
                 imported_list.append(google_text_moderation_obj)
             elif isinstance(callback, str) and callback == "llmguard_moderations":
-                try:
-                    from litellm_enterprise.enterprise_callbacks.llm_guard import (
-                        _ENTERPRISE_LLMGuard,
-                    )
-                except ImportError:
+                # Alchemi: llm_guard not yet re-implemented, optional
+                _ENTERPRISE_LLMGuard = None
+                if _ENTERPRISE_LLMGuard is None:
                     raise Exception(
-                        "Trying to use Llm Guard"
-                        + CommonProxyErrors.missing_enterprise_package.value
+                        "LLM Guard is not available in Alchemi Studio Console."
                     )
 
                 if premium_user is not True:
@@ -186,7 +180,7 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 imported_list.append(llm_guard_moderation_obj)
             elif isinstance(callback, str) and callback == "blocked_user_check":
                 try:
-                    from enterprise.enterprise_hooks.blocked_user_list import (
+                    from alchemi.enterprise_features.blocked_user_list import (
                         _ENTERPRISE_BlockedUserList,
                     )
                 except ImportError:
@@ -207,7 +201,7 @@ def initialize_callbacks_on_proxy(  # noqa: PLR0915
                 imported_list.append(blocked_user_list)
             elif isinstance(callback, str) and callback == "banned_keywords":
                 try:
-                    from enterprise.enterprise_hooks.banned_keywords import (
+                    from alchemi.enterprise_features.banned_keywords import (
                         _ENTERPRISE_BannedKeywords,
                     )
                 except ImportError:

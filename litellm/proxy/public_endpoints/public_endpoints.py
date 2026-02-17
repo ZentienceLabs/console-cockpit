@@ -122,7 +122,7 @@ async def public_model_hub_info():
     from litellm.proxy.proxy_server import _title, version
 
     try:
-        from litellm_enterprise.proxy.proxy_server import EnterpriseProxyConfig
+        from alchemi.config.settings import AlchemiProxyConfig as EnterpriseProxyConfig
 
         custom_docs_description = EnterpriseProxyConfig.get_custom_docs_description()
     except Exception:

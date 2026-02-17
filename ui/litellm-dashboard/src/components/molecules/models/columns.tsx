@@ -21,7 +21,7 @@ const credentialsInfoPopoverContent = (
             <Title level={5} style={{ margin: 0, color: "#1890ff" }}>Reusable</Title>
           </Flex>
           <Text type="secondary">
-            Credentials saved in LiteLLM that can be added to models repeatedly.
+            Credentials saved in the system that can be added to models repeatedly.
           </Text>
         </Space>
       </Flex>
@@ -117,7 +117,7 @@ export const columns = (
 
               <Space direction="vertical" size={2}>
                 <Text type="secondary" style={{ fontSize: 11 }}>
-                  LiteLLM Model Name
+                  Model Name
                 </Text>
                 <Text
                   style={{ fontSize: 13 }}

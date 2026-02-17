@@ -706,13 +706,13 @@ const Settings: React.FC<SettingsPageProps> = ({ accessToken, userRole, userID, 
         footer={null}
       >
         <a
-          href="https://docs.litellm.ai/docs/proxy/logging"
+          href="#"
           className="mb-8 mt-4"
           target="_blank"
           style={{ color: "blue" }}
         >
           {" "}
-          LiteLLM Docs: Logging
+          Docs: Logging
         </a>
 
         <Form

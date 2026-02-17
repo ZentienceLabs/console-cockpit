@@ -116,7 +116,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
     <div className="w-full mx-auto max-w-4xl px-6 py-8">
       <div className="mb-8">
         <Title className="text-2xl font-bold mb-2">Logo Customization</Title>
-        <Text className="text-gray-600">Customize your LiteLLM admin dashboard with a custom logo.</Text>
+        <Text className="text-gray-600">Customize your admin dashboard with a custom logo.</Text>
       </div>
 
       <Card className="shadow-sm p-6">
@@ -134,7 +134,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
               className="w-full"
             />
             <Text className="text-xs text-gray-500 mt-1">
-              Enter a URL for your custom logo or leave empty to use the default LiteLLM logo
+              Enter a URL for your custom logo or leave empty to use the default logo
             </Text>
           </div>
 
@@ -157,7 +157,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
                   }}
                 />
               ) : (
-                <Text className="text-gray-500 text-sm">Default LiteLLM logo will be used</Text>
+                <Text className="text-gray-500 text-sm">Default logo will be used</Text>
               )}
             </div>
           </div>

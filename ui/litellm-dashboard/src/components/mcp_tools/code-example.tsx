@@ -27,7 +27,7 @@ async def main():
             # Create message
             messages = [
                 ChatCompletionUserMessageParam(
-                    content="Send an email about LiteLLM supporting MCP",
+                    content="Send an email about MCP support",
                     role="user"
                 )
             ]

@@ -15,7 +15,7 @@ export function ClaudeCodePrompt({ onOpen, onDismiss, isVisible }: ClaudeCodePro
       onDismiss={onDismiss}
       isVisible={isVisible}
       title="Claude Code Feedback"
-      description="Help us improve your Claude Code experience with LiteLLM! Share your feedback in 4 quick questions."
+      description="Help us improve your Claude Code experience with Alchemi Studio Console! Share your feedback in 4 quick questions."
       buttonText="Share feedback"
       icon={Code}
       accentColor="#7c3aed"

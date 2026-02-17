@@ -30,12 +30,8 @@ export function PremiumVectorStoreSelector({
         </div>
         <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
           <Text className="text-sm text-yellow-800">
-            Vector store access control is a LiteLLM Enterprise feature. Get a trial key{" "}
-            <a href="https://www.litellm.ai/#pricing" target="_blank" rel="noopener noreferrer" className="underline">
-              here
-            </a>
-            .
-          </Text>
+            Vector store access control is an enterprise feature.
+</Text>
         </div>
       </div>
     );

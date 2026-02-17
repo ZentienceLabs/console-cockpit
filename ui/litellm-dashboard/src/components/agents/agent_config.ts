@@ -133,7 +133,7 @@ export const AGENT_FORM_CONFIG: {
   },
   litellm: {
     key: "litellm",
-    title: "LiteLLM Parameters",
+    title: "Parameters",
     fields: [
       {
         name: "model",

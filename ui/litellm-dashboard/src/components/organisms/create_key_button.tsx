@@ -872,7 +872,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                         Guardrails{" "}
                         <Tooltip title="Apply safety guardrails to this key to filter content or enforce policies">
                           <a
-                            href="https://docs.litellm.ai/docs/proxy/guardrails/quick_start"
+                            href="#"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -908,7 +908,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                         Disable Global Guardrails{" "}
                         <Tooltip title="When enabled, this key will bypass any guardrails configured to run on every request (global guardrails)">
                           <a
-                            href="https://docs.litellm.ai/docs/proxy/guardrails/quick_start"
+                            href="#"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -935,7 +935,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                         Policies{" "}
                         <Tooltip title="Apply policies to this key to control guardrails and other settings">
                           <a
-                            href="https://docs.litellm.ai/docs/proxy/guardrails/guardrail_policies"
+                            href="#"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -971,7 +971,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                         Prompts{" "}
                         <Tooltip title="Allow this key to use specific prompt templates">
                           <a
-                            href="https://docs.litellm.ai/docs/proxy/prompt_management"
+                            href="#"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -1022,7 +1022,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                         Allowed Pass Through Routes{" "}
                         <Tooltip title="Allow this key to use specific pass through routes">
                           <a
-                            href="https://docs.litellm.ai/docs/proxy/pass_through"
+                            href="#"
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={(e) => e.stopPropagation()} // Prevent accordion from collapsing when clicking link
@@ -1207,10 +1207,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                     <Tooltip
                       title={
                         <span>
-                          Key-level logging settings is an enterprise feature, get in touch -
-                          <a href="https://www.litellm.ai/enterprise" target="_blank">
-                            https://www.litellm.ai/enterprise
-                          </a>
+                          Key-level logging settings is an enterprise feature.
                         </span>
                       }
                       placement="top"
@@ -1383,7 +1380,7 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
             <Col numColSpan={1}>
               <p>
                 Please save this secret key somewhere safe and accessible. For security reasons,{" "}
-                <b>you will not be able to view it again</b> through your LiteLLM account. If you lose this secret key,
+                <b>you will not be able to view it again</b> through your account. If you lose this secret key,
                 you will need to generate a new one.
               </p>
             </Col>

@@ -546,7 +546,7 @@ const CustomCodeModal: React.FC<CustomCodeModalProps> = ({
                     }}
                     onClick={(e) => {
                       e.preventDefault();
-                      window.open('https://models.litellm.ai/guardrails', '_blank');
+                      window.open('#', '_blank');
                     }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = '#f0f0f0';

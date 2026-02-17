@@ -166,33 +166,25 @@ from .specialty_caches.dynamic_logging_cache import DynamicLoggingCache
 if TYPE_CHECKING:
     from litellm.llms.base_llm.passthrough.transformation import BasePassthroughConfig
 try:
-    from litellm_enterprise.enterprise_callbacks.callback_controls import (
-        EnterpriseCallbackControls,
+    from alchemi.enterprise_features.callback_controls import (
+        AlchemiCallbackControls as EnterpriseCallbackControls,
     )
-    from litellm_enterprise.enterprise_callbacks.pagerduty.pagerduty import (
-        PagerDutyAlerting,
-    )
-    from litellm_enterprise.enterprise_callbacks.send_emails.resend_email import (
+    from alchemi.enterprise_features.email_notifications import (
         ResendEmailLogger,
-    )
-    from litellm_enterprise.enterprise_callbacks.send_emails.sendgrid_email import (
         SendGridEmailLogger,
-    )
-    from litellm_enterprise.enterprise_callbacks.send_emails.smtp_email import (
         SMTPEmailLogger,
-    )
-    from litellm_enterprise.litellm_core_utils.litellm_logging import (
-        StandardLoggingPayloadSetup as EnterpriseStandardLoggingPayloadSetup,
     )
 
     from litellm.integrations.generic_api.generic_api_callback import GenericAPILogger
 
-    EnterpriseStandardLoggingPayloadSetupVAR: Optional[
-        Type[EnterpriseStandardLoggingPayloadSetup]
-    ] = EnterpriseStandardLoggingPayloadSetup
+    # PagerDutyAlerting not yet ported to alchemi
+    PagerDutyAlerting = CustomLogger  # type: ignore
+
+    # EnterpriseStandardLoggingPayloadSetup not yet ported
+    EnterpriseStandardLoggingPayloadSetupVAR = None
 except Exception as e:
     verbose_logger.debug(
-        f"[Non-Blocking] Unable to import GenericAPILogger - LiteLLM Enterprise Feature - {str(e)}"
+        f"[Non-Blocking] Unable to import Alchemi callbacks - {str(e)}"
     )
     GenericAPILogger = CustomLogger  # type: ignore
     ResendEmailLogger = CustomLogger  # type: ignore

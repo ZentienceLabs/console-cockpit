@@ -56,6 +56,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ onLogout }) => {
           <MailOutlined />
           <Text type="secondary">{userEmail || "-"}</Text>
         </Space>
+        {/* Alchemi: Premium/Standard badge removed
         {premiumUser ? (
           <Tag
             icon={<CrownOutlined />}
@@ -72,6 +73,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ onLogout }) => {
             </Tag>
           </Tooltip>
         )}
+        */}
       </Space>
       <Divider style={{ margin: "8px 0" }} />
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
@@ -95,6 +97,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ onLogout }) => {
         </Space>
         <Text>{userRole}</Text>
       </Space>
+      {/* Alchemi: Toggle sections removed
       <Divider style={{ margin: "8px 0" }} />
       <Space style={{ width: "100%", justifyContent: "space-between" }}>
         <Text type="secondary">Hide New Feature Indicators</Text>
@@ -148,6 +151,7 @@ const UserDropdown: React.FC<UserDropdownProps> = ({ onLogout }) => {
           aria-label="Toggle hide usage indicator"
         />
       </Space>
+      */}
     </Space>
   );
 

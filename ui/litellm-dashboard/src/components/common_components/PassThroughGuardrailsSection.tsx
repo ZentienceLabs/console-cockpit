@@ -82,7 +82,7 @@ const PassThroughGuardrailsSection: React.FC<PassThroughGuardrailsSectionProps> 
           <span>
             Field-Level Targeting{" "}
             <a
-              href="https://docs.litellm.ai/docs/proxy/pass_through_guardrails#field-level-targeting"
+              href="#"
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-600 hover:text-blue-800 underline"

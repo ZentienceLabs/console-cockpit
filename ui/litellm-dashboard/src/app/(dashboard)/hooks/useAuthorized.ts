@@ -70,6 +70,9 @@ const useAuthorized = () => {
     premiumUser: decoded?.premium_user ?? null,
     disabledPersonalKeyCreation: decoded?.disabled_non_admin_personal_key_creation ?? null,
     showSSOBanner: decoded?.login_method === "username_password",
+    // Alchemi: Multi-tenant fields
+    accountId: decoded?.account_id ?? null,
+    isSuperAdmin: decoded?.is_super_admin ?? false,
   };
 };
 

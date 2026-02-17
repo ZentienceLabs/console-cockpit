@@ -97,24 +97,25 @@ const Navbar: React.FC<NavbarProps> = ({
                   <div className="h-10 max-w-48 flex items-center justify-center overflow-hidden">
                     <img
                       src={imageUrl}
-                      alt="LiteLLM Brand"
+                      alt="Alchemi Studio Console"
                       className="max-w-full max-h-full w-auto h-auto object-contain"
                     />
                   </div>
                 </div>
               </Link>
+              {/* Alchemi: Version tag and release notes link removed
               {version && (
                 <div className="relative">
                   <span
                     className="absolute -top-1 -left-2 text-lg animate-bounce"
                     style={{ animationDuration: "2s" }}
-                    title="Thanks for using LiteLLM!"
+                    title="What's New"
                   >
                     ❄️
                   </span>
                   <Tag className="relative text-xs font-medium cursor-pointer z-10">
                     <a
-                      href="https://docs.litellm.ai/release_notes"
+                      href="#"
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex-shrink-0"
@@ -124,11 +125,13 @@ const Navbar: React.FC<NavbarProps> = ({
                   </Tag>
                 </div>
               )}
+              */}
             </div>
           </div>
           {/* Right side nav items */}
           <div className="flex items-center space-x-5 ml-auto">
-            <CommunityEngagementButtons />
+            {/* Alchemi: Community engagement buttons removed */}
+            {/* <CommunityEngagementButtons /> */}
             {/* Dark mode is currently a work in progress. To test, you can change 'false' to 'true' below.
             Do not set this to true by default until all components are confirmed to support dark mode styles. */}
             {false && <Switch
@@ -138,6 +141,7 @@ const Navbar: React.FC<NavbarProps> = ({
               checkedChildren={<MoonOutlined />}
               unCheckedChildren={<SunOutlined />}
             />}
+            {/* Alchemi: Docs link removed
             <a
               href="https://docs.litellm.ai/docs/"
               target="_blank"
@@ -146,6 +150,7 @@ const Navbar: React.FC<NavbarProps> = ({
             >
               Docs
             </a>
+            */}
 
             {!isPublicPage && (
               <UserDropdown onLogout={handleLogout} />

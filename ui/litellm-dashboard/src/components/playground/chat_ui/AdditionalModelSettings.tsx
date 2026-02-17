@@ -88,7 +88,7 @@ const AdditionalModelSettings: React.FC<AdditionalModelSettingsProps> = ({
                 <Typography.Paragraph className="text-sm" style={{ marginBottom: 0 }}>
                   Behavior can differ when keys, teams, or router settings are configured.{" "}
                   <a
-                    href="https://docs.litellm.ai/docs/proxy/keys_teams_router_settings"
+                    href="#"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-blue-600 hover:text-blue-800"

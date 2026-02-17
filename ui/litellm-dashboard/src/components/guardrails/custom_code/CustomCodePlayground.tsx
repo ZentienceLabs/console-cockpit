@@ -442,7 +442,7 @@ const CustomCodePlayground: React.FC<CustomCodePlaygroundProps> = ({
           
           <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-sm text-yellow-800">
             <strong>⚠️ Sandbox Restrictions:</strong> No imports, no file I/O, no network access, no exec() or eval().
-            Only LiteLLM-provided primitives are available.
+            Only built-in primitives are available.
           </div>
         </div>
       ),

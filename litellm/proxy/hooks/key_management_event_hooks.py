@@ -440,8 +440,9 @@ class KeyManagementEventHooks:
         processing when the user has not opted in.
         """
         # Check v2 enterprise email loggers
+        # Alchemi: email notifications handled by alchemi.enterprise_features.email_notifications
         try:
-            from litellm_enterprise.enterprise_callbacks.send_emails.base_email import (
+            from alchemi.enterprise_features.email_notifications import (
                 BaseEmailLogger,
             )
 
@@ -483,11 +484,12 @@ class KeyManagementEventHooks:
         ##########################
         # v2 integration for emails (enterprise)
         ##########################
+        # Alchemi: email notifications handled by alchemi.enterprise_features.email_notifications
         try:
-            from litellm_enterprise.enterprise_callbacks.send_emails.base_email import (
+            from alchemi.enterprise_features.email_notifications import (
                 BaseEmailLogger,
             )
-            from litellm_enterprise.types.enterprise_callbacks.send_emails import (
+            from alchemi.enterprise_features.email_notifications.types import (
                 SendKeyCreatedEmailEvent,
             )
 
@@ -560,7 +562,8 @@ class KeyManagementEventHooks:
             return
 
         try:
-            from litellm_enterprise.enterprise_callbacks.send_emails.base_email import (
+            # Alchemi: email notifications handled by alchemi.enterprise_features.email_notifications
+            from alchemi.enterprise_features.email_notifications import (
                 BaseEmailLogger,
             )
         except ImportError:
@@ -571,7 +574,7 @@ class KeyManagementEventHooks:
             return
 
         try:
-            from litellm_enterprise.types.enterprise_callbacks.send_emails import (
+            from alchemi.enterprise_features.email_notifications.types import (
                 SendKeyRotatedEmailEvent,
             )
         except ImportError:

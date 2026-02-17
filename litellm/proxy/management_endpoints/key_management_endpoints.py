@@ -534,7 +534,7 @@ async def _common_key_generation_helper(  # noqa: PLR0915
 
     # APPLY ENTERPRISE KEY MANAGEMENT PARAMS
     try:
-        from litellm_enterprise.proxy.management_endpoints.key_management_endpoints import (
+        from alchemi.enterprise_features.key_management import (
             apply_enterprise_key_management_params,
         )
 

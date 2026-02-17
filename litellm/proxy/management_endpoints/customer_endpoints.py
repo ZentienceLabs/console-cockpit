@@ -107,7 +107,7 @@ async def unblock_user(data: BlockUsers):
     ```
     """
     try:
-        from enterprise.enterprise_hooks.blocked_user_list import (
+        from alchemi.enterprise_features.blocked_user_list import (
             _ENTERPRISE_BlockedUserList,
         )
     except ImportError:

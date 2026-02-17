@@ -956,7 +956,7 @@ export function RequestViewer({ row, onOpenSettings }: { row: Row<LogEntry>; onO
             </div>
             {row.original.metadata?.litellm_overhead_time_ms !== undefined && (
               <div className="flex">
-                <span className="font-medium w-1/3">LiteLLM Overhead:</span>
+                <span className="font-medium w-1/3">Proxy Overhead:</span>
                 <span>{row.original.metadata.litellm_overhead_time_ms} ms</span>
               </div>
             )}

@@ -15,7 +15,7 @@ export function SurveyPrompt({ onOpen, onDismiss, isVisible }: SurveyPromptProps
       onDismiss={onDismiss}
       isVisible={isVisible}
       title="Quick feedback"
-      description="Help us improve LiteLLM! Share your experience in 5 quick questions."
+      description="Help us improve Alchemi Studio Console! Share your experience in 5 quick questions."
       buttonText="Share feedback"
       icon={MessageSquare}
       accentColor="#3b82f6"

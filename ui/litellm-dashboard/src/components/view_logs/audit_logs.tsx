@@ -280,7 +280,7 @@ export default function AuditLogs({
         <div>
           <h4 className="text-sm font-medium text-blue-800">Audit Logs Not Available</h4>
           <p className="text-sm text-blue-700 mt-1">
-            To enable audit logging, add the following configuration to your LiteLLM proxy configuration file:
+            To enable audit logging, add the following configuration to your proxy configuration file:
           </p>
           <pre className="mt-2 bg-white p-3 rounded border border-blue-200 text-xs font-mono overflow-auto">
             {`litellm_settings:
@@ -430,7 +430,7 @@ export default function AuditLogs({
       <div style={{ textAlign: "center", marginTop: "20px" }}>
         <h1 style={{ display: "block", marginBottom: "10px" }}>✨ Enterprise Feature.</h1>
         <Text style={{ display: "block", marginBottom: "10px" }}>
-          This is a LiteLLM Enterprise feature, and requires a valid key to use.
+          This is an enterprise feature.
         </Text>
         <Text style={{ display: "block", marginBottom: "20px", fontStyle: "italic" }}>
           Here&apos;s a preview of what Audit Logs offer:

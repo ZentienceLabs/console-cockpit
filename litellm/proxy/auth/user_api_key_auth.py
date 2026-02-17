@@ -65,15 +65,8 @@ from litellm.proxy.utils import PrismaClient, ProxyLogging
 from litellm.secret_managers.main import get_secret_bool
 from litellm.types.services import ServiceTypes
 
-try:
-    from litellm_enterprise.proxy.auth.user_api_key_auth import (
-        enterprise_custom_auth as _enterprise_custom_auth,
-    )
-
-    enterprise_custom_auth: Optional[Callable] = _enterprise_custom_auth
-except ImportError as e:
-    verbose_proxy_logger.debug(f"Error in enterprise custom auth: {e}")
-    enterprise_custom_auth = None
+# Alchemi: enterprise_custom_auth is not used in Alchemi Studio Console
+enterprise_custom_auth = None
 
 user_api_key_service_logger_obj = ServiceLogging()  # used for tracking latency on OTEL
 
@@ -1353,6 +1346,16 @@ async def user_api_key_auth(
         user_api_key_auth_obj.end_user_id = end_user_id
 
     user_api_key_auth_obj.request_route = normalize_request_route(route)
+
+    # Alchemi: Set tenant context from API key's account_id
+    try:
+        from alchemi.middleware.tenant_context import set_current_account_id
+        _token_account_id = getattr(user_api_key_auth_obj, "account_id", None)
+        if _token_account_id:
+            set_current_account_id(_token_account_id)
+    except (ImportError, Exception):
+        pass
+
     return user_api_key_auth_obj
 
 

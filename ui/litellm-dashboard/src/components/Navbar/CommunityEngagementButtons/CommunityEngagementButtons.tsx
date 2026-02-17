@@ -4,6 +4,8 @@ import { Button } from "antd";
 import React from "react";
 
 export const CommunityEngagementButtons: React.FC = () => {
+  return null;
+  /* Alchemi: Community engagement buttons removed
   const disableShowPrompts = useDisableShowPrompts();
 
   // Hide buttons if prompts are disabled
@@ -14,7 +16,7 @@ export const CommunityEngagementButtons: React.FC = () => {
   return (
     <>
       <Button
-        href="https://www.litellm.ai/support"
+        href="#"
         target="_blank"
         rel="noopener noreferrer"
         icon={<SlackOutlined />}
@@ -33,4 +35,5 @@ export const CommunityEngagementButtons: React.FC = () => {
       </Button>
     </>
   );
+  */
 };

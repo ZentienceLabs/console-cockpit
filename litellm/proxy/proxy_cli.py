@@ -230,13 +230,13 @@ class ProxyInitializationHelpers:
                 )
                 print()  # noqa
                 print(  # noqa
-                    '\033[1;34mLiteLLM: Test your local proxy with: "litellm --test" This runs an openai.ChatCompletion request to your proxy [In a new terminal tab]\033[0m\n'
+                    '\033[1;34mTest your local proxy with: "litellm --test" This runs an openai.ChatCompletion request to your proxy [In a new terminal tab]\033[0m\n'
                 )
                 print(  # noqa
-                    f"\033[1;34mLiteLLM: Curl Command Test for your local proxy\n {curl_command} \033[0m\n"
+                    f"\033[1;34mCurl Command Test for your local proxy\n {curl_command} \033[0m\n"
                 )
                 print(  # noqa
-                    "\033[1;34mDocs: https://docs.litellm.ai/docs/simple_proxy\033[0m\n"
+                    "\033[1;34mAlchemi Studio Console - Proxy Server Started\033[0m\n"
                 )  # noqa
                 print(  # noqa
                     f"\033[1;34mSee all Router/Swagger docs on http://0.0.0.0:{port} \033[0m\n"
