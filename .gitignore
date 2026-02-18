@@ -42,10 +42,9 @@ litellm/proxy/tests/node_modules
 litellm/proxy/tests/package.json
 litellm/proxy/tests/package-lock.json
 ui/litellm-dashboard/.next
+ui/litellm-dashboard/out/
 ui/litellm-dashboard/node_modules
 ui/litellm-dashboard/next-env.d.ts
-ui/litellm-dashboard/package.json
-ui/litellm-dashboard/package-lock.json
 deploy/charts/litellm/*.tgz
 deploy/charts/litellm/charts/*
 deploy/charts/*.tgz
@@ -101,3 +100,4 @@ STABILIZATION_TODO.md
 **/playwright-report
 **/*.storageState.json
 **/coverage
+litellm/proxy/_experimental/out/*
