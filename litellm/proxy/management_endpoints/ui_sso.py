@@ -273,6 +273,7 @@ async def google_login(
     source: Optional[str] = None,
     key: Optional[str] = None,
     existing_key: Optional[str] = None,
+    account_id: Optional[str] = None,
 ):  # noqa: PLR0915
     """
     Create Proxy API Keys using Google Workspace SSO. Requires setting PROXY_BASE_URL in .env
@@ -288,6 +289,40 @@ async def google_login(
     microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
     google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
     generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
+
+    # Alchemi: Load per-account SSO config if account_id is provided
+    _alchemi_account_sso_env_backup = {}
+    if account_id and prisma_client:
+        try:
+            import json as _json
+            _acct_sso = await prisma_client.db.alchemi_accountssoconfig.find_first(
+                where={"account_id": account_id, "enabled": True}
+            )
+            if _acct_sso and _acct_sso.sso_settings:
+                _raw = _acct_sso.sso_settings
+                _settings = _json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
+                _env_map = {
+                    "google_client_id": "GOOGLE_CLIENT_ID",
+                    "google_client_secret": "GOOGLE_CLIENT_SECRET",
+                    "microsoft_client_id": "MICROSOFT_CLIENT_ID",
+                    "microsoft_client_secret": "MICROSOFT_CLIENT_SECRET",
+                    "microsoft_tenant": "MICROSOFT_TENANT",
+                    "generic_client_id": "GENERIC_CLIENT_ID",
+                    "generic_client_secret": "GENERIC_CLIENT_SECRET",
+                    "generic_authorization_endpoint": "GENERIC_AUTHORIZATION_ENDPOINT",
+                    "generic_token_endpoint": "GENERIC_TOKEN_ENDPOINT",
+                    "generic_userinfo_endpoint": "GENERIC_USERINFO_ENDPOINT",
+                }
+                for _field, _env_var in _env_map.items():
+                    if _settings.get(_field):
+                        _alchemi_account_sso_env_backup[_env_var] = os.getenv(_env_var)
+                        os.environ[_env_var] = str(_settings[_field])
+                # Re-read the env vars after override
+                microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
+                google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
+                generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
+        except Exception:
+            pass
 
     ####### Check if UI is disabled #######
     _disable_ui_flag = os.getenv("DISABLE_ADMIN_UI")
@@ -341,6 +376,14 @@ async def google_login(
         existing_key=existing_key,
     )
 
+    # Alchemi: Append account_id to state for per-account SSO
+    if account_id:
+        _acct_state = f"alchemi_account:{account_id}"
+        if cli_state:
+            cli_state = f"{cli_state}|{_acct_state}"
+        else:
+            cli_state = _acct_state
+
     # check if user defined a custom auth sso sign in handler, if yes, use it
     if user_custom_ui_sso_sign_in_handler is not None:
         try:
@@ -355,32 +398,40 @@ async def google_login(
             )
 
     # Check if we should use SSO handler
-    if (
-        SSOAuthenticationHandler.should_use_sso_handler(
-            microsoft_client_id=microsoft_client_id,
-            google_client_id=google_client_id,
-            generic_client_id=generic_client_id,
-        )
-        is True
-    ):
-        verbose_proxy_logger.info(f"Redirecting to SSO login for {redirect_url}")
-        return await SSOAuthenticationHandler.get_sso_login_redirect(
-            redirect_url=redirect_url,
-            microsoft_client_id=microsoft_client_id,
-            google_client_id=google_client_id,
-            generic_client_id=generic_client_id,
-            state=cli_state,
-        )
-    elif ui_username is not None:
-        # No Google, Microsoft SSO
-        # Use UI Credentials set in .env
-        from fastapi.responses import HTMLResponse
+    try:
+        if (
+            SSOAuthenticationHandler.should_use_sso_handler(
+                microsoft_client_id=microsoft_client_id,
+                google_client_id=google_client_id,
+                generic_client_id=generic_client_id,
+            )
+            is True
+        ):
+            verbose_proxy_logger.info(f"Redirecting to SSO login for {redirect_url}")
+            return await SSOAuthenticationHandler.get_sso_login_redirect(
+                redirect_url=redirect_url,
+                microsoft_client_id=microsoft_client_id,
+                google_client_id=google_client_id,
+                generic_client_id=generic_client_id,
+                state=cli_state,
+            )
+        elif ui_username is not None:
+            # No Google, Microsoft SSO
+            # Use UI Credentials set in .env
+            from fastapi.responses import HTMLResponse
 
-        return HTMLResponse(content=html_form, status_code=200)
-    else:
-        from fastapi.responses import HTMLResponse
+            return HTMLResponse(content=html_form, status_code=200)
+        else:
+            from fastapi.responses import HTMLResponse
 
-        return HTMLResponse(content=html_form, status_code=200)
+            return HTMLResponse(content=html_form, status_code=200)
+    finally:
+        # Alchemi: Restore original env vars after per-account SSO redirect
+        for _env_var, _old_val in _alchemi_account_sso_env_backup.items():
+            if _old_val is None:
+                os.environ.pop(_env_var, None)
+            else:
+                os.environ[_env_var] = _old_val
 
 
 def generic_response_convertor(
@@ -1078,6 +1129,55 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
     google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
     generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
     received_response: Optional[dict] = None
+
+    # Alchemi: Extract account_id from state and load per-account SSO config
+    _alchemi_callback_account_id: Optional[str] = None
+    _alchemi_callback_env_backup = {}
+    if state and "alchemi_account:" in state:
+        # Parse account_id from state (format: "...|alchemi_account:{account_id}" or "alchemi_account:{account_id}")
+        _parts = state.split("|")
+        _non_acct_parts = []
+        for _part in _parts:
+            if _part.startswith("alchemi_account:"):
+                _alchemi_callback_account_id = _part.split(":", 1)[1]
+            else:
+                _non_acct_parts.append(_part)
+        # Rebuild state without the account part for downstream processing
+        state = "|".join(_non_acct_parts) if _non_acct_parts else None
+
+        # Load per-account SSO config
+        if _alchemi_callback_account_id:
+            try:
+                import json as _json
+                _acct_sso = await prisma_client.db.alchemi_accountssoconfig.find_first(
+                    where={"account_id": _alchemi_callback_account_id, "enabled": True}
+                )
+                if _acct_sso and _acct_sso.sso_settings:
+                    _raw = _acct_sso.sso_settings
+                    _settings = _json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
+                    _env_map = {
+                        "google_client_id": "GOOGLE_CLIENT_ID",
+                        "google_client_secret": "GOOGLE_CLIENT_SECRET",
+                        "microsoft_client_id": "MICROSOFT_CLIENT_ID",
+                        "microsoft_client_secret": "MICROSOFT_CLIENT_SECRET",
+                        "microsoft_tenant": "MICROSOFT_TENANT",
+                        "generic_client_id": "GENERIC_CLIENT_ID",
+                        "generic_client_secret": "GENERIC_CLIENT_SECRET",
+                        "generic_authorization_endpoint": "GENERIC_AUTHORIZATION_ENDPOINT",
+                        "generic_token_endpoint": "GENERIC_TOKEN_ENDPOINT",
+                        "generic_userinfo_endpoint": "GENERIC_USERINFO_ENDPOINT",
+                    }
+                    for _field, _env_var in _env_map.items():
+                        if _settings.get(_field):
+                            _alchemi_callback_env_backup[_env_var] = os.getenv(_env_var)
+                            os.environ[_env_var] = str(_settings[_field])
+                    # Re-read after override
+                    microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
+                    google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
+                    generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
+            except Exception:
+                pass
+
     # get url from request
     if master_key is None:
         raise ProxyException(
@@ -1091,56 +1191,64 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
     )
 
     verbose_proxy_logger.info(f"Redirecting to {redirect_url}")
-    result = None
-    if google_client_id is not None:
-        result = await GoogleSSOHandler.get_google_callback_response(
-            request=request,
-            google_client_id=google_client_id,
-            redirect_url=redirect_url,
-        )
-    elif microsoft_client_id is not None:
-        result = await MicrosoftSSOHandler.get_microsoft_callback_response(
-            request=request,
-            microsoft_client_id=microsoft_client_id,
-            redirect_url=redirect_url,
-        )
+    try:
+        result = None
+        if google_client_id is not None:
+            result = await GoogleSSOHandler.get_google_callback_response(
+                request=request,
+                google_client_id=google_client_id,
+                redirect_url=redirect_url,
+            )
+        elif microsoft_client_id is not None:
+            result = await MicrosoftSSOHandler.get_microsoft_callback_response(
+                request=request,
+                microsoft_client_id=microsoft_client_id,
+                redirect_url=redirect_url,
+            )
 
-    elif generic_client_id is not None:
-        result, received_response = await get_generic_sso_response(
+        elif generic_client_id is not None:
+            result, received_response = await get_generic_sso_response(
+                request=request,
+                jwt_handler=jwt_handler,
+                generic_client_id=generic_client_id,
+                redirect_url=redirect_url,
+                sso_jwt_handler=sso_jwt_handler,
+            )
+
+        if result is None:
+            raise HTTPException(
+                status_code=401,
+                detail="Result not returned by SSO provider.",
+            )
+
+        if state and state.startswith(f"{LITELLM_CLI_SESSION_TOKEN_PREFIX}:"):
+            # Extract the key ID and existing_key from the state
+            # State format: {PREFIX}:{key}:{existing_key} or {PREFIX}:{key}
+            state_parts = state.split(":", 2)  # Split into max 3 parts
+            key_id = state_parts[1] if len(state_parts) > 1 else None
+            existing_key = state_parts[2] if len(state_parts) > 2 else None
+
+            verbose_proxy_logger.info(
+                f"CLI SSO callback detected for key: {key_id}, existing_key: {existing_key}"
+            )
+            return await cli_sso_callback(
+                request=request, key=key_id, existing_key=existing_key, result=result
+            )
+
+        return await SSOAuthenticationHandler.get_redirect_response_from_openid(
+            result=result,
             request=request,
-            jwt_handler=jwt_handler,
+            received_response=received_response,
             generic_client_id=generic_client_id,
-            redirect_url=redirect_url,
-            sso_jwt_handler=sso_jwt_handler,
+            ui_access_mode=ui_access_mode,
         )
-
-    if result is None:
-        raise HTTPException(
-            status_code=401,
-            detail="Result not returned by SSO provider.",
-        )
-
-    if state and state.startswith(f"{LITELLM_CLI_SESSION_TOKEN_PREFIX}:"):
-        # Extract the key ID and existing_key from the state
-        # State format: {PREFIX}:{key}:{existing_key} or {PREFIX}:{key}
-        state_parts = state.split(":", 2)  # Split into max 3 parts
-        key_id = state_parts[1] if len(state_parts) > 1 else None
-        existing_key = state_parts[2] if len(state_parts) > 2 else None
-
-        verbose_proxy_logger.info(
-            f"CLI SSO callback detected for key: {key_id}, existing_key: {existing_key}"
-        )
-        return await cli_sso_callback(
-            request=request, key=key_id, existing_key=existing_key, result=result
-        )
-
-    return await SSOAuthenticationHandler.get_redirect_response_from_openid(
-        result=result,
-        request=request,
-        received_response=received_response,
-        generic_client_id=generic_client_id,
-        ui_access_mode=ui_access_mode,
-    )
+    finally:
+        # Alchemi: Restore original env vars after per-account SSO callback
+        for _env_var, _old_val in _alchemi_callback_env_backup.items():
+            if _old_val is None:
+                os.environ.pop(_env_var, None)
+            else:
+                os.environ[_env_var] = _old_val
 
 
 async def cli_sso_callback(

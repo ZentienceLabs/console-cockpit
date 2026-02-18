@@ -8228,6 +8228,12 @@ class Router:
             request_kwargs=request_kwargs,
         )  # type: ignore
 
+        # Alchemi: Filter deployments by tenant BEFORE any routing strategy.
+        # This ensures Tenant A's request ONLY routes to Tenant A's API key,
+        # even when Tenant B has the same model name.
+        from alchemi.db.model_tenant_filter import filter_deployments_by_tenant
+        healthy_deployments = filter_deployments_by_tenant(healthy_deployments)
+
         # IF TEAM ID SPECIFIED ON MODEL, AND REQUEST CONTAINS USER_API_KEY_TEAM_ID, FILTER OUT MODELS THAT ARE NOT IN THE TEAM
         ## THIS PREVENTS WRITING FILES OF OTHER TEAMS TO MODELS THAT ARE TEAM-ONLY MODELS
         healthy_deployments = filter_team_based_models(
@@ -8654,6 +8660,10 @@ class Router:
             input=input,
             specific_deployment=specific_deployment,
         )
+
+        # Alchemi: Filter deployments by tenant BEFORE any routing strategy.
+        from alchemi.db.model_tenant_filter import filter_deployments_by_tenant
+        healthy_deployments = filter_deployments_by_tenant(healthy_deployments)
 
         if isinstance(healthy_deployments, dict):
             return healthy_deployments

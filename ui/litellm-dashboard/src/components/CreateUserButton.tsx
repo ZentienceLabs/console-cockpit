@@ -107,7 +107,7 @@ export const CreateUserButton: React.FC<CreateuserProps> = ({
       if ((!formValues.models || formValues.models.length === 0) && formValues.user_role !== "proxy_admin") {
         formValues.models = ["no-default-models"];
       }
-      const response = await userCreateCall(accessToken, null, formValues);
+      const response = await userCreateCall(accessToken, null, { ...formValues, send_invite_email: true });
       await queryClient.invalidateQueries({ queryKey: ["userList"] });
       setApiuser(true);
       const user_id = response.data?.user_id || response.user_id;

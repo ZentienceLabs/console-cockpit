@@ -465,9 +465,11 @@ async def update_default_team_settings(settings: DefaultTeamSSOParams):
 )
 async def get_sso_settings():
     """
-    Get all SSO configuration settings from the dedicated SSO table.
-    Returns a structured object with values and descriptions for UI display.
+    Get all SSO configuration settings.
+    For account admins, reads from per-account Alchemi_AccountSSOConfig.
+    For super admins (or when no tenant context), reads from global litellm_ssoconfig.
     """
+    import json as json_mod
 
     from litellm.proxy.proxy_server import prisma_client, proxy_config
 
@@ -477,17 +479,36 @@ async def get_sso_settings():
             detail={"error": "Database not connected. Please connect a database."},
         )
 
-    # Get SSO config from dedicated table
-    sso_db_record = await prisma_client.db.litellm_ssoconfig.find_unique(
-        where={"id": "sso_config"}
-    )
+    # Alchemi: Check if this is an account admin - use per-account SSO config
+    try:
+        from alchemi.middleware.tenant_context import get_current_account_id, is_super_admin
+        current_account_id = get_current_account_id()
+    except Exception:
+        current_account_id = None
 
-    # Initialize with defaults
     sso_settings_dict = {}
 
-    if sso_db_record and sso_db_record.sso_settings:
-        # Load settings from database
-        sso_settings_dict = dict(sso_db_record.sso_settings)
+    if current_account_id:
+        # Account admin: read from per-account SSO config
+        account_sso = await prisma_client.db.alchemi_accountssoconfig.find_first(
+            where={"account_id": current_account_id}
+        )
+        if account_sso and account_sso.sso_settings:
+            raw_settings = account_sso.sso_settings
+            if isinstance(raw_settings, str):
+                try:
+                    sso_settings_dict = json_mod.loads(raw_settings)
+                except (json_mod.JSONDecodeError, TypeError):
+                    sso_settings_dict = {}
+            elif isinstance(raw_settings, dict):
+                sso_settings_dict = dict(raw_settings)
+    else:
+        # Super admin or no tenant context: read from global SSO config
+        sso_db_record = await prisma_client.db.litellm_ssoconfig.find_unique(
+            where={"id": "sso_config"}
+        )
+        if sso_db_record and sso_db_record.sso_settings:
+            sso_settings_dict = dict(sso_db_record.sso_settings)
 
     role_mappings_data = sso_settings_dict.pop("role_mappings", None)
     role_mappings = None
@@ -581,7 +602,9 @@ async def get_sso_settings():
 )
 async def update_sso_settings(sso_config: SSOConfig):
     """
-    Update SSO configuration by saving to the dedicated SSO table.
+    Update SSO configuration.
+    For account admins, saves to per-account Alchemi_AccountSSOConfig.
+    For super admins (or when no tenant context), saves to global litellm_ssoconfig.
     """
     import json
     import os
@@ -605,6 +628,61 @@ async def update_sso_settings(sso_config: SSOConfig):
                 "error": "Set `'STORE_MODEL_IN_DB='True'` in your env to enable this feature."
             },
         )
+
+    # Alchemi: Check if this is an account admin
+    try:
+        from alchemi.middleware.tenant_context import get_current_account_id, is_super_admin
+        current_account_id = get_current_account_id()
+    except Exception:
+        current_account_id = None
+
+    sso_data = sso_config.model_dump()
+
+    if current_account_id:
+        # Account admin: save to per-account SSO config
+        # Detect provider from the submitted data
+        sso_provider = None
+        if sso_data.get("google_client_id"):
+            sso_provider = "google"
+        elif sso_data.get("microsoft_client_id"):
+            sso_provider = "microsoft"
+        elif sso_data.get("generic_client_id"):
+            sso_provider = "generic"
+
+        sso_settings_json = json.dumps(sso_data)
+
+        existing = await prisma_client.db.alchemi_accountssoconfig.find_first(
+            where={"account_id": current_account_id}
+        )
+
+        if existing:
+            await prisma_client.db.alchemi_accountssoconfig.update(
+                where={"id": existing.id},
+                data={
+                    "sso_provider": sso_provider,
+                    "enabled": sso_provider is not None,
+                    "sso_settings": sso_settings_json,
+                },
+            )
+        else:
+            import uuid
+            await prisma_client.db.alchemi_accountssoconfig.create(
+                data={
+                    "id": str(uuid.uuid4()),
+                    "account_id": current_account_id,
+                    "sso_provider": sso_provider,
+                    "enabled": sso_provider is not None,
+                    "sso_settings": sso_settings_json,
+                },
+            )
+
+        return {
+            "message": "SSO settings updated successfully",
+            "status": "success",
+            "settings": sso_data,
+        }
+
+    # Super admin or no tenant context: save to global SSO config (original behavior)
 
     # Update environment variables
     env_var_mapping = {
@@ -633,7 +711,6 @@ async def update_sso_settings(sso_config: SSOConfig):
         config["general_settings"] = {}
 
     # Update environment variables in config and in memory
-    sso_data = sso_config.model_dump()
     for field_name, value in sso_data.items():
         if field_name in env_var_mapping:
             env_var_name = env_var_mapping[field_name]

@@ -45,8 +45,11 @@ import { isAdminRole } from "@/utils/roles";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { jwtDecode } from "jwt-decode";
 import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import { ConfigProvider, theme } from "antd";
+
+// Alchemi: Lazy-load Tenant Admin page for super admins
+const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
 
 function getCookie(name: string) {
   // Safer cookie read + decoding; handles '=' inside values
@@ -123,6 +126,8 @@ function CreateKeyPageContent() {
   const [createClicked, setCreateClicked] = useState<boolean>(false);
   const [authLoading, setAuthLoading] = useState(true);
   const [userID, setUserID] = useState<string | null>(null);
+  // Alchemi: Super admin state
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
   // Survey state - always show by default
   const [showSurveyPrompt, setShowSurveyPrompt] = useState(true);
@@ -267,6 +272,11 @@ function CreateKeyPageContent() {
       if (decoded.user_id) {
         setUserID(decoded.user_id);
       }
+
+      // Alchemi: Check for super admin
+      if (decoded.is_super_admin === true) {
+        setIsSuperAdmin(true);
+      }
     }
   }, [token]);
 
@@ -365,6 +375,41 @@ function CreateKeyPageContent() {
 
   if (authLoading || redirectToLogin) {
     return <LoadingScreen />;
+  }
+
+  // Alchemi: Super admin sees only the Tenant Management page
+  if (isSuperAdmin) {
+    return (
+      <Suspense fallback={<LoadingScreen />}>
+        <QueryClientProvider client={queryClient}>
+          <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
+            <ThemeProvider accessToken={accessToken}>
+              <div className="flex flex-col min-h-screen">
+                <Navbar
+                  userID={userID}
+                  userRole="Super Admin"
+                  premiumUser={true}
+                  userEmail={userEmail}
+                  setProxySettings={setProxySettings}
+                  proxySettings={proxySettings}
+                  accessToken={accessToken}
+                  isPublicPage={false}
+                  sidebarCollapsed={false}
+                  onToggleSidebar={() => {}}
+                  isDarkMode={isDarkMode}
+                  toggleDarkMode={toggleDarkMode}
+                />
+                <main className="flex-1">
+                  <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
+                    <TenantAdminPage />
+                  </React.Suspense>
+                </main>
+              </div>
+            </ThemeProvider>
+          </ConfigProvider>
+        </QueryClientProvider>
+      </Suspense>
+    );
   }
 
   return (
@@ -565,16 +610,16 @@ function CreateKeyPageContent() {
                 </div>
 
                 {/* Survey Components */}
-                <SurveyPrompt
+                {/* <SurveyPrompt
                   isVisible={showSurveyPrompt}
                   onOpen={handleOpenSurvey}
                   onDismiss={handleDismissSurveyPrompt}
-                />
-                <SurveyModal
+                /> */}
+                {/* <SurveyModal
                   isOpen={showSurveyModal}
                   onClose={handleSurveyModalClose}
                   onComplete={handleSurveyComplete}
-                />
+                /> */}
 
                 {/* Claude Code Components */}
                 <ClaudeCodePrompt

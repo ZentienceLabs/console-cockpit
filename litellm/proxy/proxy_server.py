@@ -3255,6 +3255,11 @@ class ProxyConfig:
             model.model_info["created_by"] = getattr(model, "created_by", None)
             model.model_info["updated_by"] = getattr(model, "updated_by", None)
 
+        # Alchemi: Stamp account_id into model_info for tenant filtering
+        _account_id = getattr(model, "account_id", None)
+        if _account_id is not None:
+            model.model_info["account_id"] = _account_id
+
         if model.model_info is not None and isinstance(model.model_info, dict):
             if "id" not in model.model_info:
                 model.model_info["id"] = model.model_id
@@ -4077,7 +4082,11 @@ class ProxyConfig:
 
     async def _get_models_from_db(self, prisma_client: PrismaClient) -> list:
         try:
-            new_models = await prisma_client.db.litellm_proxymodeltable.find_many()
+            # Alchemi: Bypass tenant scoping — the Router must load ALL tenants'
+            # models into memory.  Per-request filtering happens later in
+            # filter_deployments_by_tenant() at routing time.
+            _db = getattr(prisma_client.db, "_original", prisma_client.db)
+            new_models = await _db.litellm_proxymodeltable.find_many()
         except Exception as e:
             verbose_proxy_logger.exception(
                 "litellm.proxy_server.py::add_deployment() - Error getting new models from DB - {}".format(
@@ -5958,6 +5967,10 @@ async def model_list(
         else:
             proxy_model_list = llm_router.get_model_names()
             model_access_groups = llm_router.get_model_access_groups()
+
+            # Alchemi: Filter model names by tenant
+            from alchemi.db.model_tenant_filter import filter_model_names_by_tenant
+            proxy_model_list = filter_model_names_by_tenant(proxy_model_list, llm_router)
 
         # Include model access groups if requested
         if include_model_access_groups:
@@ -9068,9 +9081,16 @@ async def model_info_v2(
             prisma_client=prisma_client,
             proxy_config=proxy_config,
         )
+        # Alchemi: Filter by tenant even for modelId lookups
+        from alchemi.db.model_tenant_filter import filter_models_by_tenant
+        all_models = filter_models_by_tenant(all_models)
     else:
         # Normal flow when modelId is not provided
         all_models = copy.deepcopy(llm_router.model_list)
+
+        # Alchemi: Filter models by tenant before any other processing
+        from alchemi.db.model_tenant_filter import filter_models_by_tenant
+        all_models = filter_models_by_tenant(all_models)
 
         if user_model is not None:
             # if user does not use a config.yaml, https://github.com/BerriAI/litellm/issues/2061
@@ -9727,9 +9747,15 @@ async def model_info_v1(  # noqa: PLR0915
                     "error": f"Model id = {litellm_model_id} not found on litellm proxy"
                 },
             )
-        _deployment_info_dict = _get_proxy_model_info(
-            model=deployment_info.model_dump(exclude_none=True)
-        )
+        # Alchemi: Validate specific model lookup belongs to current tenant
+        from alchemi.db.model_tenant_filter import filter_models_by_tenant
+        _deployment_dict = deployment_info.model_dump(exclude_none=True)
+        if not filter_models_by_tenant([_deployment_dict]):
+            raise HTTPException(
+                status_code=404,
+                detail={"error": f"Model id = {litellm_model_id} not found"},
+            )
+        _deployment_info_dict = _get_proxy_model_info(model=_deployment_dict)
         return {"data": [_deployment_info_dict]}
 
     all_models: List[dict] = []
@@ -9740,6 +9766,10 @@ async def model_info_v1(  # noqa: PLR0915
     else:
         proxy_model_list = llm_router.get_model_names()
         model_access_groups = llm_router.get_model_access_groups()
+
+        # Alchemi: Filter model names by tenant
+        from alchemi.db.model_tenant_filter import filter_model_names_by_tenant
+        proxy_model_list = filter_model_names_by_tenant(proxy_model_list, llm_router)
     key_models = get_key_models(
         user_api_key_dict=user_api_key_dict,
         proxy_model_list=proxy_model_list,
@@ -9767,6 +9797,11 @@ async def model_info_v1(  # noqa: PLR0915
                 _relevant_models.extend(router_models)
         if llm_model_list is not None:
             all_models = copy.deepcopy(_relevant_models)  # type: ignore
+            # Alchemi: Filter individual deployments by tenant — the name list
+            # was already filtered but get_model_list() returns all deployments
+            # for a given name, including other tenants'.
+            from alchemi.db.model_tenant_filter import filter_models_by_tenant as _filter_models
+            all_models = _filter_models(all_models)
         else:
             all_models = []
 

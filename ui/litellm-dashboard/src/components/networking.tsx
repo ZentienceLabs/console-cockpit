@@ -7963,6 +7963,67 @@ export const updateSSOSettings = async (accessToken: string, settings: Record<st
   }
 };
 
+// Alchemi: Per-account SSO config endpoints
+export const getAccountSSOConfig = async (accessToken: string, accountId: string) => {
+  const url = proxyBaseUrl
+    ? `${proxyBaseUrl}/account/${accountId}/sso`
+    : `/account/${accountId}/sso`;
+  const response = await fetch(url, {
+    method: "GET",
+    headers: {
+      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    if (response.status === 404) return null;
+    const errorData = await response.json();
+    throw new Error(deriveErrorMessage(errorData));
+  }
+  return response.json();
+};
+
+export const updateAccountSSOConfig = async (
+  accessToken: string,
+  accountId: string,
+  data: { sso_provider?: string | null; enabled?: boolean; sso_settings?: Record<string, any> },
+) => {
+  const url = proxyBaseUrl
+    ? `${proxyBaseUrl}/account/${accountId}/sso`
+    : `/account/${accountId}/sso`;
+  const response = await fetch(url, {
+    method: "PUT",
+    headers: {
+      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(data),
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(deriveErrorMessage(errorData));
+  }
+  return response.json();
+};
+
+export const deleteAccountSSOConfig = async (accessToken: string, accountId: string) => {
+  const url = proxyBaseUrl
+    ? `${proxyBaseUrl}/account/${accountId}/sso`
+    : `/account/${accountId}/sso`;
+  const response = await fetch(url, {
+    method: "DELETE",
+    headers: {
+      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(deriveErrorMessage(errorData));
+  }
+  return response.json();
+};
+
 export const uiAuditLogsCall = async (
   accessToken: string,
   start_date?: string,

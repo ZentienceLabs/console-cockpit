@@ -171,7 +171,15 @@ class TenantScopedModel:
         return await self._original.create_many(*args, **kwargs)
 
     async def update(self, *args, **kwargs) -> Any:
-        # For updates, we validate the record belongs to current tenant
+        # Validate the record belongs to current tenant before updating
+        if self._should_scope() and "where" in kwargs:
+            account_id = self._get_account_id()
+            if account_id:
+                record = await self._original.find_unique(where=kwargs["where"])
+                if record:
+                    record_account = getattr(record, "account_id", None)
+                    if record_account and record_account != account_id:
+                        raise Exception("Cannot update record outside tenant scope")
         return await self._original.update(*args, **kwargs)
 
     async def update_many(self, *args, **kwargs) -> Any:
@@ -182,11 +190,25 @@ class TenantScopedModel:
     async def upsert(self, *args, **kwargs) -> Any:
         if "where" in kwargs:
             kwargs["where"] = self._inject_where(kwargs["where"])
-        if "create" in kwargs:
-            kwargs["create"] = self._inject_data(kwargs["create"])
+        # Prisma Python client nests create/update inside a "data" dict:
+        #   upsert(where={...}, data={"create": {...}, "update": {...}})
+        # account_id is only injected into "create"; "update" doesn't need it
+        # because the where clause is already scoped to the current tenant.
+        if "data" in kwargs and isinstance(kwargs["data"], dict):
+            if "create" in kwargs["data"]:
+                kwargs["data"]["create"] = self._inject_data(kwargs["data"]["create"])
         return await self._original.upsert(*args, **kwargs)
 
     async def delete(self, *args, **kwargs) -> Any:
+        # Validate the record belongs to current tenant before deleting
+        if self._should_scope() and "where" in kwargs:
+            account_id = self._get_account_id()
+            if account_id:
+                record = await self._original.find_unique(where=kwargs["where"])
+                if record:
+                    record_account = getattr(record, "account_id", None)
+                    if record_account and record_account != account_id:
+                        raise Exception("Cannot delete record outside tenant scope")
         return await self._original.delete(*args, **kwargs)
 
     async def delete_many(self, *args, **kwargs) -> Any:

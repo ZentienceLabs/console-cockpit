@@ -60,7 +60,7 @@ async def get_agents(
 
     try:
         returned_agents: List[AgentResponse] = []
-        
+
         # Admin users get all agents
         if (
             user_api_key_dict.user_role == LitellmUserRoles.PROXY_ADMIN
@@ -72,7 +72,7 @@ async def get_agents(
             allowed_agent_ids = await AgentRequestHandler.get_allowed_agents(
                 user_api_key_auth=user_api_key_dict
             )
-            
+
             # If no restrictions (empty list), return all agents
             if len(allowed_agent_ids) == 0:
                 returned_agents = global_agent_registry.get_agent_list()
@@ -83,6 +83,14 @@ async def get_agents(
                     agent for agent in all_agents
                     if agent.agent_id in allowed_agent_ids
                 ]
+
+        # Alchemi: Filter agents by tenant using DB query through TenantScopedPrismaClient
+        from litellm.proxy.proxy_server import prisma_client as _prisma_client
+        from alchemi.middleware.tenant_context import get_current_account_id
+        if _prisma_client is not None and get_current_account_id() is not None:
+            db_agents = await _prisma_client.db.litellm_agentstable.find_many()
+            tenant_agent_ids = {a.agent_id for a in db_agents}
+            returned_agents = [a for a in returned_agents if a.agent_id in tenant_agent_ids]
 
         # add is_public field to each agent - we do it this way, to allow setting config agents as public
         for agent in returned_agents:

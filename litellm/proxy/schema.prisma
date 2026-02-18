@@ -17,18 +17,20 @@ model LiteLLM_BudgetTable {
   tpm_limit     BigInt?
   rpm_limit     BigInt?
   model_max_budget Json?
-  budget_duration String? 
+  budget_duration String?
   budget_reset_at DateTime?
   created_at    DateTime               @default(now()) @map("created_at")
   created_by String
   updated_at    DateTime               @default(now()) @updatedAt @map("updated_at")
   updated_by String
+  account_id String?
   organization LiteLLM_OrganizationTable[] // multiple orgs can have the same budget
   keys LiteLLM_VerificationToken[] // multiple keys can have the same budget
   end_users LiteLLM_EndUserTable[] // multiple end-users can have the same budget
   tags LiteLLM_TagTable[] // multiple tags can have the same budget
-  team_membership LiteLLM_TeamMembership[] // budgets of Users within a Team 
-  organization_membership LiteLLM_OrganizationMembership[] // budgets of Users within a Organization 
+  team_membership LiteLLM_TeamMembership[] // budgets of Users within a Team
+  organization_membership LiteLLM_OrganizationMembership[] // budgets of Users within a Organization
+  @@index([account_id])
 }
 
 // Models on proxy
@@ -41,6 +43,8 @@ model LiteLLM_CredentialsTable {
   created_by String
   updated_at    DateTime               @default(now()) @updatedAt @map("updated_at")
   updated_by String
+  account_id String?
+  @@index([account_id])
 }
 
 // Models on proxy
@@ -53,6 +57,8 @@ model LiteLLM_ProxyModelTable {
   created_by String
   updated_at    DateTime               @default(now()) @updatedAt @map("updated_at")
   updated_by String
+  account_id String?
+  @@index([account_id])
 }
 
 
@@ -67,6 +73,8 @@ model LiteLLM_AgentsTable {
   created_by String
   updated_at    DateTime               @default(now()) @updatedAt @map("updated_at")
   updated_by String
+  account_id String?
+  @@index([account_id])
 }
 
 model LiteLLM_OrganizationTable {
@@ -88,6 +96,9 @@ model LiteLLM_OrganizationTable {
     keys LiteLLM_VerificationToken[]
     members LiteLLM_OrganizationMembership[] @relation("OrganizationToMembership")
     object_permission LiteLLM_ObjectPermissionTable?   @relation(fields: [object_permission_id], references: [object_permission_id])
+    account_id String?
+    alchemi_account Alchemi_AccountTable? @relation(fields: [account_id], references: [account_id])
+    @@index([account_id])
 }
 
 // Model info for teams, just has model aliases for now.
@@ -135,6 +146,8 @@ model LiteLLM_TeamTable {
     litellm_organization_table LiteLLM_OrganizationTable?   @relation(fields: [organization_id], references: [organization_id])
     litellm_model_table LiteLLM_ModelTable? @relation(fields: [model_id], references: [id])
     object_permission LiteLLM_ObjectPermissionTable?   @relation(fields: [object_permission_id], references: [object_permission_id])
+    account_id String?
+    @@index([account_id])
 }
 
 // Audit table for deleted teams - preserves spend and team information for historical tracking
@@ -182,6 +195,8 @@ model LiteLLM_DeletedTeamTable {
     @@index([organization_id])
     @@index([team_alias])
     @@index([created_at])
+    account_id String?
+    @@index([account_id])
 }
 
 // Track spend, rate limit, budget Users
@@ -219,6 +234,8 @@ model LiteLLM_UserTable {
     invitations_updated LiteLLM_InvitationLink[] @relation("UpdatedBy")
     invitations_user    LiteLLM_InvitationLink[] @relation("UserId")
     object_permission LiteLLM_ObjectPermissionTable?   @relation(fields: [object_permission_id], references: [object_permission_id])
+    account_id String?
+    @@index([account_id])
 }
 
 model LiteLLM_ObjectPermissionTable {
@@ -233,6 +250,7 @@ model LiteLLM_ObjectPermissionTable {
   verification_tokens   LiteLLM_VerificationToken[]
   organizations         LiteLLM_OrganizationTable[]
   users                 LiteLLM_UserTable[]
+  account_id String?
 }
 
 // Holds the MCP server configuration 
@@ -267,6 +285,8 @@ model LiteLLM_MCPServerTable {
   registration_url   String?
   allow_all_keys Boolean @default(false)
   available_on_public_internet Boolean @default(false)
+  account_id String?
+  @@index([account_id])
 }
 
 // Generate Tokens for Proxy
@@ -313,6 +333,7 @@ model LiteLLM_VerificationToken {
     litellm_budget_table LiteLLM_BudgetTable?   @relation(fields: [budget_id], references: [budget_id])
     litellm_organization_table LiteLLM_OrganizationTable?   @relation(fields: [organization_id], references: [organization_id])
     object_permission LiteLLM_ObjectPermissionTable?   @relation(fields: [object_permission_id], references: [object_permission_id])
+    account_id String?
 
     // SELECT COUNT(*) FROM (SELECT "public"."LiteLLM_VerificationToken"."token" FROM "public"."LiteLLM_VerificationToken" WHERE ("public"."LiteLLM_VerificationToken"."user_id" = $1 AND ("public"."LiteLLM_VerificationToken"."team_id" IS NULL OR "public"."LiteLLM_VerificationToken"."team_id" <> $2)) OFFSET $3 ) AS "sub"
     // SELECT ... FROM "public"."LiteLLM_VerificationToken" WHERE "public"."LiteLLM_VerificationToken"."user_id" = $1 OFFSET $2
@@ -323,6 +344,7 @@ model LiteLLM_VerificationToken {
 
     // SELECT ... FROM "public"."LiteLLM_VerificationToken" WHERE (("public"."LiteLLM_VerificationToken"."expires" IS NULL OR "public"."LiteLLM_VerificationToken"."expires" > $1) AND "public"."LiteLLM_VerificationToken"."budget_reset_at" < $2) OFFSET $3
     @@index([budget_reset_at, expires])
+    @@index([account_id])
 }
 
 // Deprecated keys during grace period - allows old key to work until revoke_at
@@ -394,6 +416,8 @@ model LiteLLM_DeletedVerificationToken {
     @@index([organization_id])
     @@index([key_alias])
     @@index([created_at])
+    account_id String?
+    @@index([account_id])
 }
 
 model LiteLLM_EndUserTable {
@@ -405,6 +429,8 @@ model LiteLLM_EndUserTable {
   budget_id String?
   litellm_budget_table LiteLLM_BudgetTable?   @relation(fields: [budget_id], references: [budget_id])
   blocked Boolean @default(false)
+  account_id String?
+  @@index([account_id])
 }
 
 // Track tags with budgets and spend
@@ -419,12 +445,16 @@ model LiteLLM_TagTable {
   created_at DateTime @default(now()) @map("created_at")
   created_by String?
   updated_at DateTime @default(now()) @updatedAt @map("updated_at")
+  account_id String?
+  @@index([account_id])
 }
 
 // store proxy config.yaml
 model LiteLLM_Config {
   param_name String @id
   param_value Json?
+  account_id String?
+  @@index([account_id])
 }
 
 // View spend, model, api_key per request
@@ -463,6 +493,8 @@ model LiteLLM_SpendLogs {
   @@index([startTime])
   @@index([end_user])
   @@index([session_id])
+  account_id String?
+  @@index([account_id])
 }
 
 // View spend, model, api_key per request
@@ -478,6 +510,8 @@ model LiteLLM_ErrorLogs {
   exception_type      String   @default("")
   exception_string    String   @default("")
   status_code         String   @default("")
+  account_id String?
+  @@index([account_id])
 }
 
 // Beta - allow team members to request access to a model
@@ -496,6 +530,7 @@ model LiteLLM_TeamMembership {
   spend      Float    @default(0.0)
   budget_id String?
   litellm_budget_table LiteLLM_BudgetTable?   @relation(fields: [budget_id], references: [budget_id])
+  account_id String?
   @@id([user_id, team_id])
 }
 
@@ -513,8 +548,9 @@ model LiteLLM_OrganizationMembership {
   user LiteLLM_UserTable @relation(fields: [user_id], references: [user_id])
   organization LiteLLM_OrganizationTable @relation("OrganizationToMembership", fields: [organization_id], references: [organization_id])
   litellm_budget_table LiteLLM_BudgetTable?   @relation(fields: [budget_id], references: [budget_id])
-  
-  
+  account_id String?
+
+
 
   @@id([user_id, organization_id])
   @@unique([user_id, organization_id])
@@ -536,6 +572,7 @@ model LiteLLM_InvitationLink {
   liteLLM_user_table_user    LiteLLM_UserTable  @relation("UserId", fields: [user_id], references: [user_id])
   liteLLM_user_table_created LiteLLM_UserTable  @relation("CreatedBy", fields: [created_by], references: [user_id])
   liteLLM_user_table_updated LiteLLM_UserTable  @relation("UpdatedBy", fields: [updated_by], references: [user_id])
+  account_id String?
 }
 
 
@@ -549,6 +586,8 @@ model LiteLLM_AuditLog {
   object_id          String      // id of the object being audited. This can be the key id, team id, user id, model id
   before_value       Json?       // value of the row 
   updated_values     Json?       // value of the row after change
+  account_id String?
+  @@index([account_id])
 }
 
 // Track daily user spend metrics per model and key
@@ -580,6 +619,7 @@ model LiteLLM_DailyUserSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 // Track daily organization spend metrics per model and key
@@ -611,6 +651,7 @@ model LiteLLM_DailyOrganizationSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 // Track daily end user (customer) spend metrics per model and key
@@ -641,6 +682,7 @@ model LiteLLM_DailyEndUserSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 // Track daily agent spend metrics per model and key
@@ -671,6 +713,7 @@ model LiteLLM_DailyAgentSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 // Track daily team spend metrics per model and key
@@ -702,6 +745,7 @@ model LiteLLM_DailyTeamSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 // Track daily team spend metrics per model and key
@@ -734,6 +778,7 @@ model LiteLLM_DailyTagSpend {
   @@index([model])
   @@index([mcp_namespaced_tool_name])
   @@index([endpoint])
+  account_id String?
 }
 
 
@@ -825,6 +870,8 @@ model LiteLLM_GuardrailsTable {
   team_id String?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  account_id String?
+  @@index([account_id])
 }
 
 // Prompt table for storing prompt configurations
@@ -839,6 +886,7 @@ model LiteLLM_PromptTable {
 
   @@unique([prompt_id, version])
   @@index([prompt_id])
+  account_id String?
 }
 
 model LiteLLM_HealthCheckTable {
@@ -859,6 +907,7 @@ model LiteLLM_HealthCheckTable {
   @@index([model_name])
   @@index([checked_at])
   @@index([status])
+  account_id String?
 }
 
 // Search Tools table for storing search tool configurations
@@ -869,6 +918,8 @@ model LiteLLM_SearchToolsTable {
   search_tool_info Json?
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  account_id String?
+  @@index([account_id])
 }
 
 // SSO configuration table
@@ -877,6 +928,7 @@ model LiteLLM_SSOConfig {
   sso_settings Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  account_id String?
 }
 
 model LiteLLM_ManagedVectorStoreIndexTable {
@@ -896,6 +948,7 @@ model LiteLLM_CacheConfig {
   cache_settings Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  account_id String?
 }
 
 // UI Settings configuration table
@@ -904,6 +957,7 @@ model LiteLLM_UISettings {
   ui_settings Json
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
+  account_id String?
 }
 
 // Skills table for storing LiteLLM-managed skills
@@ -922,6 +976,7 @@ model LiteLLM_SkillsTable {
   created_by     String?
   updated_at     DateTime @default(now()) @updatedAt
   updated_by     String?
+  account_id String?
 }
 
 // Policy table for storing guardrail policies
@@ -938,6 +993,8 @@ model LiteLLM_PolicyTable {
   created_by       String?
   updated_at       DateTime  @default(now()) @updatedAt
   updated_by       String?
+  account_id String?
+  @@index([account_id])
 }
 
 // Policy attachment table for defining where policies apply
@@ -953,6 +1010,8 @@ model LiteLLM_PolicyAttachmentTable {
   created_by       String?
   updated_at       DateTime  @default(now()) @updatedAt
   updated_by       String?
+  account_id String?
+  @@index([account_id])
 }
 
 //Unified Access Groups table for storing unified access groups
@@ -973,4 +1032,53 @@ model LiteLLM_AccessGroupTable {
   created_by         String?
   updated_at         DateTime @default(now()) @updatedAt
   updated_by         String?
+  account_id String?
+  @@index([account_id])
+}
+
+// ============================================
+// Alchemi Studio Console - Multi-Tenant Tables
+// ============================================
+
+model Alchemi_AccountTable {
+    account_id    String   @id @default(uuid())
+    account_name  String   @unique
+    account_alias String?
+    domain        String?  @unique
+    status        String   @default("active")
+    metadata      Json     @default("{}")
+    max_budget    Float?
+    spend         Float    @default(0.0)
+    created_at    DateTime @default(now())
+    created_by    String?
+    updated_at    DateTime @default(now()) @updatedAt
+    organizations LiteLLM_OrganizationTable[]
+    admins        Alchemi_AccountAdminTable[]
+    sso_config    Alchemi_AccountSSOConfig?
+    @@index([domain])
+    @@index([status])
+}
+
+model Alchemi_AccountAdminTable {
+    id          String   @id @default(uuid())
+    account_id  String
+    user_email  String
+    role        String   @default("account_admin")
+    created_at  DateTime @default(now())
+    created_by  String?
+    updated_at  DateTime @default(now()) @updatedAt
+    account     Alchemi_AccountTable @relation(fields: [account_id], references: [account_id])
+    @@unique([account_id, user_email])
+    @@index([user_email])
+}
+
+model Alchemi_AccountSSOConfig {
+    id           String   @id @default(uuid())
+    account_id   String   @unique
+    sso_provider String?
+    sso_settings Json     @default("{}")
+    enabled      Boolean  @default(false)
+    created_at   DateTime @default(now())
+    updated_at   DateTime @default(now()) @updatedAt
+    account      Alchemi_AccountTable @relation(fields: [account_id], references: [account_id])
 }

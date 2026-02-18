@@ -16,6 +16,10 @@ class AlchemiProxyConfig:
         self.ui_username = os.getenv("UI_USERNAME")
         self.ui_password = os.getenv("UI_PASSWORD")
 
+    async def load_enterprise_config(self, general_settings: dict) -> None:
+        """Load enterprise/Alchemi-specific configuration from general_settings."""
+        return None
+
     @staticmethod
     def get_config() -> Dict[str, Any]:
         """Return Alchemi-specific configuration."""

@@ -730,6 +730,12 @@ class ProxyBaseLLMRequestProcessing:
         requested_model_from_client: Optional[str] = (
             self.data.get("model") if isinstance(self.data.get("model"), str) else None
         )
+
+        # Alchemi: Validate that the requested model belongs to the current tenant
+        if requested_model_from_client and llm_router is not None:
+            from alchemi.db.model_tenant_filter import validate_model_for_tenant
+            validate_model_for_tenant(requested_model_from_client, llm_router)
+
         if verbose_proxy_logger.isEnabledFor(logging.DEBUG):
             verbose_proxy_logger.debug(
                 "Request received by LiteLLM:\n{}".format(

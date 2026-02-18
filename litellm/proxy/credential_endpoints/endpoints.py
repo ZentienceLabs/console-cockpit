@@ -123,13 +123,23 @@ async def get_credentials(
     [BETA] endpoint. This might change unexpectedly.
     """
     try:
+        credentials_to_list = litellm.credential_list
+
+        # Alchemi: Filter credentials by tenant using DB query through TenantScopedPrismaClient
+        from litellm.proxy.proxy_server import prisma_client as _prisma_client
+        from alchemi.middleware.tenant_context import get_current_account_id
+        if _prisma_client is not None and get_current_account_id() is not None:
+            db_creds = await _prisma_client.db.litellm_credentialstable.find_many()
+            tenant_cred_names = {c.credential_name for c in db_creds}
+            credentials_to_list = [c for c in credentials_to_list if c.credential_name in tenant_cred_names]
+
         masked_credentials = [
             {
                 "credential_name": credential.credential_name,
                 "credential_values": _get_masked_values(credential.credential_values),
                 "credential_info": credential.credential_info,
             }
-            for credential in litellm.credential_list
+            for credential in credentials_to_list
         ]
         return {"success": True, "credentials": masked_credentials}
     except Exception as e:

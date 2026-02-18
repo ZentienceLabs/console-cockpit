@@ -603,6 +603,14 @@ if MCP_AVAILABLE:
         if is_restricted_virtual_key:
             return _sanitize_mcp_server_list_for_virtual_key(redacted_mcp_servers)
 
+        # Alchemi: Filter MCP servers by tenant using DB query through TenantScopedPrismaClient
+        from litellm.proxy.proxy_server import prisma_client as _prisma_client
+        from alchemi.middleware.tenant_context import get_current_account_id
+        if _prisma_client is not None and get_current_account_id() is not None:
+            db_servers = await _prisma_client.db.litellm_mcpservertable.find_many()
+            tenant_server_ids = {s.server_id for s in db_servers}
+            redacted_mcp_servers = [s for s in redacted_mcp_servers if s.server_id in tenant_server_ids]
+
         return redacted_mcp_servers
 
     @router.get(

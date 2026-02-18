@@ -639,6 +639,11 @@ class LiteLLMRoutes(enum.Enum):
         # Invitation routes - org/team admins checked in endpoint via _user_has_admin_privileges
         "/invitation/new",
         "/invitation/delete",
+        # Key management - team admins can regenerate/update/delete keys for their teams
+        "/key/regenerate",
+        "/key/{token_id}/regenerate",
+        "/key/update",
+        "/key/delete",
     ]  # routes that manage their own allowed/disallowed logic
 
     ## Org Admin Routes ##
@@ -2193,6 +2198,7 @@ class LiteLLM_VerificationToken(LiteLLMPydanticObjectBase):
     last_rotation_at: Optional[datetime] = None  # When this key was last rotated
     key_rotation_at: Optional[datetime] = None  # When this key should next be rotated
     router_settings: Optional[dict] = None
+    account_id: Optional[str] = None  # Alchemi: tenant account for multi-tenancy
     model_config = ConfigDict(protected_namespaces=())
 
 

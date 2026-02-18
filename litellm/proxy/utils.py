@@ -4618,6 +4618,10 @@ async def get_available_models_for_user(
         proxy_model_list = llm_router.get_model_names()
         model_access_groups = llm_router.get_model_access_groups()
 
+        # Alchemi: Filter model names by tenant
+        from alchemi.db.model_tenant_filter import filter_model_names_by_tenant
+        proxy_model_list = filter_model_names_by_tenant(proxy_model_list, llm_router)
+
     # Get key models
     key_models = get_key_models(
         user_api_key_dict=user_api_key_dict,

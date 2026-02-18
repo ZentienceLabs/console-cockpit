@@ -20,6 +20,10 @@ import {
   Col,
   Tooltip,
   Divider,
+  Select,
+  Switch,
+  Tabs,
+  Alert,
 } from "antd";
 import {
   PlusOutlined,
@@ -29,9 +33,13 @@ import {
   TeamOutlined,
   DeleteOutlined,
   ReloadOutlined,
+  LockOutlined,
+  SafetyCertificateOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons";
 
 const { Title, Text } = Typography;
+const { TabPane } = Tabs;
 
 interface Account {
   account_id: string;
@@ -45,6 +53,7 @@ interface Account {
   created_at: string;
   created_by?: string;
   admins?: AccountAdmin[];
+  sso_config?: AccountSSOConfig | null;
 }
 
 interface AccountAdmin {
@@ -53,6 +62,14 @@ interface AccountAdmin {
   user_email: string;
   role: string;
   created_at: string;
+}
+
+interface AccountSSOConfig {
+  id: string;
+  account_id: string;
+  sso_provider?: string;
+  enabled: boolean;
+  sso_settings: Record<string, any>;
 }
 
 function getCookie(name: string): string | null {
@@ -69,10 +86,20 @@ export default function TenantAdminPage() {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
+  const [ssoDrawerOpen, setSsoDrawerOpen] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
   const [createForm] = Form.useForm();
   const [editForm] = Form.useForm();
-  const [adminEmail, setAdminEmail] = useState("");
+  const [adminForm] = Form.useForm();
+  const [ssoForm] = Form.useForm();
+  const [editAdminModalOpen, setEditAdminModalOpen] = useState(false);
+  const [editAdminForm] = Form.useForm();
+  const [selectedAdminEmail, setSelectedAdminEmail] = useState("");
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteConfirmName, setDeleteConfirmName] = useState("");
+  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
+  const [ssoConfig, setSsoConfig] = useState<Record<string, any> | null>(null);
+  const [ssoLoading, setSsoLoading] = useState(false);
 
   const accessToken = getCookie("token") || "";
 
@@ -179,8 +206,8 @@ export default function TenantAdminPage() {
     }
   };
 
-  const handleAddAdmin = async () => {
-    if (!selectedAccount || !adminEmail) return;
+  const handleAddAdmin = async (values: { user_email: string; password?: string }) => {
+    if (!selectedAccount) return;
     try {
       const response = await fetch(
         `/account/${selectedAccount.account_id}/admin`,
@@ -190,18 +217,13 @@ export default function TenantAdminPage() {
             "Content-Type": "application/json",
             Authorization: `Bearer ${accessToken}`,
           },
-          body: JSON.stringify({ user_email: adminEmail }),
+          body: JSON.stringify(values),
         }
       );
       if (response.ok) {
         message.success("Admin added successfully");
-        setAdminEmail("");
+        adminForm.resetFields();
         fetchAccounts();
-        // Refresh selected account
-        const updated = accounts.find(
-          (a) => a.account_id === selectedAccount.account_id
-        );
-        if (updated) setSelectedAccount(updated);
       } else {
         const err = await response.json();
         message.error(err.detail || "Failed to add admin");
@@ -231,6 +253,182 @@ export default function TenantAdminPage() {
       message.error("Error removing admin");
     }
   };
+
+  const handleUpdateAdmin = async (values: { new_email?: string; password?: string }) => {
+    if (!selectedAccount || !selectedAdminEmail) return;
+    const payload: Record<string, string> = {};
+    if (values.new_email && values.new_email !== selectedAdminEmail) {
+      payload.new_email = values.new_email;
+    }
+    if (values.password) {
+      payload.password = values.password;
+    }
+    if (Object.keys(payload).length === 0) {
+      message.info("No changes to save");
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(selectedAdminEmail)}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+      if (response.ok) {
+        message.success("Admin updated successfully");
+        setEditAdminModalOpen(false);
+        editAdminForm.resetFields();
+        setSelectedAdminEmail("");
+        fetchAccounts();
+      } else {
+        const err = await response.json();
+        message.error(err.detail || "Failed to update admin");
+      }
+    } catch (error) {
+      message.error("Error updating admin");
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!accountToDelete) return;
+    if (deleteConfirmName !== accountToDelete.account_name) {
+      message.error("Account name does not match");
+      return;
+    }
+    try {
+      const response = await fetch(
+        `/account/${accountToDelete.account_id}/delete`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({ account_name: deleteConfirmName }),
+        }
+      );
+      if (response.ok) {
+        message.success(`Account '${accountToDelete.account_name}' permanently deleted`);
+        setDeleteModalOpen(false);
+        setDeleteConfirmName("");
+        setAccountToDelete(null);
+        fetchAccounts();
+      } else {
+        const err = await response.json();
+        message.error(err.detail || "Failed to delete account");
+      }
+    } catch (error) {
+      message.error("Error deleting account");
+    }
+  };
+
+  // SSO Config handlers
+  const fetchSSOConfig = async (accountId: string) => {
+    setSsoLoading(true);
+    try {
+      const response = await fetch(`/account/${accountId}/sso`, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setSsoConfig(data);
+        ssoForm.setFieldsValue({
+          sso_provider: data.sso_provider || undefined,
+          enabled: data.enabled || false,
+          ...flattenSSOSettings(data.sso_settings || {}),
+        });
+      }
+    } catch (error) {
+      message.error("Error loading SSO config");
+    } finally {
+      setSsoLoading(false);
+    }
+  };
+
+  const flattenSSOSettings = (settings: Record<string, any>) => {
+    return {
+      google_client_id: settings.google_client_id || "",
+      google_client_secret: settings.google_client_secret || "",
+      microsoft_client_id: settings.microsoft_client_id || "",
+      microsoft_client_secret: settings.microsoft_client_secret || "",
+      microsoft_tenant: settings.microsoft_tenant || "",
+      generic_client_id: settings.generic_client_id || "",
+      generic_client_secret: settings.generic_client_secret || "",
+      generic_authorization_endpoint: settings.generic_authorization_endpoint || "",
+      generic_token_endpoint: settings.generic_token_endpoint || "",
+      generic_userinfo_endpoint: settings.generic_userinfo_endpoint || "",
+    };
+  };
+
+  const handleSaveSSOConfig = async (values: any) => {
+    if (!selectedAccount) return;
+    const { sso_provider, enabled, ...settingsFields } = values;
+
+    // Build sso_settings from the form fields
+    const sso_settings: Record<string, any> = {};
+    for (const [key, val] of Object.entries(settingsFields)) {
+      if (val) sso_settings[key] = val;
+    }
+
+    try {
+      const response = await fetch(
+        `/account/${selectedAccount.account_id}/sso`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+          },
+          body: JSON.stringify({
+            sso_provider: sso_provider || null,
+            enabled: enabled || false,
+            sso_settings,
+          }),
+        }
+      );
+      if (response.ok) {
+        message.success("SSO configuration saved successfully");
+        fetchAccounts();
+      } else {
+        const err = await response.json();
+        message.error(err.detail || "Failed to save SSO config");
+      }
+    } catch (error) {
+      message.error("Error saving SSO config");
+    }
+  };
+
+  const handleDeleteSSOConfig = async () => {
+    if (!selectedAccount) return;
+    try {
+      const response = await fetch(
+        `/account/${selectedAccount.account_id}/sso`,
+        {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${accessToken}` },
+        }
+      );
+      if (response.ok) {
+        message.success("SSO configuration deleted");
+        ssoForm.resetFields();
+        setSsoConfig(null);
+        fetchAccounts();
+      } else {
+        const err = await response.json();
+        message.error(err.detail || "Failed to delete SSO config");
+      }
+    } catch (error) {
+      message.error("Error deleting SSO config");
+    }
+  };
+
+  // Watch sso_provider to show/hide provider-specific fields
+  const ssoProvider = Form.useWatch("sso_provider", ssoForm);
 
   const columns = [
     {
@@ -264,6 +462,20 @@ export default function TenantAdminPage() {
           {status.toUpperCase()}
         </Tag>
       ),
+    },
+    {
+      title: "SSO",
+      key: "sso",
+      render: (_: any, record: Account) => {
+        if (record.sso_config && record.sso_config.enabled) {
+          return (
+            <Tag color="green" icon={<SafetyCertificateOutlined />}>
+              {record.sso_config.sso_provider?.toUpperCase() || "Enabled"}
+            </Tag>
+          );
+        }
+        return <Text type="secondary">Off</Text>;
+      },
     },
     {
       title: "Admins",
@@ -329,6 +541,17 @@ export default function TenantAdminPage() {
               }}
             />
           </Tooltip>
+          <Tooltip title="SSO Config">
+            <Button
+              type="text"
+              icon={<SafetyCertificateOutlined />}
+              onClick={() => {
+                setSelectedAccount(record);
+                setSsoDrawerOpen(true);
+                fetchSSOConfig(record.account_id);
+              }}
+            />
+          </Tooltip>
           <Popconfirm
             title={
               record.status === "active"
@@ -351,6 +574,18 @@ export default function TenantAdminPage() {
               />
             </Tooltip>
           </Popconfirm>
+          <Tooltip title="Delete permanently">
+            <Button
+              type="text"
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => {
+                setAccountToDelete(record);
+                setDeleteConfirmName("");
+                setDeleteModalOpen(true);
+              }}
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -359,6 +594,16 @@ export default function TenantAdminPage() {
   const activeAccounts = accounts.filter((a) => a.status === "active").length;
   const totalSpend = accounts.reduce((sum, a) => sum + a.spend, 0);
 
+  // Keep selectedAccount in sync when accounts refresh
+  useEffect(() => {
+    if (selectedAccount) {
+      const updated = accounts.find(
+        (a) => a.account_id === selectedAccount.account_id
+      );
+      if (updated) setSelectedAccount(updated);
+    }
+  }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <div style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
       <div style={{ marginBottom: 24 }}>
@@ -366,7 +611,7 @@ export default function TenantAdminPage() {
           Tenant Management
         </Title>
         <Text type="secondary">
-          Manage tenant accounts, admins, and resource allocation
+          Manage tenant accounts, admins, SSO configuration, and resource allocation
         </Text>
       </div>
 
@@ -454,6 +699,7 @@ export default function TenantAdminPage() {
         }}
         onOk={() => createForm.submit()}
         okText="Create"
+        width={560}
       >
         <Form form={createForm} layout="vertical" onFinish={handleCreateAccount}>
           <Form.Item
@@ -466,9 +712,25 @@ export default function TenantAdminPage() {
           <Form.Item name="domain" label="Email Domain (for SSO routing)">
             <Input placeholder="e.g., acme.com" />
           </Form.Item>
-          <Form.Item name="admin_email" label="Initial Admin Email">
+          <Divider orientation="left" plain>
+            Initial Admin
+          </Divider>
+          <Form.Item name="admin_email" label="Admin Email">
             <Input placeholder="e.g., admin@acme.com" />
           </Form.Item>
+          <Form.Item
+            name="admin_password"
+            label="Admin Password"
+            extra="Set a password so the admin can log in. They can also use SSO if configured."
+          >
+            <Input.Password
+              placeholder="Set initial password for admin"
+              prefix={<LockOutlined />}
+            />
+          </Form.Item>
+          <Divider orientation="left" plain>
+            Budget
+          </Divider>
           <Form.Item name="max_budget" label="Max Budget (USD)">
             <InputNumber
               style={{ width: "100%" }}
@@ -516,23 +778,41 @@ export default function TenantAdminPage() {
         open={adminDrawerOpen}
         onClose={() => {
           setAdminDrawerOpen(false);
-          setAdminEmail("");
+          adminForm.resetFields();
         }}
-        width={480}
+        width={520}
       >
-        <div style={{ marginBottom: 16 }}>
+        <div style={{ marginBottom: 24 }}>
           <Text strong>Add New Admin</Text>
-          <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-            <Input
-              placeholder="admin@example.com"
-              value={adminEmail}
-              onChange={(e) => setAdminEmail(e.target.value)}
-              onPressEnter={handleAddAdmin}
-            />
-            <Button type="primary" onClick={handleAddAdmin}>
-              Add
-            </Button>
-          </div>
+          <Form
+            form={adminForm}
+            layout="vertical"
+            onFinish={handleAddAdmin}
+            style={{ marginTop: 8 }}
+          >
+            <Form.Item
+              name="user_email"
+              label="Email"
+              rules={[{ required: true, message: "Email is required" }]}
+            >
+              <Input placeholder="admin@example.com" />
+            </Form.Item>
+            <Form.Item
+              name="password"
+              label="Password (optional)"
+              extra="Set a password for username/password login. Leave blank if admin will only use SSO."
+            >
+              <Input.Password
+                placeholder="Set initial password"
+                prefix={<LockOutlined />}
+              />
+            </Form.Item>
+            <Form.Item>
+              <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
+                Add Admin
+              </Button>
+            </Form.Item>
+          </Form>
         </div>
 
         <Divider />
@@ -560,21 +840,231 @@ export default function TenantAdminPage() {
                     {new Date(admin.created_at).toLocaleDateString()}
                   </Text>
                 </Space>
-                <Popconfirm
-                  title="Remove this admin?"
-                  onConfirm={() => handleRemoveAdmin(admin.user_email)}
-                >
-                  <Button
-                    type="text"
-                    danger
-                    icon={<DeleteOutlined />}
-                    size="small"
-                  />
-                </Popconfirm>
+                <Space>
+                  <Tooltip title="Edit email / password">
+                    <Button
+                      type="text"
+                      icon={<EditOutlined />}
+                      size="small"
+                      onClick={() => {
+                        setSelectedAdminEmail(admin.user_email);
+                        editAdminForm.setFieldsValue({
+                          new_email: admin.user_email,
+                          password: "",
+                        });
+                        setEditAdminModalOpen(true);
+                      }}
+                    />
+                  </Tooltip>
+                  <Popconfirm
+                    title="Remove this admin?"
+                    onConfirm={() => handleRemoveAdmin(admin.user_email)}
+                  >
+                    <Button
+                      type="text"
+                      danger
+                      icon={<DeleteOutlined />}
+                      size="small"
+                    />
+                  </Popconfirm>
+                </Space>
               </div>
             ))
           )}
         </div>
+      </Drawer>
+
+      {/* Edit Admin Modal */}
+      <Modal
+        title={`Edit Admin: ${selectedAdminEmail}`}
+        open={editAdminModalOpen}
+        onCancel={() => {
+          setEditAdminModalOpen(false);
+          editAdminForm.resetFields();
+          setSelectedAdminEmail("");
+        }}
+        onOk={() => editAdminForm.submit()}
+        okText="Save Changes"
+      >
+        <Form form={editAdminForm} layout="vertical" onFinish={handleUpdateAdmin}>
+          <Form.Item
+            name="new_email"
+            label="Email"
+            rules={[
+              { required: true, message: "Email is required" },
+              { type: "email", message: "Please enter a valid email" },
+            ]}
+          >
+            <Input placeholder="admin@example.com" />
+          </Form.Item>
+          <Form.Item
+            name="password"
+            label="New Password"
+            extra="Leave blank to keep the current password."
+            rules={[
+              { min: 8, message: "Password must be at least 8 characters" },
+            ]}
+          >
+            <Input.Password
+              placeholder="Enter new password (optional)"
+              prefix={<LockOutlined />}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* Delete Account Confirmation Modal */}
+      <Modal
+        title={
+          <Space>
+            <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />
+            <span>Delete Account Permanently</span>
+          </Space>
+        }
+        open={deleteModalOpen}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDeleteConfirmName("");
+          setAccountToDelete(null);
+        }}
+        okText="Delete Permanently"
+        okButtonProps={{
+          danger: true,
+          disabled: deleteConfirmName !== accountToDelete?.account_name,
+        }}
+        onOk={handleDeleteAccount}
+      >
+        <Alert
+          message="This action cannot be undone"
+          description="Deleting this account will permanently remove it along with all its admins and SSO configuration. This cannot be reversed."
+          type="error"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+        <Text>
+          To confirm, type the account name{" "}
+          <Text strong code>{accountToDelete?.account_name}</Text>{" "}
+          below:
+        </Text>
+        <Input
+          style={{ marginTop: 8 }}
+          placeholder="Type account name to confirm"
+          value={deleteConfirmName}
+          onChange={(e) => setDeleteConfirmName(e.target.value)}
+        />
+      </Modal>
+
+      {/* SSO Configuration Drawer */}
+      <Drawer
+        title={`SSO Configuration: ${selectedAccount?.account_name || ""}`}
+        open={ssoDrawerOpen}
+        onClose={() => {
+          setSsoDrawerOpen(false);
+          ssoForm.resetFields();
+          setSsoConfig(null);
+        }}
+        width={560}
+      >
+        <Alert
+          message="SSO Configuration"
+          description="Configure Single Sign-On for this account. Users with matching email domains will be redirected to the SSO provider during login. Account admins can also configure this from their Admin Settings page."
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+        />
+
+        <Form
+          form={ssoForm}
+          layout="vertical"
+          onFinish={handleSaveSSOConfig}
+          initialValues={{ enabled: false }}
+        >
+          <Form.Item
+            name="sso_provider"
+            label="SSO Provider"
+          >
+            <Select
+              placeholder="Select SSO provider"
+              allowClear
+              options={[
+                { value: "google", label: "Google" },
+                { value: "microsoft", label: "Microsoft / Azure AD" },
+                { value: "okta", label: "Okta" },
+                { value: "generic", label: "Generic OIDC" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item
+            name="enabled"
+            label="Enable SSO"
+            valuePropName="checked"
+          >
+            <Switch />
+          </Form.Item>
+
+          {/* Google fields */}
+          {ssoProvider === "google" && (
+            <>
+              <Form.Item name="google_client_id" label="Google Client ID">
+                <Input placeholder="Enter Google OAuth Client ID" />
+              </Form.Item>
+              <Form.Item name="google_client_secret" label="Google Client Secret">
+                <Input.Password placeholder="Enter Google OAuth Client Secret" />
+              </Form.Item>
+            </>
+          )}
+
+          {/* Microsoft fields */}
+          {ssoProvider === "microsoft" && (
+            <>
+              <Form.Item name="microsoft_client_id" label="Microsoft Client ID">
+                <Input placeholder="Enter Microsoft Client ID" />
+              </Form.Item>
+              <Form.Item name="microsoft_client_secret" label="Microsoft Client Secret">
+                <Input.Password placeholder="Enter Microsoft Client Secret" />
+              </Form.Item>
+              <Form.Item name="microsoft_tenant" label="Microsoft Tenant">
+                <Input placeholder="Enter Microsoft Tenant ID" />
+              </Form.Item>
+            </>
+          )}
+
+          {/* Okta / Generic OIDC fields */}
+          {(ssoProvider === "okta" || ssoProvider === "generic") && (
+            <>
+              <Form.Item name="generic_client_id" label="Client ID">
+                <Input placeholder="Enter OIDC Client ID" />
+              </Form.Item>
+              <Form.Item name="generic_client_secret" label="Client Secret">
+                <Input.Password placeholder="Enter OIDC Client Secret" />
+              </Form.Item>
+              <Form.Item name="generic_authorization_endpoint" label="Authorization Endpoint">
+                <Input placeholder="https://your-provider.com/authorize" />
+              </Form.Item>
+              <Form.Item name="generic_token_endpoint" label="Token Endpoint">
+                <Input placeholder="https://your-provider.com/token" />
+              </Form.Item>
+              <Form.Item name="generic_userinfo_endpoint" label="User Info Endpoint">
+                <Input placeholder="https://your-provider.com/userinfo" />
+              </Form.Item>
+            </>
+          )}
+
+          <Space style={{ marginTop: 16 }}>
+            <Button type="primary" htmlType="submit" loading={ssoLoading}>
+              Save SSO Config
+            </Button>
+            {ssoConfig && ssoConfig.sso_provider && (
+              <Popconfirm
+                title="Remove SSO configuration for this account?"
+                onConfirm={handleDeleteSSOConfig}
+              >
+                <Button danger>Delete SSO Config</Button>
+              </Popconfirm>
+            )}
+          </Space>
+        </Form>
       </Drawer>
     </div>
   );

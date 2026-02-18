@@ -90,8 +90,66 @@ class UserManagementEventHooks:
         user_api_key_dict: UserAPIKeyAuth,
     ):
         """
-        Send a user invitation email to the user
+        Send a user invitation email to the user.
+
+        Tries the alchemi-worker email queue first (BullMQ → Azure
+        Communication Services).  Falls back to enterprise V2 / legacy
+        V1 paths if the queue is not configured.
         """
+        if data.send_invite_email is not True:
+            return
+
+        # -----------------------------------------------------------
+        # Alchemi email queue (preferred path)
+        # -----------------------------------------------------------
+        try:
+            from alchemi.integrations.email_queue import (
+                is_configured as eq_configured,
+                send_invitation_email as eq_send,
+            )
+
+            if eq_configured() and response.user_email:
+                import os
+                from litellm.proxy._types import InvitationNew
+                from litellm.proxy.management_helpers.user_invitation import (
+                    create_invitation_for_user,
+                )
+
+                # Create invitation link
+                invite_url = ""
+                try:
+                    invitation = await create_invitation_for_user(
+                        data=InvitationNew(user_id=response.user_id),
+                        user_api_key_dict=user_api_key_dict,
+                    )
+                    base_url = os.getenv("PROXY_BASE_URL", "")
+                    invite_url = f"{base_url}/ui?invitation_id={invitation.id}"
+                except Exception as inv_err:
+                    verbose_proxy_logger.warning(
+                        f"Failed to create invitation link: {inv_err}"
+                    )
+                    base_url = os.getenv("PROXY_BASE_URL", "")
+                    invite_url = f"{base_url}/ui" if base_url else ""
+
+                user_name = response.user_email.split("@")[0]
+                inviter = user_api_key_dict.user_email or "Admin"
+
+                sent = await eq_send(
+                    user_email=response.user_email,
+                    user_name=user_name,
+                    inviter_name=inviter,
+                    invite_link=invite_url,
+                )
+                if sent:
+                    return  # success — skip legacy paths
+        except Exception as e:
+            verbose_proxy_logger.warning(
+                f"Email queue send failed, falling back: {e}"
+            )
+
+        # -----------------------------------------------------------
+        # Fallback: enterprise V2 + legacy V1 paths
+        # -----------------------------------------------------------
         event = WebhookEvent(
             event="internal_user_created",
             event_group=Litellm_EntityType.USER,
@@ -105,24 +163,11 @@ class UserManagementEventHooks:
             key_alias=response.key_alias,
         )
 
-        #########################################################
-        ########## V2 USER INVITATION EMAIL ################
-        #########################################################
-        # Alchemi: email notifications handled by alchemi.enterprise_features.email_notifications
         try:
             from alchemi.enterprise_features.email_notifications import (
                 BaseEmailLogger,
             )
 
-            use_enterprise_email_hooks = True
-        except ImportError:
-            verbose_proxy_logger.warning(
-                "Defaulting to using Legacy Email Hooks."
-                + CommonProxyErrors.missing_enterprise_package.value
-            )
-            use_enterprise_email_hooks = False
-
-        if use_enterprise_email_hooks and (data.send_invite_email is True):
             initialized_email_loggers = litellm.logging_callback_manager.get_custom_loggers_for_type(
                 callback_type=BaseEmailLogger  # type: ignore
             )
@@ -132,17 +177,15 @@ class UserManagementEventHooks:
                         await email_logger.send_user_invitation_email(  # type: ignore
                             event=event,
                         )
+        except ImportError:
+            pass
 
-        #########################################################
-        ########## LEGACY V1 USER INVITATION EMAIL ################
-        #########################################################
-        if data.send_invite_email is True:
-            await UserManagementEventHooks.send_legacy_v1_user_invitation_email(
-                data=data,
-                response=response,
-                user_api_key_dict=user_api_key_dict,
-                event=event,
-            )
+        await UserManagementEventHooks.send_legacy_v1_user_invitation_email(
+            data=data,
+            response=response,
+            user_api_key_dict=user_api_key_dict,
+            event=event,
+        )
 
     @staticmethod
     async def send_legacy_v1_user_invitation_email(

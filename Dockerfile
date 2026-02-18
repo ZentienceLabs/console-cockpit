@@ -104,8 +104,18 @@ RUN GLOBAL="$(npm root -g)" && \
 # Convert Windows line endings to Unix and make executable
 RUN sed -i 's/\r$//' docker/install_auto_router.sh && chmod +x docker/install_auto_router.sh && ./docker/install_auto_router.sh
 
+# Sync Alchemi schema and migrations into litellm_proxy_extras
+RUN cp schema.prisma litellm/proxy/schema.prisma && \
+    EXTRAS_DIR=$(python3 -c "import litellm_proxy_extras,os;print(os.path.dirname(litellm_proxy_extras.__file__))") && \
+    cp schema.prisma "$EXTRAS_DIR/schema.prisma" && \
+    for d in prisma/migrations/*/; do \
+        name=$(basename "$d"); \
+        [ ! -d "$EXTRAS_DIR/migrations/$name" ] && cp -r "$d" "$EXTRAS_DIR/migrations/$name" || \
+        cp "$d/migration.sql" "$EXTRAS_DIR/migrations/$name/migration.sql"; \
+    done
+
 # Generate prisma client using the correct schema
-RUN prisma generate --schema=./litellm/proxy/schema.prisma
+RUN prisma generate --schema=./schema.prisma
 # Convert Windows line endings to Unix for entrypoint scripts
 RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 RUN sed -i 's/\r$//' docker/prod_entrypoint.sh && chmod +x docker/prod_entrypoint.sh

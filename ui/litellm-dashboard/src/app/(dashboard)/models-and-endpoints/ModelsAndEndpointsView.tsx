@@ -278,7 +278,7 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
           </div>
 
           {/* Missing Provider Banner */}
-          <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-4">
+          {/* <div className="mb-4 px-4 py-3 bg-blue-50 rounded-lg border border-blue-100 flex items-center gap-4">
             <div className="flex-shrink-0 w-10 h-10 bg-white rounded-full flex items-center justify-center border border-blue-200">
               <PlusCircleOutlined style={{ fontSize: "18px", color: "#6366f1" }} />
             </div>
@@ -311,7 +311,7 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
                 />
               </svg>
             </a>
-          </div>
+          </div> */}
           {selectedModelId && !isLoading ? (
             <ModelInfoView
               modelId={selectedModelId}

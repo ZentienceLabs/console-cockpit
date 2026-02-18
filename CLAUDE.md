@@ -30,9 +30,17 @@ poetry run litellm --port 4000                           # CLI entrypoint
 
 ### Database
 ```bash
-cp schema.prisma litellm/proxy/schema.prisma             # Sync schema
-poetry run prisma generate --schema=./schema.prisma       # Generate client
-poetry run prisma db push --schema=./schema.prisma        # Apply to DB
+./scripts/deploy.sh migrate                              # Standard: sync + migrate
+cp schema.prisma litellm/proxy/schema.prisma             # Manual: sync schema
+poetry run prisma generate --schema=./schema.prisma       # Manual: generate client
+```
+
+### Deploying to Environments
+```bash
+DATABASE_URL="postgresql://..." ./scripts/deploy.sh migrate   # Any environment
+./scripts/deploy.sh build-ui                                  # Rebuild admin UI
+./scripts/deploy.sh start                                     # Start server
+./scripts/deploy.sh                                           # Full deploy (all steps)
 ```
 
 ### Building the UI
@@ -151,8 +159,17 @@ When building new enterprise features:
 ### Modifying the Database Schema
 1. Edit `/workspaces/console-cockpit/schema.prisma` (the root one)
 2. Add `account_id String?` + `@@index([account_id])` to any new table
-3. Copy to `litellm/proxy/schema.prisma`
-4. Run `poetry run prisma generate && poetry run prisma db push`
+3. Create an idempotent migration SQL in `prisma/migrations/<YYYYMMDDHHMMSS>_<description>/migration.sql`
+4. Use `IF NOT EXISTS` guards for all DDL statements
+5. Run `./scripts/deploy.sh migrate` to test locally
+6. Commit the migration and deploy to other environments with `DATABASE_URL=... ./scripts/deploy.sh migrate`
+
+### Migration Architecture
+- Alchemi migrations live in `prisma/migrations/` (checked into git, source of truth)
+- `scripts/deploy.sh migrate` copies them into `litellm_proxy_extras/migrations/` and syncs `schema.prisma`
+- `prisma migrate deploy` applies only pending migrations (tracked in `_prisma_migrations` table)
+- The Dockerfile does this sync at build time, so Docker containers are self-contained
+- All migration SQL must be idempotent (`IF NOT EXISTS`, `DO $$ BEGIN ... END $$` blocks)
 
 ### UI Development
 - Tremor is DEPRECATED -- do not use in new features (exception: Tremor Table)
@@ -199,6 +216,14 @@ When building new enterprise features:
 | `OPENOBSERVE_USER` | OpenObserve username |
 | `OPENOBSERVE_PASSWORD` | OpenObserve password |
 | `ALCHEMI_AUDIT_LOG_RETENTION_DAYS` | Audit log retention (default: "90") |
+| `EMAIL_REDIS_HOST` | alchemi-worker Redis host for email queue (Azure Managed Redis, cluster mode) |
+| `EMAIL_REDIS_PORT` | alchemi-worker Redis port (default: "10000") |
+| `EMAIL_REDIS_PASSWORD` | alchemi-worker Redis password |
+| `EMAIL_REDIS_TLS` | Enable TLS for email Redis (default: "true") |
+| `EMAIL_REDIS_ENVIRONMENT` | BullMQ prefix environment, e.g. "dev" or "prod" |
+| `EMAIL_LOGO_URL` | Logo URL used in invitation emails |
+| `EMAIL_SUPPORT_CONTACT` | Support email shown in invitation emails |
+| `PROXY_BASE_URL` | Base URL of the proxy (used in invitation links) |
 
 ## Files Modified from LiteLLM Base
 
@@ -233,4 +258,6 @@ When building new enterprise features:
 4. **Missing account_id on new tables** -- Every new table needs `account_id String?` + index
 5. **config.yaml assumptions** -- The proxy does NOT load config.yaml; all config is per-account from DB
 6. **Breaking LiteLLM base** -- Keep changes to `litellm/` minimal; extend in `alchemi/` instead
-7. **UI build not deployed** -- After changing UI files, run `npm run build` and copy `out/` to `litellm/proxy/_experimental/out/`
+7. **UI build not deployed** -- After changing UI files, run `./scripts/deploy.sh build-ui`
+8. **Schema not synced to litellm_proxy_extras** -- The extras package has its own `schema.prisma`; if it's out of sync, the post-migration sanity check will revert Alchemi columns. Always use `./scripts/deploy.sh migrate` which handles this.
+9. **Non-idempotent migration SQL** -- Migrations must use `IF NOT EXISTS` guards so they can be safely re-run. `prisma migrate deploy` will skip already-applied migrations, but the sanity check may re-execute SQL.

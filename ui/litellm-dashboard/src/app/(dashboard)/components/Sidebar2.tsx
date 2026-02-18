@@ -31,7 +31,7 @@ import {
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess } from "@/utils/roles";
-import UsageIndicator from "@/components/UsageIndicator";
+
 import { serverRootPath } from "@/components/networking";
 
 const { Sider } = Layout;
@@ -423,7 +423,7 @@ const Sidebar2: React.FC<SidebarProps> = ({ accessToken, userRole, defaultSelect
             }))}
           />
         </ConfigProvider>
-        {isAdminRole(userRole) && !collapsed && <UsageIndicator accessToken={accessToken} width={220} />}
+
       </Sider>
     </Layout>
   );

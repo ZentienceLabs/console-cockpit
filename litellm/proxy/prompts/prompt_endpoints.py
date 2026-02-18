@@ -343,6 +343,15 @@ async def list_prompts(
     ):
         # Get all prompts and filter to show only the latest version of each
         all_prompts = list(IN_MEMORY_PROMPT_REGISTRY.IN_MEMORY_PROMPTS.values())
+
+        # Alchemi: Filter prompts by tenant using DB query through TenantScopedPrismaClient
+        from litellm.proxy.proxy_server import prisma_client as _prisma_client
+        from alchemi.middleware.tenant_context import get_current_account_id
+        if _prisma_client is not None and get_current_account_id() is not None:
+            db_prompts = await _prisma_client.db.litellm_prompttable.find_many()
+            tenant_prompt_ids = {p.prompt_id for p in db_prompts}
+            all_prompts = [p for p in all_prompts if p.prompt_id in tenant_prompt_ids]
+
         latest_prompts = get_latest_prompt_versions(prompts=all_prompts)
         # Create copies with base prompt_id (without version suffix) for display
         prompts_for_display = []

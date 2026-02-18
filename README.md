@@ -43,10 +43,16 @@ console-cockpit/
 ├── litellm/                    # LiteLLM base (MIT licensed)
 │   ├── proxy/                  #   FastAPI proxy server
 │   │   ├── proxy_server.py     #   Main server (~12,500 lines)
-│   │   ├── schema.prisma       #   Original LiteLLM schema (reference)
+│   │   ├── schema.prisma       #   Synced copy of root schema (don't edit directly)
 │   │   ├── auth/               #   Auth handlers
 │   │   └── management_endpoints/ # Admin APIs
 │   └── llms/                   #   100+ provider implementations
+├── prisma/                     # Alchemi database migrations (source of truth)
+│   └── migrations/
+│       └── 20260217100000_alchemi_multi_tenant/
+│           └── migration.sql
+├── scripts/
+│   └── deploy.sh               # Standard deployment script (migrate, build-ui, start)
 ├── ui/litellm-dashboard/       # Next.js admin dashboard (Alchemi-branded)
 │   └── src/
 │       ├── app/login/          #   Email-first login with SSO routing
@@ -127,11 +133,28 @@ docker run -d --name litellm_db \
   -p 5432:5432 \
   postgres:16
 
-# Generate the Prisma client from the root schema
-cd /workspaces/console-cockpit
-cp schema.prisma litellm/proxy/schema.prisma  # Sync the active schema
+# Sync schema + run migrations (standard way)
+./scripts/deploy.sh migrate
+```
+
+The deploy script handles everything: syncing `schema.prisma` to all required locations, copying Alchemi migrations into `litellm_proxy_extras`, and running `prisma migrate deploy`.
+
+If you prefer manual steps:
+```bash
+# 1. Sync schema everywhere
+cp schema.prisma litellm/proxy/schema.prisma
+cp schema.prisma "$(python3 -c 'import litellm_proxy_extras,os;print(os.path.dirname(litellm_proxy_extras.__file__))')/schema.prisma"
+
+# 2. Copy Alchemi migrations into litellm_proxy_extras
+cp -r prisma/migrations/* "$(python3 -c 'import litellm_proxy_extras,os;print(os.path.dirname(litellm_proxy_extras.__file__))')/migrations/"
+
+# 3. Generate Prisma client
 poetry run prisma generate --schema=./schema.prisma
-poetry run prisma db push --schema=./schema.prisma
+
+# 4. Apply migrations
+cd "$(python3 -c 'import litellm_proxy_extras,os;print(os.path.dirname(litellm_proxy_extras.__file__))')"
+poetry run prisma migrate deploy --schema=./schema.prisma
+cd /workspaces/console-cockpit
 ```
 
 ### 4. Run the Proxy Server
@@ -151,23 +174,42 @@ poetry run litellm --port 4000
 
 The admin dashboard is a Next.js app. After modifying UI source files, you must rebuild and copy the output to the proxy's static directory.
 
+**Quick rebuild (one-liner):**
 ```bash
-cd /workspaces/console-cockpit/ui/litellm-dashboard
-
-# Install frontend dependencies
-npm install
-
-# Development mode (hot reload)
-npm run dev
-
-# Production build
-npm run build
-
-# Copy built output to proxy's static directory
-cp -r out/ ../../litellm/proxy/_experimental/out/
+cd ui/litellm-dashboard && npm run build && rm -rf ../../litellm/proxy/_experimental/out && cp -r out ../../litellm/proxy/_experimental/out
 ```
 
-After copying, restart the proxy server to serve the updated UI.
+Then restart the server:
+```bash
+# Kill existing server (Ctrl+C or pkill -f litellm)
+poetry run litellm --port 4000
+```
+
+Or use the deploy script:
+```bash
+./scripts/deploy.sh build-ui     # Build + copy
+./scripts/deploy.sh start        # Start server
+```
+
+**Full UI development workflow:**
+```bash
+# Terminal 1: Start the proxy server (backend)
+poetry run litellm --port 4000
+
+# Terminal 2: Start Next.js dev server (frontend hot reload on :3000)
+cd ui/litellm-dashboard
+npm install
+npm run dev
+
+# When done making changes, build and deploy to the proxy:
+npm run build
+rm -rf ../../litellm/proxy/_experimental/out
+cp -r out ../../litellm/proxy/_experimental/out
+
+# Restart the proxy server to serve the updated UI
+```
+
+**Important:** The proxy serves the UI from `litellm/proxy/_experimental/out/`. Changes to files in `ui/litellm-dashboard/src/` are not reflected until you run `npm run build` and copy the output. The `npm run dev` hot-reload server runs separately on port 3000 for development convenience only.
 
 ### 6. Run Tests
 
@@ -183,9 +225,87 @@ npm test
 make lint
 ```
 
-## Docker Deployment
+## Deployment
 
-### Using Docker Compose
+### Deploy Script
+
+The `scripts/deploy.sh` script is the standard way to deploy to any environment. It handles schema sync, database migration, UI build, and server startup in one command.
+
+```bash
+./scripts/deploy.sh              # Full deploy: migrate + build UI + start
+./scripts/deploy.sh migrate      # DB only: sync schema + apply migrations
+./scripts/deploy.sh build-ui     # UI only: npm build + copy output
+./scripts/deploy.sh start        # Server only: start proxy on $PORT (default 4000)
+```
+
+### Deploying to Different Environments
+
+Each environment needs its own `DATABASE_URL`. Set it before running the deploy script:
+
+```bash
+# Dev (local)
+export DATABASE_URL="postgresql://llmproxy:dbpassword@localhost:5432/litellm"
+./scripts/deploy.sh migrate
+
+# Devtest
+export DATABASE_URL="postgresql://user:pass@devtest-db.example.com:5432/consoledb"
+./scripts/deploy.sh migrate
+
+# Staging
+export DATABASE_URL="postgresql://user:pass@stage-db.example.com:5432/consoledb"
+./scripts/deploy.sh migrate
+
+# Production
+export DATABASE_URL="postgresql://user:pass@prod-db.example.com:5432/consoledb"
+./scripts/deploy.sh migrate
+```
+
+The migration is **idempotent** -- every statement uses `IF NOT EXISTS` guards. You can safely run it multiple times against the same database.
+
+### How Migrations Work
+
+Alchemi uses Prisma Migrate under the hood. Here's the flow:
+
+```
+prisma/migrations/                     (repo: source of truth for Alchemi migrations)
+  └── 20260217100000_alchemi_multi_tenant/
+        └── migration.sql
+
+        ↓  deploy.sh copies into  ↓
+
+litellm_proxy_extras/migrations/       (package: where Prisma looks for migrations)
+  ├── 20250326162113_baseline/         (80 base LiteLLM migrations from the package)
+  ├── ...
+  └── 20260217100000_alchemi_multi_tenant/   (our Alchemi migration, copied in)
+
+        ↓  prisma migrate deploy  ↓
+
+PostgreSQL _prisma_migrations table    (tracks which migrations have been applied)
+```
+
+**Key points:**
+- `litellm_proxy_extras` ships with ~80 base LiteLLM migrations. Our Alchemi migrations are additive.
+- `prisma migrate deploy` checks the `_prisma_migrations` table and only applies pending migrations.
+- The `schema.prisma` must also be synced into `litellm_proxy_extras/` (the deploy script does this) so the post-migration sanity check doesn't try to revert our columns.
+- At server startup, `litellm_proxy_extras` also runs `prisma migrate deploy` automatically, so even without running the script first, the server will self-heal.
+
+### Adding New Migrations
+
+When you modify the database schema:
+
+1. Edit the root `schema.prisma`
+2. Create a new migration SQL file:
+   ```
+   prisma/migrations/<YYYYMMDDHHMMSS>_<description>/migration.sql
+   ```
+3. Write idempotent SQL (use `IF NOT EXISTS`, `DO $$ BEGIN ... END $$` blocks)
+4. Run `./scripts/deploy.sh migrate` to test locally
+5. Commit the migration to the repo
+6. Deploy to each environment: `DATABASE_URL=... ./scripts/deploy.sh migrate`
+
+### Docker Deployment
+
+#### Using Docker Compose
 
 ```bash
 cd /workspaces/console-cockpit
@@ -210,10 +330,57 @@ Services:
 | PostgreSQL | localhost:5432 | Database |
 | Prometheus | http://localhost:9090 | Metrics |
 
-### Building the Docker Image
+#### Building the Docker Image
 
 ```bash
 docker build -t alchemi-console:latest .
+```
+
+The Dockerfile automatically syncs the Alchemi schema and migrations into `litellm_proxy_extras` at build time. When the container starts, `litellm_proxy_extras` runs `prisma migrate deploy` to apply pending migrations to the target database.
+
+#### Pre-Migrate Before Deploy (Recommended for Prod)
+
+For production, run migrations as a separate step before deploying the new container:
+
+```bash
+# Build the image
+docker build -t alchemi-console:v1.2.3 .
+
+# Run migrations only (doesn't start the server)
+docker run --rm \
+  -e DATABASE_URL="postgresql://user:pass@prod-db:5432/consoledb" \
+  alchemi-console:v1.2.3 \
+  bash -c "cd /app && python3 -c \"
+import litellm_proxy_extras,os,subprocess
+d=os.path.dirname(litellm_proxy_extras.__file__)
+subprocess.run(['prisma','migrate','deploy','--schema',d+'/schema.prisma'],cwd=d,check=True)
+\""
+
+# Then deploy the new container (migrations already applied)
+docker compose up -d
+```
+
+Or with Kubernetes init containers:
+```yaml
+initContainers:
+  - name: migrate
+    image: alchemi-console:v1.2.3
+    command: ["bash", "-c"]
+    args:
+      - |
+        cd /app
+        EXTRAS=$(python3 -c "import litellm_proxy_extras,os;print(os.path.dirname(litellm_proxy_extras.__file__))")
+        prisma migrate deploy --schema="$EXTRAS/schema.prisma"
+    env:
+      - name: DATABASE_URL
+        valueFrom:
+          secretKeyRef:
+            name: db-credentials
+            key: url
+containers:
+  - name: app
+    image: alchemi-console:v1.2.3
+    args: ["--port", "4000"]
 ```
 
 ## Login Flow
@@ -296,6 +463,371 @@ All standard LiteLLM API endpoints (`/chat/completions`, `/key/generate`, `/team
 8. **Tenant-scoped Prisma wrapper** auto-filters queries per account
 9. **SSO callback wired** to resolve `account_id` from email domain
 10. **Sidebar customized** -- Learning Resources, survey prompts, and community links removed
+
+## Production Deployment (Azure Kubernetes Service)
+
+### Prerequisites
+
+- Azure CLI (`az`) authenticated
+- `kubectl` configured for your AKS cluster
+- `docker` CLI
+- `helm` v3+
+- Azure Container Registry (ACR) — e.g. `myacr.azurecr.io`
+- Azure Database for PostgreSQL — connection string ready
+- GitHub repo with Actions enabled
+
+Set these once per shell session:
+
+```bash
+ACR_NAME="myacr"                  # your ACR name (without .azurecr.io)
+AKS_CLUSTER="my-aks"
+AKS_RESOURCE_GROUP="my-rg"
+IMAGE_TAG="v1.0.0"                # or git SHA, date, etc.
+```
+
+---
+
+### Step 1: Build and Push the Container Image
+
+The root `Dockerfile` is a multi-stage build:
+1. **Builder stage** — installs Python build deps, compiles the pip wheel, builds the Next.js admin UI
+2. **Runtime stage** — installs the wheel, generates the Prisma client, syncs Alchemi schema/migrations, sets up supervisor
+
+```bash
+# Login to ACR
+az acr login --name $ACR_NAME
+
+# Build
+docker build -t $ACR_NAME.azurecr.io/alchemi-console:$IMAGE_TAG .
+
+# Push
+docker push $ACR_NAME.azurecr.io/alchemi-console:$IMAGE_TAG
+```
+
+The admin UI (Next.js) is compiled during the Docker build and embedded into the image. There is no separate frontend container.
+
+---
+
+### Step 2: Building the Web Frontend (UI)
+
+The admin dashboard lives in `ui/litellm-dashboard/` (Next.js 16, React 18, Tailwind, Ant Design). It is built **inside** the Docker image automatically, but you can also build it standalone.
+
+**Inside Docker (default, no action needed):**
+
+The `Dockerfile` runs `docker/build_admin_ui.sh` during the builder stage, which runs `npm install && npm run build` and bundles the output into the image at `/app/litellm/proxy/_experimental/out/`.
+
+**Standalone build (for local dev or debugging):**
+
+```bash
+cd ui/litellm-dashboard
+npm install
+npm run build                     # produces out/ directory (static export)
+
+# Deploy to the proxy's static file directory
+rm -rf ../../litellm/proxy/_experimental/out
+cp -r out ../../litellm/proxy/_experimental/out
+```
+
+**Dev mode with hot-reload:**
+
+```bash
+# Terminal 1: backend
+poetry run litellm --port 4000
+
+# Terminal 2: frontend (hot-reload on port 3000)
+cd ui/litellm-dashboard && npm run dev
+```
+
+---
+
+### Step 3: Create Kubernetes Secrets
+
+```bash
+# Get AKS credentials
+az aks get-credentials --resource-group $AKS_RESOURCE_GROUP --name $AKS_CLUSTER
+
+# Create namespace (optional)
+kubectl create namespace alchemi
+
+# Create secrets
+kubectl create secret generic alchemi-db-credentials \
+  --namespace alchemi \
+  --from-literal=DATABASE_URL="postgresql://user:pass@your-pg-server.postgres.database.azure.com:5432/consoledb?sslmode=require" \
+  --from-literal=username="user" \
+  --from-literal=password="your-db-password"
+
+kubectl create secret generic alchemi-env-secrets \
+  --namespace alchemi \
+  --from-literal=LITELLM_MASTER_KEY="sk-your-production-master-key" \
+  --from-literal=UI_USERNAME="admin" \
+  --from-literal=UI_PASSWORD="your-secure-password" \
+  --from-literal=REDIS_URL="rediss://default:password@your-redis.redis.cache.windows.net:6380/0" \
+  --from-literal=EMAIL_REDIS_HOST="your-email-redis.redis.azure.net" \
+  --from-literal=EMAIL_REDIS_PORT="10000" \
+  --from-literal=EMAIL_REDIS_PASSWORD="your-email-redis-password" \
+  --from-literal=EMAIL_REDIS_TLS="true" \
+  --from-literal=EMAIL_REDIS_ENVIRONMENT="prod" \
+  --from-literal=OPENOBSERVE_URL="https://openobserve.example.com/api/default" \
+  --from-literal=OPENOBSERVE_USER="admin@example.com" \
+  --from-literal=OPENOBSERVE_PASSWORD="your-oo-password"
+```
+
+---
+
+### Step 4: Create Production Helm Values
+
+Create `deploy/values-prod.yaml`:
+
+```yaml
+replicaCount: 2
+
+image:
+  repository: myacr.azurecr.io/alchemi-console    # your ACR image
+  pullPolicy: Always
+  tag: "v1.0.0"                                    # overridden by CI
+
+# Reference existing secrets instead of deploying a bundled database
+db:
+  useExisting: true
+  deployStandalone: false
+  endpoint: your-pg-server.postgres.database.azure.com
+  database: consoledb
+  secret:
+    name: alchemi-db-credentials
+    usernameKey: username
+    passwordKey: password
+
+# Inject secrets as env vars into the pod
+environmentSecrets:
+  - alchemi-env-secrets
+
+# Proxy config (models managed via DB, not config file)
+proxy_config:
+  model_list:
+    - model_name: placeholder
+      litellm_params:
+        model: openai/placeholder
+        api_key: managed-via-db
+  general_settings:
+    store_model_in_db: true
+    master_key: os.environ/LITELLM_MASTER_KEY
+
+# Extra env vars (non-secret)
+envVars:
+  STORE_MODEL_IN_DB: "True"
+  DOCS_URL: "/api-docs"
+  ROOT_REDIRECT_URL: "/ui"
+  PROXY_BASE_URL: "https://console.example.com"
+  EMAIL_SUPPORT_CONTACT: "hello@example.com"
+  OPENOBSERVE_ORG: "default"
+  OPENOBSERVE_STREAM: "alchemi_audit"
+  ALCHEMI_AUDIT_LOG_RETENTION_DAYS: "90"
+
+# Ingress (adjust for your domain and cert)
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+  hosts:
+    - host: console.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: alchemi-console-tls
+      hosts:
+        - console.example.com
+
+# Resources
+resources:
+  requests:
+    cpu: 500m
+    memory: 512Mi
+  limits:
+    cpu: 2000m
+    memory: 2Gi
+
+# Autoscaling
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+# Pod disruption budget
+pdb:
+  enabled: true
+  maxUnavailable: 1
+
+# Database migration job (runs before deploy)
+migrationJob:
+  enabled: true
+  retries: 3
+  hooks:
+    argocd:
+      enabled: false
+    helm:
+      enabled: true    # run as Helm pre-install/pre-upgrade hook
+
+# Prometheus metrics
+serviceMonitor:
+  enabled: false       # set true if using kube-prometheus-stack
+```
+
+---
+
+### Step 5: Deploy with Helm
+
+```bash
+# Attach ACR to AKS (one-time, allows AKS to pull images from ACR)
+az aks update --name $AKS_CLUSTER --resource-group $AKS_RESOURCE_GROUP \
+  --attach-acr $ACR_NAME
+
+# Build Helm dependencies (PostgreSQL/Redis subcharts — skipped when using external DB)
+helm dependency build deploy/charts/litellm-helm/
+
+# Deploy
+helm upgrade --install alchemi-console deploy/charts/litellm-helm/ \
+  --namespace alchemi \
+  --create-namespace \
+  -f deploy/values-prod.yaml \
+  --set image.tag=$IMAGE_TAG
+
+# Watch rollout
+kubectl rollout status deployment/litellm -n alchemi
+kubectl get pods -n alchemi
+```
+
+---
+
+### Step 6: Verify
+
+```bash
+# Port-forward to test before exposing via ingress
+kubectl port-forward svc/litellm 4000:4000 -n alchemi
+
+# Liveness (no auth)
+curl http://localhost:4000/health/liveliness
+
+# Full health (requires master key)
+curl -H "Authorization: Bearer sk-your-production-master-key" http://localhost:4000/health
+
+# Admin UI
+open http://localhost:4000/ui
+```
+
+Once ingress is configured: `https://console.example.com/` redirects to the admin UI.
+
+---
+
+### GitHub Actions CI/CD
+
+Add the following secrets to your GitHub repo (`Settings > Secrets and variables > Actions`):
+
+| Secret | Value |
+|--------|-------|
+| `AZURE_CREDENTIALS` | Service principal JSON (`az ad sp create-for-rbac --sdk-auth`) |
+| `ACR_NAME` | Your ACR name (e.g. `myacr`) |
+| `AKS_CLUSTER_NAME` | AKS cluster name |
+| `AKS_RESOURCE_GROUP` | AKS resource group |
+
+Create `.github/workflows/deploy.yml`:
+
+```yaml
+name: Build and Deploy to AKS
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Image tag (defaults to git SHA)"
+        required: false
+
+env:
+  IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login to ACR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_NAME }}.azurecr.io
+          username: ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).clientId }}
+          password: ${{ secrets.AZURE_CREDENTIALS && fromJson(secrets.AZURE_CREDENTIALS).clientSecret }}
+
+      - name: Build and push image
+        run: |
+          docker build -t ${{ secrets.ACR_NAME }}.azurecr.io/alchemi-console:${{ env.IMAGE_TAG }} .
+          docker push ${{ secrets.ACR_NAME }}.azurecr.io/alchemi-console:${{ env.IMAGE_TAG }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v3
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME }}
+          admin: false
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Deploy with Helm
+        run: |
+          helm dependency build deploy/charts/litellm-helm/
+          helm upgrade --install alchemi-console deploy/charts/litellm-helm/ \
+            --namespace alchemi \
+            --create-namespace \
+            -f deploy/values-prod.yaml \
+            --set image.tag=${{ env.IMAGE_TAG }} \
+            --wait --timeout 10m
+```
+
+**Pipeline flow:**
+1. Push to `main` (or manual trigger with a tag)
+2. Builds the Docker image (Python backend + Next.js UI in one image)
+3. Pushes to ACR
+4. Sets AKS kubectl context
+5. Helm upgrade runs the migration job (pre-upgrade hook), then rolls out new pods
+6. `--wait` ensures the deploy only succeeds if pods become healthy
+
+---
+
+### Upgrading
+
+```bash
+# 1. Build new image
+docker build -t $ACR_NAME.azurecr.io/alchemi-console:v1.1.0 .
+docker push $ACR_NAME.azurecr.io/alchemi-console:v1.1.0
+
+# 2. Deploy (migration job runs automatically as Helm pre-upgrade hook)
+helm upgrade alchemi-console deploy/charts/litellm-helm/ \
+  --namespace alchemi \
+  -f deploy/values-prod.yaml \
+  --set image.tag=v1.1.0
+
+# 3. Watch rollout
+kubectl rollout status deployment/litellm -n alchemi
+```
+
+Or just push to `main` and let GitHub Actions handle it.
+
+---
+
+### Health Check Endpoints
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `/health/liveliness` | None | Liveness probe (for k8s) |
+| `/health/readiness` | None | Readiness probe (for k8s) |
+| `/health` | Master key | Full health with per-model status |
+| `/api-docs` | None | Swagger/OpenAPI documentation |
+
+---
 
 ## License
 

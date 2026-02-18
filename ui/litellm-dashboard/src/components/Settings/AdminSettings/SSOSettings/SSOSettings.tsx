@@ -225,7 +225,7 @@ export default function SSOSettings() {
               )}
             </Space>
           </Card>
-          {isRoleMappingsEnabled && <RoleMappings roleMappings={ssoSettings?.values.role_mappings} />}
+          {isRoleMappingsEnabled && <RoleMappings roleMappings={ssoSettings?.values.role_mappings ?? undefined} />}
         </Space>
       )}
 
