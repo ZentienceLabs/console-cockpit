@@ -12,8 +12,8 @@ WORKDIR /app
 
 USER root
 
-# Install build dependencies
-RUN apk add --no-cache bash gcc py3-pip python3 python3-dev openssl openssl-dev
+# Install build dependencies (including Node.js for Admin UI build)
+RUN apk add --no-cache bash gcc py3-pip python3 python3-dev openssl openssl-dev nodejs npm
 
 RUN python -m pip install build
 
@@ -75,6 +75,9 @@ RUN ls -la /app
 COPY --from=builder /app/dist/*.whl .
 COPY --from=builder /wheels/ /wheels/
 
+# Copy the built Admin UI from the builder stage (if it was built)
+COPY --from=builder /app/litellm/proxy/_experimental/out/ /app/litellm/proxy/_experimental/out/
+
 # Install the built wheel using pip; again using a wildcard if it's the only file
 RUN pip install *.whl /wheels/* --no-index --find-links=/wheels/ && rm -f *.whl && rm -rf /wheels
 
@@ -114,8 +117,13 @@ RUN cp schema.prisma litellm/proxy/schema.prisma && \
         cp "$d/migration.sql" "$EXTRAS_DIR/migrations/$name/migration.sql"; \
     done
 
-# Generate prisma client using the correct schema
-RUN prisma generate --schema=./schema.prisma
+# Set Prisma binary cache directory and target for wolfi/musl compatibility
+ENV PRISMA_BINARY_CACHE_DIR=/app/.cache/prisma-python/binaries
+ENV PRISMA_CLI_BINARY_TARGETS="linux-musl-openssl-3.0.x"
+
+# Pre-cache Prisma binaries and generate client
+RUN python -c "import prisma.cli.prisma as p; p.ensure_cached()" && \
+    prisma generate --schema=./schema.prisma
 # Convert Windows line endings to Unix for entrypoint scripts
 RUN sed -i 's/\r$//' docker/entrypoint.sh && chmod +x docker/entrypoint.sh
 RUN sed -i 's/\r$//' docker/prod_entrypoint.sh && chmod +x docker/prod_entrypoint.sh

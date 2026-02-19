@@ -1,62 +1,44 @@
 #!/bin/bash
 
-# # try except this script
-# set -e
+# Build the Alchemi Studio Console Admin UI
+# This script is called during Docker build to compile the Next.js dashboard
 
-# print current dir 
-echo
-pwd
+set -e
 
+echo "=============================================="
+echo "Building Alchemi Studio Console Admin UI..."
+echo "=============================================="
+echo "Current directory: $(pwd)"
 
-# only run this step for litellm enterprise, we run this if enterprise/enterprise_ui/_enterprise.json exists
-if [ ! -f "enterprise/enterprise_ui/enterprise_colors.json" ]; then
-    echo "Admin UI - using default LiteLLM UI"
-    exit 0
-fi
-
-echo "Building Custom Admin UI..."
-
-# Install dependencies
-# Check if we are on macOS
-if [[ "$(uname)" == "Darwin" ]]; then
-    # Install dependencies using Homebrew
-    if ! command -v brew &> /dev/null; then
-        echo "Error: Homebrew not found. Please install Homebrew and try again."
-        exit 1
-    fi
-    brew update
-    brew install curl
-else
-    # Assume Linux, try using apt-get
-    if command -v apt-get &> /dev/null; then
-        apt-get update
-        apt-get install -y curl
-    elif command -v apk &> /dev/null; then
-        # Try using apk if apt-get is not available
-        apk update
-        apk add curl
-    else
-        echo "Error: Unsupported package manager. Cannot install dependencies."
-        exit 1
-    fi
-fi
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.38.0/install.sh | bash
-source ~/.nvm/nvm.sh
-nvm install v18.17.0
-nvm use v18.17.0
-npm install -g npm
-
-# copy _enterprise.json from this directory to /ui/litellm-dashboard, and rename it to ui_colors.json
-cp enterprise/enterprise_ui/enterprise_colors.json ui/litellm-dashboard/ui_colors.json
-
-# cd in to /ui/litellm-dashboard
+# Navigate to UI directory
 cd ui/litellm-dashboard
 
-# ensure have access to build_ui.sh
-chmod +x ./build_ui.sh
+# Install dependencies
+echo "Installing npm dependencies..."
+npm ci --prefer-offline --no-audit 2>/dev/null || npm install --legacy-peer-deps
 
-# run ./build_ui.sh
-./build_ui.sh
+# Build the Next.js static export
+echo "Building Next.js application..."
+npm run build
 
-# return to root directory
+# Copy built files to the proxy's static directory
+destination_dir="../../litellm/proxy/_experimental/out"
+echo "Copying built files to $destination_dir..."
+
+# Ensure destination directory exists
+mkdir -p "$destination_dir"
+
+# Remove existing files and copy new ones
+rm -rf "$destination_dir"/*
+cp -r ./out/* "$destination_dir"
+
+# Cleanup to reduce image size
+rm -rf ./out
+rm -rf node_modules
+
+echo "=============================================="
+echo "Admin UI build completed successfully!"
+echo "=============================================="
+
+# Return to root directory
 cd ../..

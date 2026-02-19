@@ -1,0 +1,91 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "litellm/**"
+      - "alchemi/**"
+      - "ui/litellm-dashboard/**"
+      - "docker/**"
+      - "Dockerfile"
+      - "requirements.txt"
+      - "pyproject.toml"
+      - "schema.prisma"
+      - "prisma/**"
+      - ".github/workflows/acr-build-push.yml"
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "Custom image tag (defaults to short SHA)"
+        required: false
+        default: ""
+
+env:
+  ACR_LOGIN_SERVER: ${{ secrets.ACR_LOGIN_SERVER }}
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────────
+  # Build unified Console Cockpit image (LiteLLM Proxy + Alchemi + Admin UI)
+  # ─────────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & Push Console Cockpit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: tag
+        run: |
+          TAG="${{ github.event.inputs.image_tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="${{ github.sha }}"
+            TAG="${TAG:0:7}"
+          fi
+          echo "value=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to Azure Container Registry
+        uses: azure/docker-login@v2
+        with:
+          login-server: ${{ env.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push console-cockpit image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: |
+            ${{ env.ACR_LOGIN_SERVER }}/console-cockpit:${{ steps.tag.outputs.value }}
+            ${{ env.ACR_LOGIN_SERVER }}/console-cockpit:latest
+          cache-from: type=gha,scope=console-cockpit
+          cache-to: type=gha,mode=max,scope=console-cockpit
+
+      - name: Print deployment info
+        run: |
+          echo "=============================================="
+          echo "Image pushed successfully!"
+          echo "=============================================="
+          echo ""
+          echo "Image: ${{ env.ACR_LOGIN_SERVER }}/console-cockpit:${{ steps.tag.outputs.value }}"
+          echo ""
+          echo "To deploy, set these environment variables at runtime:"
+          echo "  - DATABASE_URL"
+          echo "  - LITELLM_MASTER_KEY"
+          echo "  - UI_USERNAME"
+          echo "  - UI_PASSWORD"
+          echo "  - STORE_MODEL_IN_DB=True"
+          echo ""
+          echo "Optional:"
+          echo "  - REDIS_URL"
+          echo "  - OPENOBSERVE_URL, OPENOBSERVE_USER, OPENOBSERVE_PASSWORD"
+          echo "  - EMAIL_REDIS_HOST, EMAIL_REDIS_PASSWORD"
+          echo "=============================================="
