@@ -4,7 +4,6 @@ import { useModelsInfo } from "@/app/(dashboard)/hooks/models/useModels";
 import { useUISettings } from "@/app/(dashboard)/hooks/uiSettings/useUISettings";
 import AllModelsTab from "@/app/(dashboard)/models-and-endpoints/components/AllModelsTab";
 import ModelRetrySettingsTab from "@/app/(dashboard)/models-and-endpoints/components/ModelRetrySettingsTab";
-import PriceDataManagementTab from "@/app/(dashboard)/models-and-endpoints/components/PriceDataManagementTab";
 import { handleAddModelSubmit } from "@/components/add_model/handle_add_model_submit";
 import { Team } from "@/components/key_team_helpers/key_list";
 import CredentialsPanel from "@/components/model_add/credentials";
@@ -338,7 +337,6 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
                   {all_admin_roles.includes(userRole) && <Tab>Health Status</Tab>}
                   {all_admin_roles.includes(userRole) && <Tab>Model Retry Settings</Tab>}
                   {all_admin_roles.includes(userRole) && <Tab>Model Group Alias</Tab>}
-                  {all_admin_roles.includes(userRole) && <Tab>Price Data Reload</Tab>}
                 </div>
 
                 <div className="flex items-center space-x-2">
@@ -421,7 +419,6 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
                     onAliasUpdate={setModelGroupAlias}
                   />
                 </TabPanel>
-                <PriceDataManagementTab />
               </TabPanels>
             </TabGroup>
           )}

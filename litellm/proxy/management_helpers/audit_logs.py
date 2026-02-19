@@ -47,6 +47,14 @@ async def create_object_audit_log(
     if store_audit_logs is not True:
         return
 
+    # Resolve account_id from tenant context for multi-tenant isolation
+    _account_id: Optional[str] = None
+    try:
+        from alchemi.middleware.tenant_context import get_current_account_id
+        _account_id = get_current_account_id()
+    except Exception:
+        pass
+
     await create_audit_log_for_update(
         request_data=LiteLLM_AuditLogs(
             id=str(uuid.uuid4()),
@@ -60,6 +68,7 @@ async def create_object_audit_log(
             action=action,
             updated_values=after_value,
             before_value=before_value,
+            account_id=_account_id,
         )
     )
 

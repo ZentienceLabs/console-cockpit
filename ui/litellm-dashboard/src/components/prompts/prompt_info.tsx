@@ -116,7 +116,7 @@ const PromptInfoView: React.FC<PromptInfoProps> = ({ promptId, onClose, accessTo
   };
 
   // Use utility functions to extract prompt data
-  const promptModel = promptData ? extractModel(promptData) || "gpt-4o" : "gpt-4o";
+  const promptModel = promptData ? extractModel(promptData) || "" : "";
   const basePromptId = getBasePromptId(promptData);
   const currentVersion = getCurrentVersion(promptData);
 

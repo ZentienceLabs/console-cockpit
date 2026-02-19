@@ -38,7 +38,7 @@ const FeatureCard: React.FC<FeatureCardProps> = ({
 
   const getHeadersConfig = () => {
     const headers: Record<string, any> = {
-      "x-litellm-api-key": "Bearer YOUR_LITELLM_API_KEY",
+      "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_API_KEY",
     };
     if (useServerHeader && serverName) {
       const formattedServerName = serverName.replace(/\s+/g, "_");
@@ -137,7 +137,7 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
 
   const getHeadersConfig = (type: string) => {
     const headers: Record<string, any> = {
-      "x-litellm-api-key": "Bearer YOUR_LITELLM_API_KEY",
+      "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_API_KEY",
     };
 
     if (serverHeaders[type]?.length > 0) {
@@ -227,7 +227,7 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
             <div>
               <Text>Get your Virtual Key from your dashboard or contact your administrator</Text>
             </div>
-            <CodeBlock title="Environment Variable" code='export LITELLM_API_KEY="sk-..."' copyKey="litellm-env" />
+            <CodeBlock title="Environment Variable" code='export ALCHEMI_API_KEY="sk-..."' copyKey="litellm-env" />
           </Space>
         </FeatureCard>
 
@@ -249,17 +249,17 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
           <CodeBlock
             code={`curl --location '${proxyBaseUrl}/v1/responses' \\
 --header 'Content-Type: application/json' \\
---header "Authorization: Bearer $LITELLM_VIRTUAL_KEY" \\
+--header "Authorization: Bearer $ALCHEMI_VIRTUAL_KEY" \\
 --data '{
-    "model": "gpt-4",
+    "model": "your-model-name",
     "tools": [
         {
             "type": "mcp",
-            "server_label": "litellm",
+            "server_label": "alchemi",
             "server_url": "${proxyBaseUrl}/mcp",
             "require_approval": "never",
             "headers": {
-                "x-litellm-api-key": "Bearer YOUR_LITELLM_VIRTUAL_KEY",
+                "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_VIRTUAL_KEY",
                 "x-mcp-servers": "Zapier_MCP,dev-group"
             }
         }
@@ -334,15 +334,15 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
 --header 'Content-Type: application/json' \\
 --header "Authorization: Bearer $OPENAI_API_KEY" \\
 --data '{
-    "model": "gpt-4.1",
+    "model": "your-model-name",
     "tools": [
         {
             "type": "mcp",
-            "server_label": "litellm",
+            "server_label": "alchemi",
             "server_url": "${proxyBaseUrl}/mcp",
             "require_approval": "never",
             "headers": {
-                "x-litellm-api-key": "Bearer YOUR_LITELLM_API_KEY",
+                "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_API_KEY",
                 "x-mcp-servers": "Zapier_MCP,dev-group"
             }
         }
@@ -408,7 +408,7 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
     "Zapier_MCP": {
       "url": "${proxyBaseUrl}/mcp",
       "headers": {
-        "x-litellm-api-key": "Bearer YOUR_LITELLM_API_KEY",
+        "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_API_KEY",
         "x-mcp-servers": "Zapier_MCP,dev-group"
       }
     }
@@ -455,7 +455,7 @@ const MCPConnect: React.FC<MCPConnectProps> = ({ currentServerAccessGroups = [] 
             title="Headers Configuration"
             code={JSON.stringify(
               {
-                "x-litellm-api-key": "Bearer YOUR_LITELLM_API_KEY",
+                "x-alchemi-api-key": "Bearer YOUR_ALCHEMI_API_KEY",
               },
               null,
               2,

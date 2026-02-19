@@ -36,7 +36,9 @@ import {
   LockOutlined,
   SafetyCertificateOutlined,
   ExclamationCircleOutlined,
+  SettingOutlined,
 } from "@ant-design/icons";
+import PriceDataReload from "@/components/price_data_reload";
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -687,6 +689,34 @@ export default function TenantAdminPage() {
           loading={loading}
           pagination={{ pageSize: 10 }}
         />
+      </Card>
+
+      {/* System Settings - Price Data Reload */}
+      <Card style={{ marginTop: 24 }}>
+        <div style={{ marginBottom: 16 }}>
+          <Title level={4} style={{ margin: 0 }}>
+            <SettingOutlined style={{ marginRight: 8 }} />
+            System Settings
+          </Title>
+          <Text type="secondary">
+            Global system configuration for all tenants
+          </Text>
+        </div>
+        <Divider />
+        <div>
+          <Title level={5}>Price Data Management</Title>
+          <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
+            Manage model pricing data and configure automatic reload schedules
+          </Text>
+          <PriceDataReload
+            accessToken={accessToken}
+            onReloadSuccess={() => {}}
+            buttonText="Reload Price Data"
+            size="middle"
+            type="primary"
+            className="w-full"
+          />
+        </div>
       </Card>
 
       {/* Create Account Modal */}

@@ -276,7 +276,6 @@ const menuItems: MenuItemCfg[] = [
         icon: <ToolOutlined style={{ fontSize: 18 }} />,
         roles: all_admin_roles,
       },
-      { key: "4", page: "usage", label: "Old Usage", icon: <BarChartOutlined style={{ fontSize: 18 }} /> },
     ],
   },
   {

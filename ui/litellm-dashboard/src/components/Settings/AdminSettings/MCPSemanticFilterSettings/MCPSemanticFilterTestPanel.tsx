@@ -73,15 +73,6 @@ export default function MCPSemanticFilterTestPanel({
             Test Filter
           </Button>
 
-          {!filterEnabled && (
-            <Alert
-              type="warning"
-              message="Semantic filtering is disabled"
-              description="Enable semantic filtering and save settings to test the filter."
-              showIcon
-            />
-          )}
-
           {testResult && (
             <div>
               <Typography.Title level={5}>Results</Typography.Title>

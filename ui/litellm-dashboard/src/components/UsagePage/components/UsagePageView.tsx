@@ -142,10 +142,7 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
   const [modelViewType, setModelViewType] = useState<"groups" | "individual">("groups");
   const [isCloudZeroModalOpen, setIsCloudZeroModalOpen] = useState(false);
   const [isGlobalExportModalOpen, setIsGlobalExportModalOpen] = useState(false);
-  const [showOrganizationBanner, setShowOrganizationBanner] = useState(true);
-  const [showCustomerBanner, setShowCustomerBanner] = useState(true);
   const [usageView, setUsageView] = useState<UsageOption>("global");
-  const [showAgentBanner, setShowAgentBanner] = useState(true);
   const [topKeysLimit, setTopKeysLimit] = useState<number>(5);
   const [topModelsLimit, setTopModelsLimit] = useState<number>(5);
   const getAllTags = async () => {
@@ -692,7 +689,7 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
                     {/* Top Models */}
                     <Col numColSpan={1}>
                       <Card className="h-full">
-                        <Title>{modelViewType === "groups" ? "Top Public Model Names" : "Top Litellm Models"}</Title>
+                        <Title>{modelViewType === "groups" ? "Top Public Model Names" : "Top Models"}</Title>
                         <div className="flex justify-between items-center mb-4">
                           <Segmented
                             options={[
@@ -721,7 +718,7 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
                                 }`}
                               onClick={() => setModelViewType("individual")}
                             >
-                              Litellm Model Name
+                              Model Name
                             </button>
                           </div>
                         </div>
@@ -806,17 +803,6 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
 
           {usageView === "organization" && (
             <>
-              {showOrganizationBanner && (
-                <Alert
-                  banner
-                  type="info"
-                  message="Organization usage is a new feature."
-                  description="Spend is tracked from feature launch and previous data isn't backfilled, so only future usage appears here."
-                  closable
-                  onClose={() => setShowOrganizationBanner(false)}
-                  className="mb-5"
-                />
-              )}
               <EntityUsage
                 accessToken={accessToken}
                 entityType="organization"
@@ -855,17 +841,6 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
           {/* Customer Usage Panel */}
           {usageView === "customer" && (
             <>
-              {showCustomerBanner && (
-                <Alert
-                  banner
-                  type="info"
-                  message="Customer usage is a new feature."
-                  description="Spend is tracked from feature launch and previous data isn't backfilled, so only future usage appears here."
-                  closable
-                  onClose={() => setShowCustomerBanner(false)}
-                  className="mb-5"
-                />
-              )}
               <EntityUsage
                 accessToken={accessToken}
                 entityType="customer"
@@ -896,17 +871,6 @@ const UsagePage: React.FC<UsagePageProps> = ({ teams, organizations }) => {
           )}
           {usageView === "agent" && (
             <>
-              {showAgentBanner && (
-                <Alert
-                  banner
-                  type="info"
-                  message="Agent usage (A2A) is a new feature."
-                  description="Spend is tracked from feature launch and previous data isn't backfilled, so only future usage appears here."
-                  closable
-                  onClose={() => setShowAgentBanner(false)}
-                  className="mb-5"
-                />
-              )}
               <EntityUsage
                 accessToken={accessToken}
                 entityType="agent"

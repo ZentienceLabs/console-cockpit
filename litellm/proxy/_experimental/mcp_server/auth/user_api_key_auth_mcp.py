@@ -25,7 +25,8 @@ class MCPRequestHandler:
     Utilizes the main `user_api_key_auth` function to validate authentication
     """
 
-    LITELLM_API_KEY_HEADER_NAME_PRIMARY = SpecialHeaders.custom_litellm_api_key.value
+    LITELLM_API_KEY_HEADER_NAME_PRIMARY = SpecialHeaders.custom_alchemi_api_key.value
+    LITELLM_API_KEY_HEADER_NAME_LEGACY = SpecialHeaders.custom_litellm_api_key.value
     LITELLM_API_KEY_HEADER_NAME_SECONDARY = SpecialHeaders.openai_authorization.value
 
     # This is the header to use if you want LiteLLM to use this header for authenticating to the MCP server
@@ -287,10 +288,11 @@ class MCPRequestHandler:
     @staticmethod
     def get_litellm_api_key_from_headers(headers: Headers) -> Optional[str]:
         """
-        Get the Litellm API key from the headers using case-insensitive lookup
+        Get the API key from the headers using case-insensitive lookup
 
-        1. Check if `x-litellm-api-key` is in the headers
-        2. If not, check if `Authorization` is in the headers
+        1. Check if `x-alchemi-api-key` is in the headers (preferred)
+        2. If not, check if `x-litellm-api-key` is in the headers (legacy)
+        3. If not, check if `Authorization` is in the headers
 
         Args:
             headers: Starlette Headers object that handles case insensitivity
@@ -299,6 +301,11 @@ class MCPRequestHandler:
         api_key = headers.get(MCPRequestHandler.LITELLM_API_KEY_HEADER_NAME_PRIMARY)
         if api_key:
             return api_key
+
+        # Legacy header fallback
+        legacy_key = headers.get(MCPRequestHandler.LITELLM_API_KEY_HEADER_NAME_LEGACY)
+        if legacy_key:
+            return legacy_key
 
         auth_header = headers.get(
             MCPRequestHandler.LITELLM_API_KEY_HEADER_NAME_SECONDARY

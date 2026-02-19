@@ -12,6 +12,7 @@ This is **Alchemi Studio Console** -- a multi-tenant enterprise AI gateway built
 - `premium_user` is forced to `True` everywhere -- all enterprise features are always enabled.
 - There is NO `config.yaml` loaded by default. Every account manages their own models, guardrails, and settings from the database (`STORE_MODEL_IN_DB=True`).
 - The UI brand is "Alchemi Studio Console", not "LiteLLM". Never introduce new LiteLLM branding in user-visible text.
+- Any user-visible text, UI labels, API params, payload properties, placeholder text, tooltips, code examples, or documentation that says "litellm" or "LiteLLM" must be changed to say "alchemi" or "Alchemi". This includes MCP `server_label` values, `$LITELLM_VIRTUAL_KEY` in examples, footer text, and help text. Exceptions: backend protocol headers (`x-litellm-*`), backend route paths (`/litellm/...`, `litellm_proxy/...`), config key references (`litellm_settings.*`), and internal variable names -- these are functional and must not be changed without corresponding backend changes.
 - Minimize changes to LiteLLM base code (`litellm/` directory). Build features in `alchemi/` instead.
 
 ## Development Commands
@@ -221,6 +222,7 @@ When building new enterprise features:
 | `EMAIL_REDIS_PASSWORD` | alchemi-worker Redis password |
 | `EMAIL_REDIS_TLS` | Enable TLS for email Redis (default: "true") |
 | `EMAIL_REDIS_ENVIRONMENT` | BullMQ prefix environment, e.g. "dev" or "prod" |
+| `EMAIL_MODE` | `central` (default) or `tenant_first` (try tenant SMTP config, fall back to central) |
 | `EMAIL_LOGO_URL` | Logo URL used in invitation emails |
 | `EMAIL_SUPPORT_CONTACT` | Support email shown in invitation emails |
 | `PROXY_BASE_URL` | Base URL of the proxy (used in invitation links) |

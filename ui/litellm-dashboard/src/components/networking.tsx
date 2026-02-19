@@ -417,6 +417,11 @@ export const reloadModelCostMap = async (accessToken: string) => {
         "Content-Type": "application/json",
       },
     });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const detail = errorData?.error?.message || errorData?.detail || errorData?.message || `HTTP ${response.status}: ${response.statusText}`;
+      throw new Error(detail);
+    }
     const jsonData = await response.json();
     console.log(`Model cost map reload response: ${jsonData}`);
     return jsonData;
@@ -8335,7 +8340,7 @@ export const testMCPToolsListRequest = async (
       "Content-Type": "application/json",
     };
     if (accessToken) {
-      headers["x-litellm-api-key"] = accessToken;
+      headers["x-alchemi-api-key"] = accessToken;
     }
     if (oauthAccessToken) {
       headers["Authorization"] = `Bearer ${oauthAccessToken}`;

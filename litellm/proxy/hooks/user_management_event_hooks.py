@@ -92,15 +92,72 @@ class UserManagementEventHooks:
         """
         Send a user invitation email to the user.
 
-        Tries the alchemi-worker email queue first (BullMQ → Azure
-        Communication Services).  Falls back to enterprise V2 / legacy
-        V1 paths if the queue is not configured.
+        When EMAIL_MODE=tenant_first, tries the tenant's own SMTP config
+        first.  Then falls back to the central alchemi-worker email queue
+        (BullMQ → Azure Communication Services).  Finally falls back to
+        enterprise V2 / legacy V1 paths.
         """
         if data.send_invite_email is not True:
             return
 
         # -----------------------------------------------------------
-        # Alchemi email queue (preferred path)
+        # Helper: build invitation URL (shared across paths)
+        # -----------------------------------------------------------
+        import os
+
+        async def _build_invite_url() -> str:
+            try:
+                from litellm.proxy._types import InvitationNew
+                from litellm.proxy.management_helpers.user_invitation import (
+                    create_invitation_for_user,
+                )
+                invitation = await create_invitation_for_user(
+                    data=InvitationNew(user_id=response.user_id),
+                    user_api_key_dict=user_api_key_dict,
+                )
+                base_url = os.getenv("PROXY_BASE_URL", "")
+                return f"{base_url}/ui?invitation_id={invitation.id}"
+            except Exception as inv_err:
+                verbose_proxy_logger.warning(
+                    f"Failed to create invitation link: {inv_err}"
+                )
+                base_url = os.getenv("PROXY_BASE_URL", "")
+                return f"{base_url}/ui" if base_url else ""
+
+        # -----------------------------------------------------------
+        # Tenant SMTP path (only when EMAIL_MODE=tenant_first)
+        # -----------------------------------------------------------
+        try:
+            from alchemi.integrations.tenant_email import (
+                get_email_mode,
+                send_tenant_invitation_email,
+            )
+
+            if get_email_mode() == "tenant_first" and response.user_email:
+                from alchemi.middleware.tenant_context import get_current_account_id
+
+                account_id = get_current_account_id()
+                if account_id:
+                    invite_url = await _build_invite_url()
+                    user_name = response.user_email.split("@")[0]
+                    inviter = user_api_key_dict.user_email or "Admin"
+
+                    sent = await send_tenant_invitation_email(
+                        account_id=account_id,
+                        user_email=response.user_email,
+                        user_name=user_name,
+                        inviter_name=inviter,
+                        invite_link=invite_url,
+                    )
+                    if sent:
+                        return  # success — skip central + legacy paths
+        except Exception as e:
+            verbose_proxy_logger.warning(
+                f"Tenant SMTP send failed, falling back to central: {e}"
+            )
+
+        # -----------------------------------------------------------
+        # Central email queue (preferred central path)
         # -----------------------------------------------------------
         try:
             from alchemi.integrations.email_queue import (
@@ -109,27 +166,7 @@ class UserManagementEventHooks:
             )
 
             if eq_configured() and response.user_email:
-                import os
-                from litellm.proxy._types import InvitationNew
-                from litellm.proxy.management_helpers.user_invitation import (
-                    create_invitation_for_user,
-                )
-
-                # Create invitation link
-                invite_url = ""
-                try:
-                    invitation = await create_invitation_for_user(
-                        data=InvitationNew(user_id=response.user_id),
-                        user_api_key_dict=user_api_key_dict,
-                    )
-                    base_url = os.getenv("PROXY_BASE_URL", "")
-                    invite_url = f"{base_url}/ui?invitation_id={invitation.id}"
-                except Exception as inv_err:
-                    verbose_proxy_logger.warning(
-                        f"Failed to create invitation link: {inv_err}"
-                    )
-                    base_url = os.getenv("PROXY_BASE_URL", "")
-                    invite_url = f"{base_url}/ui" if base_url else ""
+                invite_url = await _build_invite_url()
 
                 user_name = response.user_email.split("@")[0]
                 inviter = user_api_key_dict.user_email or "Admin"

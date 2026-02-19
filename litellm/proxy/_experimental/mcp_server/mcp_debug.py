@@ -12,12 +12,12 @@ Response headers returned (all values are masked for safety):
 
     x-mcp-debug-inbound-auth
         Which inbound auth headers were present and how they were classified.
-        Example: ``x-litellm-api-key=Bearer sk-12****1234``
+        Example: ``x-alchemi-api-key=Bearer sk-12****1234``
 
     x-mcp-debug-oauth2-token
         The OAuth2 token extracted from the Authorization header (masked).
         Shows ``(none)`` if absent, or flags ``SAME_AS_LITELLM_KEY`` when
-        the LiteLLM API key is accidentally leaking to the MCP server.
+        the API key is accidentally leaking to the MCP server.
 
     x-mcp-debug-auth-resolution
         Which auth priority was used for the outbound MCP call:
@@ -34,23 +34,23 @@ Response headers returned (all values are masked for safety):
 Debugging Guide
 ---------------
 
-**Common issue: LiteLLM API key leaking to the MCP server**
+**Common issue: API key leaking to the MCP server**
 
 Symptom: ``x-mcp-debug-oauth2-token`` shows ``SAME_AS_LITELLM_KEY``.
 
-This means the ``Authorization`` header carries the LiteLLM API key and
+This means the ``Authorization`` header carries the API key and
 it's being forwarded to the upstream MCP server instead of an OAuth2 token.
 
-Fix: Move the LiteLLM key to ``x-litellm-api-key`` so the ``Authorization``
+Fix: Move the API key to ``x-alchemi-api-key`` so the ``Authorization``
 header is free for OAuth2 discovery::
 
     # WRONG — blocks OAuth2 discovery
     claude mcp add --transport http my_server http://proxy/mcp/server \\
         --header "Authorization: Bearer sk-..."
 
-    # CORRECT — LiteLLM key in dedicated header, Authorization free for OAuth2
+    # CORRECT — API key in dedicated header, Authorization free for OAuth2
     claude mcp add --transport http my_server http://proxy/mcp/server \\
-        --header "x-litellm-api-key: Bearer sk-..." \\
+        --header "x-alchemi-api-key: Bearer sk-..." \\
         --header "x-litellm-mcp-debug: true"
 
 **Common issue: No OAuth2 token present**
@@ -75,13 +75,13 @@ client credentials from the server config.
 Usage from Claude Code::
 
     claude mcp add --transport http my_server http://proxy/mcp/server \\
-        --header "x-litellm-api-key: Bearer sk-..." \\
+        --header "x-alchemi-api-key: Bearer sk-..." \\
         --header "x-litellm-mcp-debug: true"
 
 Usage with curl::
 
     curl -H "x-litellm-mcp-debug: true" \\
-         -H "x-litellm-api-key: Bearer sk-..." \\
+         -H "x-alchemi-api-key: Bearer sk-..." \\
          http://localhost:4000/mcp/atlassian_mcp
 """
 
@@ -214,7 +214,7 @@ class MCPDebug:
 
         # --- Inbound auth summary ---
         inbound_parts = []
-        for hdr_name in ("x-litellm-api-key", "authorization", "x-mcp-auth"):
+        for hdr_name in ("x-alchemi-api-key", "x-litellm-api-key", "authorization", "x-mcp-auth"):
             for k, v in inbound_headers.items():
                 if k.lower() == hdr_name:
                     inbound_parts.append(f"{hdr_name}={MCPDebug._mask(v)}")

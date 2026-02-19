@@ -31,7 +31,7 @@ const PromptEditorHeader: React.FC<PromptEditorHeaderProps> = ({
   editMode = false,
   onShowHistory,
   version,
-  promptModel = "gpt-4o",
+  promptModel = "",
   promptVariables = {},
   accessToken,
   proxySettings,

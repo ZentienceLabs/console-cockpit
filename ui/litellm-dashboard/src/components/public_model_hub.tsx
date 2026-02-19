@@ -998,7 +998,7 @@ const PublicModelHub: React.FC<PublicModelHubProps> = ({ accessToken, isEmbedded
               <div className="flex items-center space-x-3 text-sm text-gray-600">
                 <span className="flex items-center">
                   <span className="w-4 h-4 mr-2">🔧</span>
-                  Built with litellm: v{litellmVersion}
+                  Alchemi Studio: v{litellmVersion}
                 </span>
               </div>
             </Card>
@@ -1922,7 +1922,7 @@ config = {
         "${selectedMcpServer.server_name}": {
             "url": "http://localhost:4000/${selectedMcpServer.server_name}/mcp",
             "headers": {
-                "x-litellm-api-key": "Bearer sk-1234"
+                "x-alchemi-api-key": "Bearer sk-1234"
             }
         }
     }
@@ -1962,7 +1962,7 @@ config = {
         "${selectedMcpServer.server_name}": {
             "url": "http://localhost:4000/${selectedMcpServer.server_name}/mcp",
             "headers": {
-                "x-litellm-api-key": "Bearer sk-1234"
+                "x-alchemi-api-key": "Bearer sk-1234"
             }
         }
     }

@@ -27,7 +27,8 @@ function subscribe(callback: () => void) {
 }
 
 function getSnapshot() {
-  return getLocalStorageItem("disableShowNewBadge") === "true";
+  // Default to hiding "New" badges unless explicitly enabled
+  return getLocalStorageItem("disableShowNewBadge") !== "false";
 }
 
 export function useDisableShowNewBadge() {

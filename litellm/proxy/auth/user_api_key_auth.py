@@ -75,6 +75,11 @@ custom_litellm_key_header = APIKeyHeader(
     auto_error=False,
     description="Bearer token",
 )
+custom_alchemi_key_header = APIKeyHeader(
+    name=SpecialHeaders.custom_alchemi_api_key.value,
+    auto_error=False,
+    description="Bearer token (preferred over x-litellm-api-key)",
+)
 api_key_header = APIKeyHeader(
     name=SpecialHeaders.openai_authorization.value,
     auto_error=False,
@@ -310,6 +315,7 @@ def get_api_key(
     pass_through_endpoints: Optional[List[dict]],
     route: str,
     request: Request,
+    custom_alchemi_key_header: Optional[str] = None,
 ) -> Tuple[str, Optional[str]]:
     """
     Returns:
@@ -322,7 +328,10 @@ def get_api_key(
 
     api_key = api_key
     passed_in_key: Optional[str] = None
-    if isinstance(custom_litellm_key_header, str):
+    if isinstance(custom_alchemi_key_header, str):
+        passed_in_key = custom_alchemi_key_header
+        api_key = _get_bearer_token_or_received_api_key(custom_alchemi_key_header)
+    elif isinstance(custom_litellm_key_header, str):
         passed_in_key = custom_litellm_key_header
         api_key = _get_bearer_token_or_received_api_key(custom_litellm_key_header)
     elif isinstance(api_key, str) and len(api_key) > 0:
@@ -416,6 +425,7 @@ async def _user_api_key_auth_builder(  # noqa: PLR0915
     azure_apim_header: Optional[str],
     request_data: dict,
     custom_litellm_key_header: Optional[str] = None,
+    custom_alchemi_key_header: Optional[str] = None,
 ) -> UserAPIKeyAuth:
     from litellm.proxy.proxy_server import (
         general_settings,
@@ -460,6 +470,7 @@ async def _user_api_key_auth_builder(  # noqa: PLR0915
             pass_through_endpoints=pass_through_endpoints,
             route=route,
             request=request,
+            custom_alchemi_key_header=custom_alchemi_key_header,
         )
         # if user wants to pass LiteLLM_Master_Key as a custom header, example pass litellm keys as X-LiteLLM-Key: Bearer sk-1234
         custom_litellm_key_header_name = general_settings.get("litellm_key_header_name")
@@ -1313,6 +1324,9 @@ async def user_api_key_auth(
     custom_litellm_key_header: Optional[str] = fastapi.Security(
         custom_litellm_key_header
     ),
+    custom_alchemi_key_header: Optional[str] = fastapi.Security(
+        custom_alchemi_key_header
+    ),
 ) -> UserAPIKeyAuth:
     """
     Parent function to authenticate user api key / jwt token.
@@ -1334,6 +1348,7 @@ async def user_api_key_auth(
         azure_apim_header=azure_apim_header,
         request_data=request_data,
         custom_litellm_key_header=custom_litellm_key_header,
+        custom_alchemi_key_header=custom_alchemi_key_header,
     )
 
     ## ENSURE DISABLE ROUTE WORKS ACROSS ALL USER AUTH FLOWS ##

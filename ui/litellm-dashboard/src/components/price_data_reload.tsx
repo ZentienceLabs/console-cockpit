@@ -100,7 +100,8 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
       }
     } catch (error) {
       console.error("Error reloading price data:", error);
-      NotificationsManager.fromBackend("Failed to reload price data. Please try again.");
+      const message = error instanceof Error ? error.message : "Failed to reload price data. Please try again.";
+      NotificationsManager.fromBackend(message);
     } finally {
       setIsLoading(false);
     }

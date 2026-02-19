@@ -729,7 +729,7 @@ const CustomCodeModal: React.FC<CustomCodeModalProps> = ({
               </div>
               <Button
                 size="xs"
-                onClick={() => window.open('https://github.com/BerriAI/litellm-guardrails', '_blank')}
+                onClick={() => window.open('#', '_blank')}
                 icon={ExportOutlined}
                 className="bg-blue-600 hover:bg-blue-700 text-white border-0"
               >

@@ -2636,6 +2636,7 @@ class LiteLLM_AuditLogs(LiteLLMPydanticObjectBase):
     object_id: str
     before_value: Optional[Json] = None
     updated_values: Optional[Json] = None
+    account_id: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -3493,6 +3494,7 @@ class SpecialHeaders(enum.Enum):
     google_ai_studio_authorization = "x-goog-api-key"
     azure_apim_authorization = "Ocp-Apim-Subscription-Key"
     custom_litellm_api_key = "x-litellm-api-key"
+    custom_alchemi_api_key = "x-alchemi-api-key"
     mcp_auth = "x-mcp-auth"
     mcp_servers = "x-mcp-servers"
     mcp_access_groups = "x-mcp-access-groups"

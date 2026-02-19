@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { getProxyBaseUrl } from "@/components/networking";
+import { getProxyBaseUrl, getGlobalLitellmHeaderName } from "@/components/networking";
 
 interface ThemeContextType {
   logoUrl: string | null;
@@ -24,19 +24,39 @@ interface ThemeProviderProps {
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, accessToken }) => {
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
 
-  // Load logo URL from backend on mount
-  // Note: /get/ui_theme_settings is now a public endpoint (no auth required)
-  // so all users can see custom branding set by admins
+  // Load per-account theme when logged in, else load global theme
   useEffect(() => {
-    const loadLogoSettings = async () => {
+    const loadTheme = async () => {
       try {
         const proxyBaseUrl = getProxyBaseUrl();
-        const url = proxyBaseUrl ? `${proxyBaseUrl}/get/ui_theme_settings` : "/get/ui_theme_settings";
+
+        if (accessToken) {
+          // Logged in: fetch per-account theme (falls back to global on backend)
+          const url = proxyBaseUrl ? `${proxyBaseUrl}/account/theme` : "/account/theme";
+          const response = await fetch(url, {
+            method: "GET",
+            headers: {
+              [getGlobalLitellmHeaderName()]: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            if (data.values?.logo_url) {
+              setLogoUrl(data.values.logo_url);
+              return;
+            }
+          }
+        }
+
+        // Not logged in or no account theme: load global theme
+        const url = proxyBaseUrl
+          ? `${proxyBaseUrl}/get/ui_theme_settings`
+          : "/get/ui_theme_settings";
         const response = await fetch(url, {
           method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
         });
 
         if (response.ok) {
@@ -50,8 +70,8 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children, accessTo
       }
     };
 
-    loadLogoSettings();
-  }, []);
+    loadTheme();
+  }, [accessToken]);
 
   return <ThemeContext.Provider value={{ logoUrl, setLogoUrl }}>{children}</ThemeContext.Provider>;
 };

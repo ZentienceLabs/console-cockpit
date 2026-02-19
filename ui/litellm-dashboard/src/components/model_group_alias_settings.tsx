@@ -155,7 +155,7 @@ const ModelGroupAliasSettings: React.FC<ModelGroupAliasSettingsProps> = ({
           <Title className="mb-0">Model Group Alias Settings</Title>
           <p className="text-sm text-gray-500">
             Create aliases for your model groups to simplify API calls. For example, you can create an alias
-            &apos;gpt-4o&apos; that points to &apos;gpt-4o-mini-openai&apos; model group.
+            &apos;my-model&apos; that points to &apos;provider-model-name&apos; model group.
           </p>
         </div>
         <div className="flex items-center">
@@ -183,7 +183,7 @@ const ModelGroupAliasSettings: React.FC<ModelGroupAliasSettingsProps> = ({
                       aliasName: e.target.value,
                     })
                   }
-                  placeholder="e.g., gpt-4o"
+                  placeholder="e.g., my-model-alias"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
               </div>
@@ -198,7 +198,7 @@ const ModelGroupAliasSettings: React.FC<ModelGroupAliasSettingsProps> = ({
                       targetModelGroup: e.target.value,
                     })
                   }
-                  placeholder="e.g., gpt-4o-mini-openai"
+                  placeholder="e.g., provider-model-name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm"
                 />
               </div>
@@ -309,34 +309,6 @@ const ModelGroupAliasSettings: React.FC<ModelGroupAliasSettingsProps> = ({
               </Table>
             </div>
           </div>
-
-          {/* Configuration Example */}
-          <Card>
-            <Title className="mb-4">Configuration Example</Title>
-            <Text className="text-gray-600 mb-4">
-              Here&apos;s how your current aliases would look in the config.yaml:
-            </Text>
-            <div className="bg-gray-100 rounded-lg p-4 font-mono text-sm">
-              <div className="text-gray-700">
-                router_settings:
-                <br />
-                &nbsp;&nbsp;model_group_alias:
-                {Object.keys(aliasObject).length === 0 ? (
-                  <span className="text-gray-500">
-                    <br />
-                    &nbsp;&nbsp;&nbsp;&nbsp;# No aliases configured yet
-                  </span>
-                ) : (
-                  Object.entries(aliasObject).map(([key, value]) => (
-                    <span key={key}>
-                      <br />
-                      &nbsp;&nbsp;&nbsp;&nbsp;&quot;{key}&quot;: &quot;{value}&quot;
-                    </span>
-                  ))
-                )}
-              </div>
-            </div>
-          </Card>
         </div>
       )}
     </Card>

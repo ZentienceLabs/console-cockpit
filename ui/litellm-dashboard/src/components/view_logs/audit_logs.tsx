@@ -278,16 +278,9 @@ export default function AuditLogs({
           </svg>
         </div>
         <div>
-          <h4 className="text-sm font-medium text-blue-800">Audit Logs Not Available</h4>
+          <h4 className="text-sm font-medium text-blue-800">No Audit Logs Yet</h4>
           <p className="text-sm text-blue-700 mt-1">
-            To enable audit logging, add the following configuration to your proxy configuration file:
-          </p>
-          <pre className="mt-2 bg-white p-3 rounded border border-blue-200 text-xs font-mono overflow-auto">
-            {`litellm_settings:
-  store_audit_logs: true`}
-          </pre>
-          <p className="text-xs text-blue-700 mt-2">
-            Note: This will only affect new requests after the configuration change and proxy restart.
+            Audit logs will appear here as changes are made to keys, teams, models, and other resources.
           </p>
         </div>
       </div>

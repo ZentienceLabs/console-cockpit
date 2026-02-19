@@ -25,7 +25,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
   const fetchLogoSettings = async () => {
     try {
       const proxyBaseUrl = getProxyBaseUrl();
-      const url = proxyBaseUrl ? `${proxyBaseUrl}/get/ui_theme_settings` : "/get/ui_theme_settings";
+      const url = proxyBaseUrl ? `${proxyBaseUrl}/account/theme` : "/account/theme";
       const response = await fetch(url, {
         method: "GET",
         headers: {
@@ -49,7 +49,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
     setLoading(true);
     try {
       const proxyBaseUrl = getProxyBaseUrl();
-      const url = proxyBaseUrl ? `${proxyBaseUrl}/update/ui_theme_settings` : "/update/ui_theme_settings";
+      const url = proxyBaseUrl ? `${proxyBaseUrl}/account/theme` : "/account/theme";
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
@@ -83,7 +83,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
     setLoading(true);
     try {
       const proxyBaseUrl = getProxyBaseUrl();
-      const url = proxyBaseUrl ? `${proxyBaseUrl}/update/ui_theme_settings` : "/update/ui_theme_settings";
+      const url = proxyBaseUrl ? `${proxyBaseUrl}/account/theme` : "/account/theme";
       const response = await fetch(url, {
         method: "PATCH",
         headers: {
@@ -116,7 +116,7 @@ const UIThemeSettings: React.FC<UIThemeSettingsProps> = ({ userID, userRole, acc
     <div className="w-full mx-auto max-w-4xl px-6 py-8">
       <div className="mb-8">
         <Title className="text-2xl font-bold mb-2">Logo Customization</Title>
-        <Text className="text-gray-600">Customize your admin dashboard with a custom logo.</Text>
+        <Text className="text-gray-600">Customize your account dashboard with a custom logo.</Text>
       </div>
 
       <Card className="shadow-sm p-6">

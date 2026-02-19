@@ -177,9 +177,9 @@ export const getPlaceholder = (selectedProvider: string): string => {
   } else if (selectedProvider === Providers.Vertex_AI) {
     return "gemini-pro";
   } else if (selectedProvider == Providers.Anthropic) {
-    return "claude-3-opus";
+    return "Enter model name";
   } else if (selectedProvider == Providers.Bedrock) {
-    return "claude-3-opus";
+    return "Enter model name";
   } else if (selectedProvider == Providers.SageMaker) {
     return "sagemaker/jumpstart-dft-meta-textgeneration-llama-2-7b";
   } else if (selectedProvider == Providers.Google_AI_Studio) {
@@ -207,7 +207,7 @@ export const getPlaceholder = (selectedProvider: string): string => {
   } else if (selectedProvider === Providers.Watsonx) {
     return "watsonx/ibm/granite-3-3-8b-instruct";
   } else {
-    return "gpt-3.5-turbo";
+    return "Enter model name";
   }
 };
 

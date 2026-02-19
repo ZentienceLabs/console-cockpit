@@ -25,7 +25,7 @@ export const CommunityEngagementButtons: React.FC = () => {
         Join Slack
       </Button>
       <Button
-        href="https://github.com/BerriAI/litellm"
+        href="#"
         target="_blank"
         rel="noopener noreferrer"
         className="shadow-md shadow-indigo-500/20 hover:shadow-indigo-500/50 transition-shadow"

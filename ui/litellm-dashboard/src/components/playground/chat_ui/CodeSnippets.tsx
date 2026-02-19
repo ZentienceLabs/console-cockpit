@@ -84,14 +84,14 @@ export const generateCodeSnippet = (params: GenerateCodeParams): string => {
       ? `import openai
 
 client = openai.AzureOpenAI(
-	api_key="${effectiveApiKey || "YOUR_LITELLM_API_KEY"}",
+	api_key="${effectiveApiKey || "YOUR_ALCHEMI_API_KEY"}",
 	azure_endpoint="${apiBase}",
 	api_version="2024-02-01"
 )`
       : `import openai
 
 client = openai.OpenAI(
-	api_key="${effectiveApiKey || "YOUR_LITELLM_API_KEY"}",
+	api_key="${effectiveApiKey || "YOUR_ALCHEMI_API_KEY"}",
 	base_url="${apiBase}"
 )`;
 

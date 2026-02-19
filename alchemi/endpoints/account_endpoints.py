@@ -204,6 +204,254 @@ async def list_accounts(
     return {"accounts": accounts}
 
 
+# ── Per-account UI theme ─────────────────────────────────────────────────────
+# These MUST be defined before /{account_id} parametric routes to avoid
+# "theme" being matched as an account_id.
+
+
+class AccountThemeRequest(BaseModel):
+    logo_url: Optional[str] = None
+
+
+@router.get("/theme")
+async def get_account_theme(request: Request):
+    """
+    Get UI theme for the caller's account.
+    Returns account-specific theme if set, otherwise falls back to global theme.
+    """
+    from alchemi.middleware.tenant_context import get_current_account_id
+    from alchemi.middleware.account_middleware import resolve_tenant_from_request
+    from litellm.proxy.proxy_server import prisma_client
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    resolve_tenant_from_request(request)
+    account_id = get_current_account_id()
+
+    theme_config = {}
+
+    if account_id:
+        account = await prisma_client.db.alchemi_accounttable.find_unique(
+            where={"account_id": account_id}
+        )
+        if account and account.metadata:
+            meta = account.metadata if isinstance(account.metadata, dict) else {}
+            theme_config = meta.get("ui_theme_config", {})
+
+    # Fall back to global theme settings if account has none
+    if not theme_config:
+        try:
+            from litellm.proxy.proxy_server import proxy_config
+            config = await proxy_config.get_config()
+            litellm_settings = config.get("litellm_settings", {}) or {}
+            theme_config = litellm_settings.get("ui_theme_config", {})
+        except Exception:
+            pass
+
+    return {
+        "values": theme_config,
+        "account_id": account_id,
+    }
+
+
+@router.patch("/theme")
+async def update_account_theme(
+    data: AccountThemeRequest,
+    request: Request,
+    _=Depends(_require_super_admin_or_account_admin),
+):
+    """
+    Update UI theme for the caller's account.
+    Stores theme config in the account's metadata.ui_theme_config.
+    """
+    from alchemi.middleware.tenant_context import get_current_account_id
+    from litellm.proxy.proxy_server import prisma_client
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    account_id = get_current_account_id()
+    if not account_id:
+        raise HTTPException(status_code=400, detail="No account context found")
+
+    account = await prisma_client.db.alchemi_accounttable.find_unique(
+        where={"account_id": account_id}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    meta = account.metadata if isinstance(account.metadata, dict) else {}
+    theme_data = data.model_dump(exclude_none=True)
+
+    if data.logo_url is None or data.logo_url == "":
+        meta.pop("ui_theme_config", None)
+    else:
+        meta["ui_theme_config"] = theme_data
+
+    await prisma_client.db.alchemi_accounttable.update(
+        where={"account_id": account_id},
+        data={"metadata": Json(meta)},
+    )
+
+    return {
+        "message": "Account theme updated successfully",
+        "status": "success",
+        "theme_config": theme_data,
+        "account_id": account_id,
+    }
+
+
+# ── Per-account SMTP config ─────────────────────────────────────────────────
+# These MUST be defined before /{account_id} parametric routes.
+
+
+class AccountSmtpConfigRequest(BaseModel):
+    smtp_host: Optional[str] = None
+    smtp_port: Optional[int] = 587
+    smtp_username: Optional[str] = None
+    smtp_password: Optional[str] = None
+    sender_email: Optional[str] = None
+    sender_name: Optional[str] = None
+
+
+@router.get("/smtp")
+async def get_account_smtp(
+    request: Request,
+    _=Depends(_require_super_admin_or_account_admin),
+):
+    """Get SMTP configuration for the caller's account."""
+    from litellm.proxy.proxy_server import prisma_client
+    from alchemi.middleware.tenant_context import get_current_account_id
+    from alchemi.middleware.account_middleware import resolve_tenant_from_request
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if get_current_account_id() is None:
+        resolve_tenant_from_request(request)
+    account_id = get_current_account_id()
+
+    if not account_id:
+        raise HTTPException(status_code=400, detail="No account context found")
+
+    account = await prisma_client.db.alchemi_accounttable.find_unique(
+        where={"account_id": account_id}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    meta = account.metadata if isinstance(account.metadata, dict) else {}
+    smtp_config = meta.get("smtp_config", {})
+
+    # Mask the password in the response
+    if smtp_config and smtp_config.get("smtp_password"):
+        smtp_config = dict(smtp_config)
+        smtp_config["smtp_password"] = "••••••••"
+
+    return {"smtp_config": smtp_config, "account_id": account_id}
+
+
+@router.patch("/smtp")
+async def update_account_smtp(
+    data: AccountSmtpConfigRequest,
+    request: Request,
+    _=Depends(_require_super_admin_or_account_admin),
+):
+    """Update SMTP configuration for the caller's account."""
+    from litellm.proxy.proxy_server import prisma_client
+    from alchemi.middleware.tenant_context import get_current_account_id
+    from alchemi.middleware.account_middleware import resolve_tenant_from_request
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if get_current_account_id() is None:
+        resolve_tenant_from_request(request)
+    account_id = get_current_account_id()
+
+    if not account_id:
+        raise HTTPException(status_code=400, detail="No account context found")
+
+    account = await prisma_client.db.alchemi_accounttable.find_unique(
+        where={"account_id": account_id}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    meta = account.metadata if isinstance(account.metadata, dict) else {}
+    existing_config = meta.get("smtp_config", {}) if isinstance(meta.get("smtp_config"), dict) else {}
+
+    # Merge: only update provided fields, keep existing ones
+    new_config = dict(existing_config)
+    update_data = data.model_dump(exclude_none=True)
+    # If password is the masked placeholder, don't overwrite
+    if update_data.get("smtp_password") == "••••••••":
+        update_data.pop("smtp_password", None)
+    new_config.update(update_data)
+
+    # If smtp_host is cleared, remove the entire config
+    if not new_config.get("smtp_host"):
+        meta.pop("smtp_config", None)
+    else:
+        meta["smtp_config"] = new_config
+
+    await prisma_client.db.alchemi_accounttable.update(
+        where={"account_id": account_id},
+        data={"metadata": Json(meta)},
+    )
+
+    return {
+        "message": "Account SMTP config updated successfully",
+        "status": "success",
+        "account_id": account_id,
+    }
+
+
+@router.delete("/smtp")
+async def delete_account_smtp(
+    request: Request,
+    _=Depends(_require_super_admin_or_account_admin),
+):
+    """Remove SMTP configuration from the caller's account (reverts to central email)."""
+    from litellm.proxy.proxy_server import prisma_client
+    from alchemi.middleware.tenant_context import get_current_account_id
+    from alchemi.middleware.account_middleware import resolve_tenant_from_request
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+
+    if get_current_account_id() is None:
+        resolve_tenant_from_request(request)
+    account_id = get_current_account_id()
+
+    if not account_id:
+        raise HTTPException(status_code=400, detail="No account context found")
+
+    account = await prisma_client.db.alchemi_accounttable.find_unique(
+        where={"account_id": account_id}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    meta = account.metadata if isinstance(account.metadata, dict) else {}
+    meta.pop("smtp_config", None)
+
+    await prisma_client.db.alchemi_accounttable.update(
+        where={"account_id": account_id},
+        data={"metadata": Json(meta)},
+    )
+
+    return {
+        "message": "Account SMTP config removed",
+        "status": "success",
+        "account_id": account_id,
+    }
+
+
+# ── Parametric {account_id} routes ───────────────────────────────────────────
+
+
 @router.get("/{account_id}")
 async def get_account(
     account_id: str,

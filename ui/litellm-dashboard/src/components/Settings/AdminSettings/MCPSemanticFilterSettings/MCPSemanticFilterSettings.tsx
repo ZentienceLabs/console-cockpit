@@ -44,7 +44,7 @@ export default function MCPSemanticFilterSettings({ accessToken }: MCPSemanticFi
 
   // Test section state
   const [testQuery, setTestQuery] = useState("");
-  const [testModel, setTestModel] = useState<string>("gpt-4o");
+  const [testModel, setTestModel] = useState<string>("");
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [isTesting, setIsTesting] = useState(false);
 
@@ -72,7 +72,7 @@ export default function MCPSemanticFilterSettings({ accessToken }: MCPSemanticFi
   useEffect(() => {
     if (values) {
       form.setFieldsValue({
-        enabled: values.enabled ?? false,
+        enabled: values.enabled ?? true,
         embedding_model: values.embedding_model ?? "text-embedding-3-small",
         top_k: values.top_k ?? 10,
         similarity_threshold: values.similarity_threshold ?? 0.3,

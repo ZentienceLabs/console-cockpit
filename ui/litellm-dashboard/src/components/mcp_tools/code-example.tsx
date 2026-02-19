@@ -34,7 +34,7 @@ async def main():
             
             # Request with tools
             response = await client.chat.completions.create(
-                model="gpt-4o",
+                model="your-model-name",
                 messages=messages,
                 tools=[transform_mcp_tool_to_openai_tool(tool) for tool in mcp_tools.tools],
                 tool_choice="auto"

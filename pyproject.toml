@@ -1,22 +1,14 @@
 [tool.poetry]
-name = "litellm"
+name = "console-cockpit"
 version = "1.81.13"
-description = "Library to easily interface with LLM API providers"
-authors = ["BerriAI"]
+description = "Alchemi Studio Console – multi-tenant enterprise AI gateway and control plane"
+authors = ["Alchemi"]
 license = "MIT"
 readme = "README.md"
 packages = [
     { include = "litellm" },
     { include = "litellm/py.typed"},
 ]
-
-[tool.poetry.urls]
-homepage = "https://litellm.ai"
-Homepage = "https://litellm.ai"
-repository = "https://github.com/BerriAI/litellm"
-Repository = "https://github.com/BerriAI/litellm"
-documentation = "https://docs.litellm.ai"
-Documentation = "https://docs.litellm.ai"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"

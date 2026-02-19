@@ -238,7 +238,7 @@ export const parseExistingPrompt = (apiResponse: any): PromptType => {
 
   return {
     name: baseName,
-    model: parsedFrontmatter.model || "gpt-4o",
+    model: parsedFrontmatter.model || "",
     config: parsedFrontmatter.config,
     tools: parsedFrontmatter.tools,
     developerMessage: parsedBody.developerMessage,

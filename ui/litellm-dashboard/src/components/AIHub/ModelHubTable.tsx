@@ -999,7 +999,7 @@ config = {
         "${selectedMcpServer.server_name}": {
             "url": "http://localhost:4000/${selectedMcpServer.server_name}/mcp",
             "headers": {
-                "x-litellm-api-key": "Bearer sk-1234"
+                "x-alchemi-api-key": "Bearer sk-1234"
             }
         }
     }

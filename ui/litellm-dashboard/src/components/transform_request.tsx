@@ -16,7 +16,7 @@ interface TransformResponse {
 
 const TransformRequestPanel: React.FC<TransformRequestPanelProps> = ({ accessToken }) => {
   const [originalRequestJSON, setOriginalRequestJSON] = useState(`{
-  "model": "openai/gpt-4o",
+  "model": "your-model-name",
   "messages": [
     {
       "role": "system",
@@ -287,7 +287,7 @@ ${formattedBody}
       <div className="mt-4 text-right w-full">
         <p className="text-sm text-gray-500">
           Found an error? File an issue{" "}
-          <a href="https://github.com/BerriAI/litellm/issues" target="_blank" rel="noopener noreferrer">
+          <a href="#">
             here
           </a>
           .

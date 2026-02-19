@@ -26,7 +26,7 @@ const PromptEditorView: React.FC<PromptEditorViewProps> = ({ onClose, onSuccess,
     }
     return {
       name: "New prompt",
-      model: "gpt-4o",
+      model: "",
       config: {
         temperature: 1,
         max_tokens: 1000,

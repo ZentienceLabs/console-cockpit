@@ -239,7 +239,7 @@ const AdvancedSettings: React.FC<AdvancedSettingsProps> = ({
                 <Text className="text-gray-600 text-sm">
                   Pass JSON of supported params{" "}
                   <Link href="#" target="_blank">
-                    litellm.completion() call
+                    completion() call
                   </Link>
                 </Text>
               </Col>

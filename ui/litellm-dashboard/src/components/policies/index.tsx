@@ -289,14 +289,6 @@ const PoliciesPanel: React.FC<PoliciesPanelProps> = ({
                     <li>Group guardrails into a single policy</li>
                     <li>Inherit from existing policies and override what you need</li>
                   </ul>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline inline-block mt-1"
-                  >
-                    Learn more in the documentation →
-                  </a>
                 </div>
               }
               type="info"
@@ -322,14 +314,6 @@ const PoliciesPanel: React.FC<PoliciesPanelProps> = ({
                     <li>Group guardrails into a single policy</li>
                     <li>Inherit from existing policies and override what you need</li>
                   </ul>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline inline-block mt-1"
-                  >
-                    Learn more in the documentation →
-                  </a>
                 </div>
               }
               type="info"
@@ -438,14 +422,6 @@ const PoliciesPanel: React.FC<PoliciesPanelProps> = ({
                     <li><strong>Models</strong> - Applies only when specific models are used</li>
                     <li><strong>Tags</strong> - Matches tags from key/team <code>metadata.tags</code> or tags passed dynamically in the request body (<code>metadata.tags</code>). Use this to enforce policies across groups, e.g. &quot;all keys tagged <code>healthcare</code> get HIPAA guardrails.&quot; Supports wildcards (<code>prod-*</code>).</li>
                   </ul>
-                  <a
-                    href="#"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:text-blue-800 underline inline-block mt-1"
-                  >
-                    Learn more about attachments →
-                  </a>
                 </div>
               }
               type="info"
@@ -455,19 +431,10 @@ const PoliciesPanel: React.FC<PoliciesPanelProps> = ({
               className="mb-6"
             />
 
-            <Alert
-              message="Enterprise Feature Notice"
-              description="Parts of policy attachments will be on enterprise in subsequent releases."
-              type="warning"
-              showIcon
-              closable
-              className="mb-6"
-            />
-
             <div className="flex justify-between items-center mb-4">
               <Button
                 onClick={() => setIsAddAttachmentModalVisible(true)}
-                disabled={!accessToken || policiesList.length === 0}
+                disabled={!accessToken}
               >
                 + Add New Attachment
               </Button>

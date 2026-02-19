@@ -78,7 +78,7 @@ export async function makeOpenAIChatCompletionRequest(
         // All MCP Servers selected
         tools.push({
           type: "mcp",
-          server_label: "litellm",
+          server_label: "alchemi",
           server_url: "litellm_proxy/mcp",
           require_approval: "never",
         });
@@ -91,7 +91,7 @@ export async function makeOpenAIChatCompletionRequest(
 
           tools.push({
             type: "mcp",
-            server_label: "litellm",
+            server_label: "alchemi",
             server_url: `litellm_proxy/mcp/${serverName}`,
             require_approval: "never",
             ...(allowedTools.length > 0 ? { allowed_tools: allowedTools } : {}),

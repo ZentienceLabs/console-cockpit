@@ -48,7 +48,7 @@ const CacheControlSettings: React.FC<CacheControlSettingsProps> = ({
         name="cache_control"
         valuePropName="checked"
         className="mb-4"
-        tooltip="Tell litellm where to inject cache control checkpoints. You can specify either by role (to apply to all messages of that role) or by specific message index."
+        tooltip="Specify where to inject cache control checkpoints. You can specify either by role (to apply to all messages of that role) or by specific message index."
       >
         <Switch onChange={onCacheControlChange} className="bg-gray-600" />
       </Form.Item>
@@ -57,7 +57,7 @@ const CacheControlSettings: React.FC<CacheControlSettingsProps> = ({
         <div className="ml-6 pl-4 border-l-2 border-gray-200">
           <Text className="text-sm text-gray-500 block mb-4">
             Providers like Anthropic, Bedrock API require users to specify where to inject cache control checkpoints,
-            litellm can automatically add them for you as a cost saving feature.
+            the proxy can automatically add them for you as a cost saving feature.
           </Text>
 
           <Form.List name="cache_control_injection_points" initialValue={[{ location: "message" }]}>
@@ -105,7 +105,7 @@ const CacheControlSettings: React.FC<CacheControlSettingsProps> = ({
                       name={[field.name, "index"]}
                       className="mb-0"
                       style={{ width: "180px" }}
-                      tooltip="(Optional) If set litellm will mark the message at this index as cacheable"
+                      tooltip="(Optional) If set, the message at this index will be marked as cacheable"
                     >
                       <NumericalInput
                         type="number"

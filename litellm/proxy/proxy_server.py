@@ -583,6 +583,7 @@ try:
     from alchemi.config.settings import AlchemiProxyConfig
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
+    from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
 except ImportError:
     pass
 
@@ -12590,6 +12591,7 @@ app.include_router(access_group_router)
 try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
+    app.include_router(alchemi_email_event_router)
 except NameError:
     pass
 ########################################################
