@@ -1,20 +1,20 @@
 name: Build and Push to ACR
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "litellm/**"
-      - "alchemi/**"
-      - "ui/litellm-dashboard/**"
-      - "docker/**"
-      - "Dockerfile"
-      - "requirements.txt"
-      - "pyproject.toml"
-      - "schema.prisma"
-      - "prisma/**"
-      - ".github/workflows/acr-build-push.yml"
+  # push:
+  #   branches:
+  #     - main
+  #   paths:
+  #     - "litellm/**"
+  #     - "alchemi/**"
+  #     - "ui/litellm-dashboard/**"
+  #     - "docker/**"
+  #     - "Dockerfile"
+  #     - "requirements.txt"
+  #     - "pyproject.toml"
+  #     - "schema.prisma"
+  #     - "prisma/**"
+  #     - ".github/workflows/acr-build-push.yml"
   workflow_dispatch:
     inputs:
       image_tag:
