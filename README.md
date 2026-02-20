@@ -122,6 +122,14 @@ ALCHEMI_AUDIT_LOG_RETENTION_DAYS="90"
 
 **Important:** There is no default `config.yaml` to load. Each tenant configures their own models, guardrails, and settings through the database. Set `STORE_MODEL_IN_DB=True` to enable this.
 
+### Environment Variables
+The frontend uses very few env vars. Only two matter at runtime:
+
+Variable	Dev Value	Prod Value	Purpose
+NODE_ENV	development	production	Controls whether API calls go to http://localhost:4000 (dev) or the same-origin proxy (prod)
+NEXT_PUBLIC_BASE_URL	""	"ui/"	Route prefix -- dev serves at /, prod at /ui/
+
+
 ### 3. Database Setup
 
 ```bash

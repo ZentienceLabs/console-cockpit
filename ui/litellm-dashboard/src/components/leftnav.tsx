@@ -29,7 +29,6 @@ import type { MenuProps } from "antd";
 import { ConfigProvider, Layout, Menu } from "antd";
 import { useMemo } from "react";
 import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess } from "../utils/roles";
-import NewBadge from "./common_components/NewBadge";
 import type { Organization } from "./networking";
 
 const { Sider } = Layout;
@@ -182,11 +181,7 @@ const menuGroups: MenuGroup[] = [
       {
         key: "access-groups",
         page: "access-groups",
-        label: (
-          <span className="flex items-center gap-2">
-            Access Groups <NewBadge />
-          </span>
-        ),
+        label: "Access Groups",
         icon: <BlockOutlined />,
         roles: all_admin_roles,
       },
