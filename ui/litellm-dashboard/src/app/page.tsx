@@ -39,6 +39,12 @@ import { AccessGroupsPage } from "@/components/AccessGroups/AccessGroupsPage";
 import VectorStoreManagement from "@/components/vector_store_management";
 import SpendLogsTable from "@/components/view_logs";
 import ViewUserDashboard from "@/components/view_users";
+import CopilotAgents from "@/components/copilot/copilot_agents";
+import CopilotWorkspaces from "@/components/copilot/copilot_workspaces";
+import CopilotMarketplace from "@/components/copilot/copilot_marketplace";
+import CopilotConnections from "@/components/copilot/copilot_connections";
+import CopilotTeams from "@/components/copilot/copilot_teams";
+import CopilotBudgets from "@/components/copilot/copilot_budgets";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { isJwtExpired } from "@/utils/jwtUtils";
 import { isAdminRole } from "@/utils/roles";
@@ -592,6 +598,18 @@ function CreateKeyPageContent() {
                     <AccessGroupsPage />
                   ) : page == "vector-stores" ? (
                     <VectorStoreManagement accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-agents" ? (
+                    <CopilotAgents accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-workspaces" ? (
+                    <CopilotWorkspaces accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-marketplace" ? (
+                    <CopilotMarketplace accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-connections" ? (
+                    <CopilotConnections accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-teams" ? (
+                    <CopilotTeams accessToken={accessToken} userRole={userRole} userID={userID} />
+                  ) : page == "copilot-budgets" ? (
+                    <CopilotBudgets accessToken={accessToken} userRole={userRole} userID={userID} />
                   ) : page == "new_usage" ? (
                     <NewUsagePage
                       teams={(teams as Team[]) ?? []}

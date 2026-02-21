@@ -35,7 +35,7 @@ console-cockpit/
 │   ├── auth/                   #   Account resolution, SSO routing, super admin
 │   ├── config/                 #   Settings and constants
 │   ├── db/                     #   TenantScopedPrismaClient wrapper
-│   ├── endpoints/              #   Account CRUD, audit log queries
+│   ├── endpoints/              #   30 REST endpoint files (account, agents, workspace, etc.)
 │   ├── enterprise_features/    #   Guardrails, moderation, email, SSO handler
 │   ├── hooks/                  #   Audit logger, cost tracking, secret detection
 │   ├── integrations/           #   OpenObserve client
@@ -438,6 +438,52 @@ Scoped tables include: organizations, teams, users, verification tokens (keys), 
 | POST | `/v2/login/resolve` | Resolve email to SSO or password login |
 
 All standard LiteLLM API endpoints (`/chat/completions`, `/key/generate`, `/team/new`, etc.) are available and automatically scoped to the caller's account.
+
+### Centralized Management API (`/alchemi/*`)
+
+These endpoints serve as the centralized data layer for both **alchemi-web** (Next.js) and **alchemi-ai** (FastAPI). Both applications have been migrated from direct database access (Sequelize/asyncpg) to calling these REST endpoints via HTTP clients, with `x-account-id` header for tenant scoping and `LITELLM_MASTER_KEY` for authentication.
+
+| Prefix | Endpoint File | Description |
+|--------|--------------|-------------|
+| `/alchemi/token` | `access_token_endpoints.py` | Access token CRUD, validation, update-last-used, cleanup |
+| `/alchemi/account-connection` | `account_connection_endpoints.py` | Account-level connection bindings |
+| `/alchemi/account` | `account_endpoints.py` | Account CRUD (super admin) |
+| `/alchemi/agentdef` | `agent_def_endpoints.py` | Agent definition CRUD, search, activate/deactivate |
+| `/alchemi/agentgroup` | `agent_group_endpoints.py` | Agent group management |
+| `/alchemi/audit` | `audit_log_endpoints.py` | Audit log queries |
+| `/alchemi/config` | `config_endpoints.py` | System configuration |
+| `/alchemi/connection` | `connection_endpoints.py` | Integration connection management |
+| `/alchemi/cost` | `cost_tracking_endpoints.py` | Cost tracking and spend reports |
+| `/alchemi/credit-budget` | `credit_budget_endpoints.py` | Credit budget management |
+| `/alchemi/discussion` | `discussion_endpoints.py` | Discussion threads and messages |
+| `/alchemi/effective-access` | `effective_access_endpoints.py` | User effective access queries |
+| `/alchemi/email-event` | `email_event_endpoints.py` | Email event tracking |
+| `/alchemi/group` | `group_endpoints.py` | User group management |
+| `/alchemi/guardrails` | `guardrails_config_endpoints.py` | Guardrail configuration CRUD |
+| `/alchemi/invite` | `invite_endpoints.py` | User invitation management |
+| `/alchemi/marketplace` | `marketplace_endpoints.py` | Marketplace listing CRUD |
+| `/alchemi/mcp` | `mcp_config_endpoints.py` | MCP server configuration |
+| `/alchemi/mvp` | `mvp_config_endpoints.py` | MVP configuration |
+| `/alchemi/membership` | `membership_endpoints.py` | Account membership management |
+| `/alchemi/notification` | `notification_endpoints.py` | Notification management |
+| `/alchemi/override-config` | `override_config_endpoints.py` | Account override configuration |
+| `/alchemi/quota` | `quota_endpoints.py` | Account quota management |
+| `/alchemi/role` | `role_permission_endpoints.py` | Role and permission management |
+| `/alchemi/subscription` | `subscription_endpoints.py` | Subscription management |
+| `/alchemi/ticket` | `support_ticket_endpoints.py` | Support ticket CRUD |
+| `/alchemi/team` | `team_endpoints.py` | Team management |
+| `/alchemi/user` | `user_endpoints.py` | User profile management |
+| `/alchemi/workspace` | `workspace_endpoints.py` | Workspace CRUD and member management |
+
+All management endpoints use Prisma (via `prisma_client`) for database access and are registered in `proxy_server.py` via `app.include_router()`.
+
+### Database Schema
+
+The Prisma schema (`schema.prisma`) contains **91 models** total:
+- **48 `LiteLLM_*` tables** -- base LiteLLM models (keys, teams, organizations, models, spend logs, etc.)
+- **43 `Alchemi_*` tables** -- tenant management tables migrated from alchemi-web and alchemi-ai (accounts, agents, workspaces, connections, guardrails, marketplace, etc.)
+
+All tables include `account_id` for tenant scoping. See `schema.prisma` for the full model list.
 
 ## Alchemi Module Reference
 

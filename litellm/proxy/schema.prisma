@@ -1055,6 +1055,8 @@ model Alchemi_AccountTable {
     organizations LiteLLM_OrganizationTable[]
     admins        Alchemi_AccountAdminTable[]
     sso_config    Alchemi_AccountSSOConfig?
+    subscriptions Alchemi_SubscriptionTable[]
+    memberships   Alchemi_AccountMembershipTable[]
     @@index([domain])
     @@index([status])
 }
@@ -1081,4 +1083,858 @@ model Alchemi_AccountSSOConfig {
     created_at   DateTime @default(now())
     updated_at   DateTime @default(now()) @updatedAt
     account      Alchemi_AccountTable @relation(fields: [account_id], references: [account_id])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Subscriptions & Plans
+// ============================================
+
+model Alchemi_SubscriptionPlanTable {
+    id            String   @id @default(uuid())
+    plan_name     String
+    display_name  String?
+    description   String?
+    price_monthly Float?
+    price_yearly  Float?
+    currency      String   @default("USD")
+    features      Json     @default("{}")
+    limits        Json     @default("{}")
+    is_active     Boolean  @default(true)
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now()) @updatedAt
+    subscriptions Alchemi_SubscriptionTable[]
+    @@index([is_active])
+    @@index([plan_name])
+}
+
+model Alchemi_SubscriptionTable {
+    id                     String   @id @default(uuid())
+    account_id             String?
+    plan_id                String
+    system_subscription_id String?
+    quantity               Int      @default(1)
+    start_date             DateTime
+    end_date               DateTime?
+    is_active              Boolean  @default(true)
+    razorpay_response      Json?
+    created_by             String?
+    updated_by             String?
+    created_at             DateTime @default(now())
+    updated_at             DateTime @default(now()) @updatedAt
+    account                Alchemi_AccountTable?         @relation(fields: [account_id], references: [account_id])
+    plan                   Alchemi_SubscriptionPlanTable @relation(fields: [plan_id], references: [id])
+    quotas                 Alchemi_AccountQuotaTable[]
+    @@index([account_id])
+    @@index([plan_id])
+    @@index([is_active])
+    @@index([system_subscription_id])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Account Membership & Quotas
+// ============================================
+
+model Alchemi_AccountMembershipTable {
+    id                 String    @id @default(uuid())
+    account_id         String?
+    user_id            String
+    app_role           String    @default("member")
+    is_active          Boolean   @default(true)
+    joined_at          DateTime  @default(now())
+    invited_by         String?
+    last_active_at     DateTime?
+    team_id            String?
+    tenant_preferences Json      @default("{}")
+    created_at         DateTime  @default(now())
+    updated_at         DateTime  @default(now()) @updatedAt
+    account            Alchemi_AccountTable? @relation(fields: [account_id], references: [account_id])
+    @@unique([account_id, user_id])
+    @@index([account_id])
+    @@index([user_id])
+    @@index([team_id])
+    @@index([is_active])
+}
+
+model Alchemi_AccountQuotaTable {
+    id                     String   @id @default(uuid())
+    account_id             String?
+    subscription_id        String?
+    product_code           String?
+    feature_code           String?
+    unit                   String   @default("credits")
+    included               Float    @default(0)
+    used                   Float    @default(0)
+    overage_used           Float    @default(0)
+    overage_limit          Float    @default(0)
+    reset_policy           String   @default("MONTHLY")
+    rollover_enabled       Boolean  @default(false)
+    rollover_cap           Float    @default(0)
+    rollover_from_previous Float    @default(0)
+    period_start           DateTime
+    period_end             DateTime
+    is_active              Boolean  @default(true)
+    created_at             DateTime @default(now())
+    updated_at             DateTime @default(now()) @updatedAt
+    subscription           Alchemi_SubscriptionTable? @relation(fields: [subscription_id], references: [id])
+    @@index([account_id])
+    @@index([subscription_id])
+    @@index([unit])
+    @@index([product_code])
+    @@index([is_active])
+    @@index([account_id, unit, is_active])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Roles & Permissions (CASL)
+// ============================================
+
+model Alchemi_RoleTable {
+    id               String   @id @default(uuid())
+    account_id       String?
+    name             String
+    type             String?
+    provider         String   @default("PLATFORM")
+    is_default       Boolean  @default(false)
+    is_deleted       Boolean  @default(false)
+    created_by       String?
+    updated_by       String?
+    created_at       DateTime @default(now())
+    updated_at       DateTime @default(now()) @updatedAt
+    role_permissions Alchemi_RolePermissionTable[]
+    workspace_members Alchemi_WorkspaceMemberTable[]
+    @@unique([account_id, name])
+    @@index([account_id])
+    @@index([provider])
+    @@index([is_default])
+}
+
+model Alchemi_PermissionTable {
+    id                   String   @id @default(uuid())
+    name                 String
+    description          String?
+    subject              String
+    action               String
+    is_system_permission Boolean  @default(false)
+    fields               String[] @default([])
+    conditions           String?
+    created_by           String?
+    updated_by           String?
+    created_at           DateTime @default(now())
+    updated_at           DateTime @default(now()) @updatedAt
+    role_permissions     Alchemi_RolePermissionTable[]
+    @@index([subject])
+    @@index([action])
+    @@index([name])
+    @@index([subject, action])
+}
+
+model Alchemi_RolePermissionTable {
+    id            String   @id @default(uuid())
+    role_id       String
+    permission_id String
+    created_at    DateTime @default(now())
+    role          Alchemi_RoleTable       @relation(fields: [role_id], references: [id], onDelete: Cascade)
+    permission    Alchemi_PermissionTable @relation(fields: [permission_id], references: [id], onDelete: Cascade)
+    @@unique([role_id, permission_id])
+    @@index([role_id])
+    @@index([permission_id])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Workspaces
+// ============================================
+
+model Alchemi_WorkspaceTable {
+    id                     String   @id @default(uuid())
+    account_id             String?
+    name                   String
+    description            String?
+    status                 String   @default("ACTIVE")
+    current_analysis_state String?
+    is_mvp_ready           Boolean  @default(false)
+    product_info           Json     @default("{}")
+    workspace_info         Json     @default("{}")
+    analysis_data          Json     @default("{}")
+    created_by             String?
+    updated_by             String?
+    created_at             DateTime @default(now())
+    updated_at             DateTime @default(now()) @updatedAt
+    members                Alchemi_WorkspaceMemberTable[]
+    discussions            Alchemi_DiscussionTable[]
+    mvp_configs            Alchemi_MvpConfigTable[]
+    connections            Alchemi_ConnectionTable[]
+    mcp_configs            Alchemi_McpConfigTable[]
+    @@index([account_id])
+    @@index([name])
+    @@index([status])
+}
+
+model Alchemi_WorkspaceMemberTable {
+    id           String   @id @default(uuid())
+    account_id   String?
+    workspace_id String
+    user_id      String
+    role_id      String?
+    status       String   @default("ACTIVE")
+    created_by   String?
+    updated_by   String?
+    created_at   DateTime @default(now())
+    updated_at   DateTime @default(now()) @updatedAt
+    workspace    Alchemi_WorkspaceTable @relation(fields: [workspace_id], references: [id], onDelete: Cascade)
+    role         Alchemi_RoleTable?     @relation(fields: [role_id], references: [id])
+    @@unique([workspace_id, user_id])
+    @@index([account_id])
+    @@index([user_id])
+    @@index([workspace_id])
+    @@index([role_id])
+    @@index([status])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Agent Registry
+// ============================================
+
+model Alchemi_AgentDefTable {
+    agent_id              String   @id
+    name                  String
+    description           String?
+    prompt                String?
+    page                  String?
+    categories            Json     @default("{}")
+    tags                  String[] @default([])
+    builtin_tools         String[] @default([])
+    tools_mcp_ids         String[] @default([])
+    tools_openapi_ids     String[] @default([])
+    links                 Json     @default("{}")
+    is_singleton          Boolean  @default(false)
+    is_non_conversational Boolean  @default(false)
+    status                String   @default("active")
+    availability          String[] @default(["platform"])
+    provider              String   @default("PLATFORM")
+    account_id            String?
+    created_at            DateTime @default(now())
+    updated_at            DateTime @default(now()) @updatedAt
+    marketplace_listings  Alchemi_AgentMarketplaceTable[]
+    group_memberships     Alchemi_AgentGroupMemberTable[]
+    @@index([account_id])
+    @@index([name])
+    @@index([page])
+    @@index([status])
+    @@index([provider])
+}
+
+model Alchemi_AgentGroupTable {
+    id          String   @id @default(uuid())
+    group_code  String   @unique
+    name        String
+    description String?
+    group_type  String
+    metadata    Json     @default("{}")
+    status      String   @default("active")
+    account_id  String?
+    created_at  DateTime @default(now())
+    updated_at  DateTime @default(now()) @updatedAt
+    members     Alchemi_AgentGroupMemberTable[]
+    @@index([account_id])
+    @@index([group_code])
+    @@index([group_type])
+    @@index([status])
+}
+
+model Alchemi_AgentGroupMemberTable {
+    id            String   @id @default(uuid())
+    group_id      String
+    agent_id      String
+    display_order Int      @default(0)
+    metadata      Json     @default("{}")
+    account_id    String?
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now()) @updatedAt
+    group         Alchemi_AgentGroupTable @relation(fields: [group_id], references: [id], onDelete: Cascade)
+    agent         Alchemi_AgentDefTable   @relation(fields: [agent_id], references: [agent_id], onDelete: Cascade)
+    @@unique([group_id, agent_id])
+    @@index([account_id])
+    @@index([group_id])
+    @@index([agent_id])
+}
+
+model Alchemi_AgentMarketplaceTable {
+    id             String   @id @default(uuid())
+    agent_id       String
+    listing_status String   @default("draft")
+    listing_data   Json     @default("{}")
+    account_id     String?
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    agent          Alchemi_AgentDefTable @relation(fields: [agent_id], references: [agent_id])
+    @@index([account_id])
+    @@index([agent_id])
+    @@index([listing_status])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Guardrails
+// ============================================
+
+model Alchemi_GuardrailsConfigTable {
+    id              String   @id @default(uuid())
+    account_id      String?
+    guard_type      String
+    enabled         Boolean  @default(true)
+    execution_order Int      @default(1)
+    action_on_fail  String   @default("block")
+    config          Json     @default("{}")
+    version         Int      @default(1)
+    created_by      String?
+    updated_by      String?
+    created_at      DateTime @default(now())
+    updated_at      DateTime @default(now()) @updatedAt
+    @@unique([account_id, guard_type])
+    @@index([account_id])
+    @@index([enabled])
+}
+
+model Alchemi_GuardrailsCustomPatternTable {
+    id           String   @id @default(uuid())
+    account_id   String?
+    guard_type   String
+    pattern_name String
+    pattern      String
+    description  String?
+    enabled      Boolean  @default(true)
+    created_by   String?
+    created_at   DateTime @default(now())
+    updated_at   DateTime @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([guard_type])
+}
+
+model Alchemi_GuardrailsAuditLogTable {
+    id            String   @id @default(uuid())
+    account_id    String?
+    guard_type    String
+    action        String
+    result        String
+    request_data  Json?
+    response_data Json?
+    user_id       String?
+    created_at    DateTime @default(now())
+    @@index([account_id])
+    @@index([guard_type])
+    @@index([created_at])
+    @@index([user_id])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Configuration
+// ============================================
+
+model Alchemi_ConfigProviderTable {
+    id               String   @id
+    name             String
+    display_label    String?
+    endpoint_env_var String?
+    api_key_env_var  String?
+    is_active        Boolean  @default(true)
+    account_id       String?
+    created_at       DateTime @default(now())
+    updated_at       DateTime @default(now()) @updatedAt
+    config_models    Alchemi_ConfigModelTable[]
+    @@index([account_id])
+    @@index([is_active])
+}
+
+model Alchemi_ConfigModelTable {
+    id                      String   @id
+    provider_id             String
+    deployment_name         String
+    display_name            String?
+    capability              String?
+    input_cost_per_million  Float    @default(0)
+    output_cost_per_million Float    @default(0)
+    content_capabilities    Json     @default("{}")
+    extra_body              Json     @default("{}")
+    sort_order              Int      @default(0)
+    is_active               Boolean  @default(true)
+    account_id              String?
+    created_at              DateTime @default(now())
+    updated_at              DateTime @default(now()) @updatedAt
+    provider                Alchemi_ConfigProviderTable @relation(fields: [provider_id], references: [id])
+    @@index([account_id])
+    @@index([provider_id])
+    @@index([is_active])
+    @@index([capability])
+}
+
+model Alchemi_ConfigDefaultModelTable {
+    id         String   @id
+    model_id   String
+    account_id String?
+    created_at DateTime @default(now())
+    updated_at DateTime @default(now()) @updatedAt
+    @@index([account_id])
+}
+
+model Alchemi_ConfigSandboxPricingTable {
+    id             String    @id @default(uuid())
+    resource_type  String
+    unit           String
+    cost_usd       Float
+    description    String?
+    effective_from DateTime  @default(now())
+    effective_to   DateTime?
+    account_id     String?
+    created_at     DateTime  @default(now())
+    updated_at     DateTime  @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([resource_type])
+    @@index([effective_to])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Integrations & Connections
+// ============================================
+
+model Alchemi_ConnectionTable {
+    id             String   @id @default(uuid())
+    account_id     String?
+    workspace_id   String?
+    name           String
+    type           String
+    status         String   @default("ACTIVE")
+    config         Json     @default("{}")
+    mvp_version_id String?
+    created_by     String?
+    updated_by     String?
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    workspace      Alchemi_WorkspaceTable? @relation(fields: [workspace_id], references: [id])
+    mvp_version    Alchemi_MvpConfigTable? @relation(fields: [mvp_version_id], references: [id])
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([type])
+    @@index([status])
+}
+
+model Alchemi_IntegrationConnectionTable {
+    id                            String   @id @default(uuid())
+    workspace_id                  String
+    user_id                       String?
+    connection_level              String   @default("WORKSPACE")
+    name                          String
+    description_for_agent         String?
+    integration_type              String
+    app_name                      String
+    composio_entity_id            String
+    composio_connected_account_id String?
+    status                        String   @default("active")
+    connected_at                  DateTime @default(now())
+    connected_by_user_id          String
+    account_id                    String?
+    updated_at                    DateTime @default(now()) @updatedAt
+    @@unique([workspace_id, app_name, user_id])
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([user_id])
+    @@index([composio_entity_id])
+    @@index([status])
+}
+
+model Alchemi_IntegrationsDefTable {
+    id             String   @id
+    name           String
+    description    String?
+    toolkit        String
+    auth_config_id String
+    icon           String?
+    color          String?
+    bg_color       String?
+    enabled        Boolean  @default(true)
+    display_order  Int      @default(0)
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    @@index([toolkit])
+    @@index([enabled])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Financial (Budget & Cost)
+// ============================================
+
+model Alchemi_BudgetPlanTable {
+    id             String   @id @default(uuid())
+    account_id     String?
+    name           String   @default("Default Plan")
+    is_active      Boolean  @default(true)
+    distribution   Json     @default("{}")
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    credit_budgets Alchemi_CreditBudgetTable[]
+    @@index([account_id])
+    @@index([is_active])
+}
+
+model Alchemi_CreditBudgetTable {
+    id             String    @id @default(uuid())
+    account_id     String?
+    budget_plan_id String?
+    scope_type     String
+    scope_id       String
+    allocated      Float     @default(0)
+    limit_amount   Float     @default(0)
+    overflow_cap   Float?
+    used           Float     @default(0)
+    overflow_used  Float     @default(0)
+    cycle_start    DateTime
+    cycle_end      DateTime
+    created_at     DateTime  @default(now())
+    updated_at     DateTime  @default(now()) @updatedAt
+    budget_plan    Alchemi_BudgetPlanTable? @relation(fields: [budget_plan_id], references: [id])
+    @@unique([scope_type, scope_id, cycle_start])
+    @@index([account_id])
+    @@index([scope_type, scope_id])
+    @@index([cycle_start, cycle_end])
+}
+
+model Alchemi_CostTrackingTable {
+    id                Int      @id @default(autoincrement())
+    workspace_id      String
+    account_id        String?
+    user_id           String
+    model             String
+    tool              String
+    cost              Float
+    prompt_tokens     Int?
+    completion_tokens Int?
+    total_tokens      Int?
+    metadata          Json?
+    thread_id         String?
+    created_at        DateTime @default(now())
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([user_id])
+    @@index([workspace_id, user_id])
+    @@index([created_at])
+    @@index([workspace_id, created_at])
+    @@index([thread_id])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Platform Catalog & Override Configs
+// ============================================
+
+model Alchemi_PlatformCatalogTable {
+    code          String   @id
+    name          String
+    category      String
+    parent_code   String?
+    value_config  Json     @default("{}")
+    is_active     Boolean  @default(true)
+    display_order Int      @default(0)
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now()) @updatedAt
+    parent        Alchemi_PlatformCatalogTable?  @relation("CatalogHierarchy", fields: [parent_code], references: [code])
+    children      Alchemi_PlatformCatalogTable[] @relation("CatalogHierarchy")
+    @@index([category])
+    @@index([parent_code])
+    @@index([is_active])
+}
+
+model Alchemi_AccountOverrideConfigTable {
+    id                 String    @id @default(uuid())
+    account_id         String?
+    product_code       String?
+    feature_code       String?
+    entity_code        String
+    name               String
+    category           String
+    parent_entity_code String?
+    distribution_kind  String?
+    action             String    @default("RESTRICT")
+    inherit            Boolean   @default(true)
+    value_config       Json      @default("{}")
+    scope_type         String    @default("ACCOUNT")
+    scope_id           String?
+    restriction_json   Json?
+    reason             String?
+    valid_from         DateTime  @default(now())
+    valid_until        DateTime?
+    created_by         String?
+    updated_by         String?
+    created_at         DateTime  @default(now())
+    updated_at         DateTime  @default(now()) @updatedAt
+    @@unique([account_id, entity_code, scope_type])
+    @@index([account_id])
+    @@index([entity_code])
+    @@index([category])
+    @@index([scope_type, scope_id])
+    @@index([valid_from, valid_until])
+}
+
+model Alchemi_MvpConfigTable {
+    id             String   @id @default(uuid())
+    account_id     String?
+    workspace_id   String?
+    name           String
+    description    String?  @default("")
+    creation_type  String   @default("default")
+    mvp_type       String   @default("simple")
+    framework      String   @default("nextjs")
+    commit_count   Int      @default(0)
+    connections    Json     @default("{}")
+    base_versions  Json     @default("[]")
+    config         Json     @default("{}")
+    access_token   String?
+    created_by     String?
+    updated_by     String?
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    workspace      Alchemi_WorkspaceTable? @relation(fields: [workspace_id], references: [id])
+    mvp_connections Alchemi_ConnectionTable[]
+    mcp_configs    Alchemi_McpConfigTable[]
+    @@unique([account_id, name])
+    @@index([account_id])
+    @@index([workspace_id])
+}
+
+model Alchemi_McpConfigTable {
+    id             String   @id @default(uuid())
+    account_id     String?
+    workspace_id   String?
+    name           String
+    server_name    String
+    config         Json     @default("{}")
+    is_active      Boolean  @default(true)
+    mvp_version_id String?
+    created_by     String?
+    updated_by     String?
+    created_at     DateTime @default(now())
+    updated_at     DateTime @default(now()) @updatedAt
+    workspace      Alchemi_WorkspaceTable? @relation(fields: [workspace_id], references: [id])
+    mvp_version    Alchemi_MvpConfigTable? @relation(fields: [mvp_version_id], references: [id])
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([is_active])
+    @@index([server_name])
+}
+
+// ============================================
+// Alchemi Centralized Platform - Communication & Support
+// ============================================
+
+model Alchemi_NotificationTable {
+    id           String    @id @default(uuid())
+    account_id   String?
+    recipient_id String
+    type         String
+    title        String
+    content      String
+    status       String    @default("PENDING")
+    read_at      DateTime?
+    sent_at      DateTime?
+    metadata     Json      @default("{}")
+    created_by   String?
+    created_at   DateTime  @default(now())
+    updated_at   DateTime  @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([recipient_id])
+    @@index([account_id, recipient_id])
+    @@index([type])
+    @@index([status])
+    @@index([created_at])
+}
+
+model Alchemi_NotificationTemplateTable {
+    id               String   @id @default(uuid())
+    template_id      String?  @unique
+    title_line       String?
+    template_content String?
+    event_id         String?
+    type             String?
+    created_by       String?
+    updated_by       String?
+    created_at       DateTime @default(now())
+    updated_at       DateTime @default(now()) @updatedAt
+    @@index([event_id])
+    @@index([type])
+}
+
+model Alchemi_AccountNotificationTemplateTable {
+    id          String   @id @default(uuid())
+    account_id  String?
+    template_id String
+    overrides   Json     @default("{}")
+    is_active   Boolean  @default(true)
+    created_at  DateTime @default(now())
+    updated_at  DateTime @default(now()) @updatedAt
+    @@unique([account_id, template_id])
+    @@index([account_id])
+}
+
+model Alchemi_DiscussionTable {
+    id                 String    @id @default(uuid())
+    account_id         String?
+    workspace_id       String?
+    type               String
+    content            String
+    parent_object_type String?
+    parent_object_id   String?
+    parent_message_id  String?
+    resolved           Boolean   @default(false)
+    resolved_at        DateTime?
+    resolved_by        String?
+    mentions           String[]  @default([])
+    attachments        String[]  @default([])
+    reactions          Json      @default("[]")
+    created_by         String?
+    updated_by         String?
+    created_at         DateTime  @default(now())
+    updated_at         DateTime  @default(now()) @updatedAt
+    workspace          Alchemi_WorkspaceTable?  @relation(fields: [workspace_id], references: [id])
+    parent_message     Alchemi_DiscussionTable?  @relation("DiscussionThread", fields: [parent_message_id], references: [id])
+    replies            Alchemi_DiscussionTable[] @relation("DiscussionThread")
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([parent_object_type, parent_object_id])
+    @@index([parent_message_id])
+    @@index([resolved])
+}
+
+model Alchemi_UserInviteTable {
+    id              String    @id @default(uuid())
+    account_id      String?
+    workspace_id    String?
+    email           String
+    role_id         String?
+    status          String    @default("PENDING")
+    token           String    @unique
+    expires_at      DateTime
+    accepted_at     DateTime?
+    accepted_by     String?
+    invitation_data Json      @default("{}")
+    created_by      String?
+    created_at      DateTime  @default(now())
+    updated_at      DateTime  @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([workspace_id])
+    @@index([email])
+    @@index([status])
+    @@index([expires_at])
+}
+
+model Alchemi_SupportTicketTable {
+    id              String   @id @default(uuid())
+    account_id      String?
+    user_profile_id String?
+    subject         String
+    description     String
+    status          String?  @default("OPEN")
+    priority        String   @default("MEDIUM")
+    assigned_to     String?
+    created_by      String?
+    updated_by      String?
+    created_at      DateTime @default(now())
+    updated_at      DateTime @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([user_profile_id])
+    @@index([status])
+    @@index([priority])
+    @@index([assigned_to])
+    @@index([account_id, status])
+}
+
+model Alchemi_AccessTokenTable {
+    id           String    @id @default(uuid())
+    account_id   String?
+    name         String
+    workspace_ids String[] @default([])
+    token_hash   String    @unique
+    client_id    String?
+    scopes       String[]  @default([])
+    last_used_at DateTime?
+    expires_at   DateTime?
+    revoked      Boolean   @default(false)
+    created_by   String?
+    updated_by   String?
+    created_at   DateTime  @default(now())
+    updated_at   DateTime  @default(now()) @updatedAt
+    @@index([account_id])
+    @@index([client_id])
+    @@index([revoked])
+    @@index([expires_at])
+}
+
+// ============================================
+// Alchemi - Users, Groups, Teams
+// ============================================
+
+model Alchemi_UserTable {
+    id                 String   @id @default(uuid())
+    email              String   @unique
+    name               String
+    profile_image      String?
+    ad_user_id         String?  @unique
+    is_active          Boolean  @default(true)
+    email_verified     Boolean  @default(false)
+    global_preferences Json     @default("{}")
+    created_at         DateTime @default(now())
+    updated_at         DateTime @default(now()) @updatedAt
+    @@map("users")
+}
+
+model Alchemi_GroupTable {
+    id            String   @id @default(uuid())
+    account_id    String
+    name          String
+    description   String?
+    is_default    Boolean  @default(false)
+    owner_id      String?
+    contact_email String?
+    created_by    String?
+    updated_by    String?
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now()) @updatedAt
+    @@unique([account_id, name])
+    @@index([account_id])
+    @@index([owner_id])
+    @@map("groups")
+}
+
+model Alchemi_TeamTable {
+    id            String   @id @default(uuid())
+    group_id      String
+    name          String
+    description   String?
+    is_default    Boolean  @default(false)
+    owner_id      String?
+    contact_email String?
+    created_by    String?
+    updated_by    String?
+    created_at    DateTime @default(now())
+    updated_at    DateTime @default(now()) @updatedAt
+    @@unique([group_id, name])
+    @@index([group_id])
+    @@index([owner_id])
+    @@map("teams")
+}
+
+model Alchemi_AccountConnectionTable {
+    id                  String   @id @default(uuid())
+    account_id          String
+    connection_type     String
+    name                String
+    description         String?
+    description_for_agent String?
+    connection_data     Json     @default("{}")
+    is_active           Boolean  @default(true)
+    is_default          Boolean  @default(false)
+    metadata            Json     @default("{}")
+    created_by          String?
+    updated_by          String?
+    created_at          DateTime @default(now())
+    updated_at          DateTime @default(now()) @updatedAt
+    @@unique([account_id, name])
+    @@index([account_id])
+    @@index([account_id, connection_type])
+    @@map("account_connections")
 }

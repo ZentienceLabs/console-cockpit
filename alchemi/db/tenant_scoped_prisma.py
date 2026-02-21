@@ -49,6 +49,48 @@ TENANT_SCOPED_TABLES: Set[str] = {
     "litellm_prompttable",
     "litellm_searchtoolstable",
     "litellm_skillstable",
+    # Centralized Platform - Subscriptions & Quotas
+    "alchemi_subscriptiontable",
+    "alchemi_accountmembershiptable",
+    "alchemi_accountquotatable",
+    # Centralized Platform - Roles & Permissions
+    "alchemi_roletable",
+    "alchemi_rolepermissiontable",
+    # Centralized Platform - Workspaces
+    "alchemi_workspacetable",
+    "alchemi_workspacemembertable",
+    # Centralized Platform - Agent Registry
+    "alchemi_agentdeftable",
+    "alchemi_agentgrouptable",
+    "alchemi_agentgroupmembertable",
+    "alchemi_agentmarketplacetable",
+    # Centralized Platform - Guardrails
+    "alchemi_guardrailsconfigtable",
+    "alchemi_guardrailscustompatterntable",
+    "alchemi_guardrailsauditlogtable",
+    # Centralized Platform - Configuration
+    "alchemi_configprovidertable",
+    "alchemi_configmodeltable",
+    "alchemi_configdefaultmodeltable",
+    "alchemi_configsandboxpricingtable",
+    # Centralized Platform - Integrations & Connections
+    "alchemi_connectiontable",
+    "alchemi_integrationconnectiontable",
+    "alchemi_mcpconfigtable",
+    "alchemi_mvpconfigtable",
+    # Centralized Platform - Financial
+    "alchemi_budgetplantable",
+    "alchemi_creditbudgettable",
+    "alchemi_costtrackingtable",
+    # Centralized Platform - Override Configs
+    "alchemi_accountoverrideconfigtable",
+    # Centralized Platform - Communication & Support
+    "alchemi_notificationtable",
+    "alchemi_accountnotificationtemplatetable",
+    "alchemi_discussiontable",
+    "alchemi_userinvitetable",
+    "alchemi_supporttickettable",
+    "alchemi_accesstokentable",
 }
 
 # Account tables should NOT be filtered (super admin manages these)

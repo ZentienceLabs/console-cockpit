@@ -96,14 +96,18 @@ def resolve_tenant_from_request(request: Request) -> None:
     # Check if token IS the master key (API calls with master key = super admin)
     if token == master_key:
         set_super_admin(True)
-        set_current_account_id(None)
+        # Allow super admins to scope requests via x-account-id header
+        # (used by service-to-service calls from alchemi-web)
+        override_account = request.headers.get("x-account-id")
+        set_current_account_id(override_account)
         return
 
     # Also check against env var in case config key differs
     env_master_key = os.getenv("LITELLM_MASTER_KEY", "")
     if env_master_key and token == env_master_key:
         set_super_admin(True)
-        set_current_account_id(None)
+        override_account = request.headers.get("x-account-id")
+        set_current_account_id(override_account)
         return
 
     # Try to decode as JWT

@@ -584,6 +584,32 @@ try:
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
     from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
+    from alchemi.endpoints.cost_tracking_endpoints import router as alchemi_cost_router
+    from alchemi.endpoints.subscription_endpoints import router as alchemi_subscription_router
+    from alchemi.endpoints.quota_endpoints import router as alchemi_quota_router
+    from alchemi.endpoints.credit_budget_endpoints import router as alchemi_budget_router
+    from alchemi.endpoints.membership_endpoints import router as alchemi_membership_router
+    from alchemi.endpoints.role_permission_endpoints import router as alchemi_role_router
+    from alchemi.endpoints.workspace_endpoints import router as alchemi_workspace_router
+    from alchemi.endpoints.agent_def_endpoints import router as alchemi_agent_router
+    from alchemi.endpoints.agent_group_endpoints import router as alchemi_agent_group_router
+    from alchemi.endpoints.marketplace_endpoints import router as alchemi_marketplace_router
+    from alchemi.endpoints.guardrails_config_endpoints import router as alchemi_guardrails_config_router
+    from alchemi.endpoints.config_endpoints import router as alchemi_config_router
+    from alchemi.endpoints.connection_endpoints import router as alchemi_connection_router
+    from alchemi.endpoints.override_config_endpoints import router as alchemi_override_router
+    from alchemi.endpoints.notification_endpoints import router as alchemi_notification_router
+    from alchemi.endpoints.discussion_endpoints import router as alchemi_discussion_router
+    from alchemi.endpoints.invite_endpoints import router as alchemi_invite_router
+    from alchemi.endpoints.support_ticket_endpoints import router as alchemi_ticket_router
+    from alchemi.endpoints.access_token_endpoints import router as alchemi_token_router
+    from alchemi.endpoints.mvp_config_endpoints import router as alchemi_mvp_router
+    from alchemi.endpoints.mcp_config_endpoints import router as alchemi_mcp_config_router
+    from alchemi.endpoints.user_endpoints import router as alchemi_user_router
+    from alchemi.endpoints.group_endpoints import router as alchemi_group_router
+    from alchemi.endpoints.team_endpoints import router as alchemi_team_router
+    from alchemi.endpoints.account_connection_endpoints import router as alchemi_account_connection_router
+    from alchemi.endpoints.effective_access_endpoints import router as alchemi_effective_access_router
 except ImportError:
     pass
 
@@ -12592,6 +12618,32 @@ try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
     app.include_router(alchemi_email_event_router)
+    app.include_router(alchemi_cost_router)
+    app.include_router(alchemi_subscription_router)
+    app.include_router(alchemi_quota_router)
+    app.include_router(alchemi_budget_router)
+    app.include_router(alchemi_membership_router)
+    app.include_router(alchemi_role_router)
+    app.include_router(alchemi_workspace_router)
+    app.include_router(alchemi_agent_router)
+    app.include_router(alchemi_agent_group_router)
+    app.include_router(alchemi_marketplace_router)
+    app.include_router(alchemi_guardrails_config_router)
+    app.include_router(alchemi_config_router)
+    app.include_router(alchemi_connection_router)
+    app.include_router(alchemi_override_router)
+    app.include_router(alchemi_notification_router)
+    app.include_router(alchemi_discussion_router)
+    app.include_router(alchemi_invite_router)
+    app.include_router(alchemi_ticket_router)
+    app.include_router(alchemi_token_router)
+    app.include_router(alchemi_mvp_router)
+    app.include_router(alchemi_mcp_config_router)
+    app.include_router(alchemi_user_router)
+    app.include_router(alchemi_group_router)
+    app.include_router(alchemi_team_router)
+    app.include_router(alchemi_account_connection_router)
+    app.include_router(alchemi_effective_access_router)
 except NameError:
     pass
 ########################################################

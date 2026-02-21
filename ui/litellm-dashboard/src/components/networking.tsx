@@ -9563,3 +9563,148 @@ export const loginResolveCall = async (email: string) => {
     throw error;
   }
 };
+
+// =============================================================================
+// COPILOT API Functions
+// =============================================================================
+
+// --- Helper for copilot API calls ---
+const copilotApiCall = async (
+  accessToken: string,
+  method: string,
+  path: string,
+  body?: any,
+) => {
+  const url = proxyBaseUrl ? `${proxyBaseUrl}${path}` : path;
+  const options: RequestInit = {
+    method,
+    headers: {
+      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  };
+  if (body && (method === "POST" || method === "PUT")) {
+    options.body = JSON.stringify(body);
+  }
+  const response = await fetch(url, options);
+  if (!response.ok) {
+    const errorData = await response.json();
+    const errorMessage = deriveErrorMessage(errorData);
+    handleError(errorMessage);
+    throw new Error(errorMessage);
+  }
+  return await response.json();
+};
+
+// --- Agent Definitions ---
+export const copilotAgentDefList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/agent-def/list");
+
+export const copilotAgentDefCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/agent-def/new", data);
+
+export const copilotAgentDefUpdate = async (accessToken: string, agentId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/agent-def/${agentId}`, data);
+
+export const copilotAgentDefDelete = async (accessToken: string, agentId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/agent-def/${agentId}`);
+
+// --- Workspaces ---
+export const copilotWorkspaceList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/workspace/list");
+
+export const copilotWorkspaceCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/workspace/new", data);
+
+export const copilotWorkspaceUpdate = async (accessToken: string, workspaceId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/workspace/${workspaceId}`, data);
+
+export const copilotWorkspaceDelete = async (accessToken: string, workspaceId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/workspace/${workspaceId}`);
+
+export const copilotWorkspaceMemberList = async (accessToken: string, workspaceId: string) =>
+  copilotApiCall(accessToken, "GET", `/alchemi/workspace/${workspaceId}/member/list`);
+
+export const copilotWorkspaceMemberAdd = async (accessToken: string, workspaceId: string, data: any) =>
+  copilotApiCall(accessToken, "POST", `/alchemi/workspace/${workspaceId}/member`, data);
+
+export const copilotWorkspaceMemberRemove = async (accessToken: string, workspaceId: string, memberId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/workspace/${workspaceId}/member/${memberId}`);
+
+// --- Marketplace ---
+export const copilotMarketplaceList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/marketplace/list");
+
+export const copilotMarketplaceCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/marketplace/new", data);
+
+export const copilotMarketplaceUpdate = async (accessToken: string, listingId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/marketplace/${listingId}`, data);
+
+export const copilotMarketplaceDelete = async (accessToken: string, listingId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/marketplace/${listingId}`);
+
+// --- Connections ---
+export const copilotConnectionList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/connection/list");
+
+export const copilotConnectionCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/connection/new", data);
+
+export const copilotConnectionUpdate = async (accessToken: string, connectionId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/connection/${connectionId}`, data);
+
+export const copilotConnectionDelete = async (accessToken: string, connectionId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/connection/${connectionId}`);
+
+// --- Teams ---
+export const copilotTeamList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/team/list");
+
+export const copilotTeamCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/team/new", data);
+
+export const copilotTeamUpdate = async (accessToken: string, teamId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/team/${teamId}`, data);
+
+export const copilotTeamDelete = async (accessToken: string, teamId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/team/${teamId}`);
+
+// --- Groups ---
+export const copilotGroupList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/group/list");
+
+export const copilotGroupCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/group/new", data);
+
+export const copilotGroupUpdate = async (accessToken: string, groupId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/group/${groupId}`, data);
+
+export const copilotGroupDelete = async (accessToken: string, groupId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/group/${groupId}`);
+
+// --- Budget Plans ---
+export const copilotBudgetPlanList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/budget/plan/list");
+
+export const copilotBudgetPlanCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/budget/plan/new", data);
+
+export const copilotBudgetPlanUpdate = async (accessToken: string, planId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/budget/plan/${planId}`, data);
+
+export const copilotBudgetPlanDelete = async (accessToken: string, planId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/budget/plan/${planId}`);
+
+// --- Credit Budgets ---
+export const copilotCreditBudgetList = async (accessToken: string) =>
+  copilotApiCall(accessToken, "GET", "/alchemi/budget/list");
+
+export const copilotCreditBudgetCreate = async (accessToken: string, data: any) =>
+  copilotApiCall(accessToken, "POST", "/alchemi/budget/new", data);
+
+export const copilotCreditBudgetUpdate = async (accessToken: string, budgetId: string, data: any) =>
+  copilotApiCall(accessToken, "PUT", `/alchemi/budget/${budgetId}`, data);
+
+export const copilotCreditBudgetDelete = async (accessToken: string, budgetId: string) =>
+  copilotApiCall(accessToken, "DELETE", `/alchemi/budget/${budgetId}`);
