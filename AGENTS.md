@@ -25,7 +25,13 @@ LiteLLM is a unified interface for 100+ LLMs that:
 - `tests/` - Comprehensive test suites
 - `docs/my-website/` - Documentation website
 - `ui/litellm-dashboard/` - Admin dashboard UI
-- `enterprise/` - Enterprise-specific features
+- `alchemi/` - Alchemi enterprise extensions (replaces `enterprise/`)
+  - `auth/` - Zitadel OIDC, account resolution, super admin
+  - `db/` - Tenant-scoped Prisma client + asyncpg copilot DB wrapper
+  - `endpoints/` - Account management + copilot feature endpoints
+  - `hooks/` - Audit logging, secret detection, cost tracking
+  - `middleware/` - Account middleware + tenant context
+  - `scripts/` - Data migration scripts
 
 ## DEVELOPMENT GUIDELINES
 
@@ -109,6 +115,35 @@ Key files:
 - `litellm/proxy/auth/` - Authentication logic
 - `litellm/proxy/management_endpoints/` - Admin API endpoints
 
+## COPILOT FEATURE LAYER
+
+The copilot layer provides tenant-scoped management of credit budgets, agents, marketplace, connections, and guardrails. All data lives in the `copilot.*` PostgreSQL schema (separate from Prisma) and is accessed via `CopilotDB` (asyncpg).
+
+### Copilot Endpoints (all under `/copilot/`)
+| Prefix | File | Key Operations |
+|--------|------|----------------|
+| `/copilot/budgets` | `alchemi/endpoints/copilot_budget_endpoints.py` | CRUD, `/summary`, `/alerts`, `/record-usage`, `/plans` |
+| `/copilot/agents` | `alchemi/endpoints/copilot_agent_endpoints.py` | CRUD, `/groups`, `/groups/{id}/members` |
+| `/copilot/marketplace` | `alchemi/endpoints/copilot_marketplace_endpoints.py` | CRUD, `/featured`, `/{id}/install` |
+| `/copilot/connections` | `alchemi/endpoints/copilot_connection_endpoints.py` | CRUD, `/{id}/test` |
+| `/copilot/guardrails` | `alchemi/endpoints/copilot_guardrails_endpoints.py` | `/config`, `/config/{type}/toggle`, `/patterns`, `/audit` |
+| `/copilot/entitlements` | `alchemi/endpoints/copilot_entitlements_endpoints.py` | `GET/PUT /{account_id}` (super admin only) |
+
+### Copilot Database (`alchemi/db/copilot_db.py`)
+- `CopilotDB` class with `find_many`, `find_by_id`, `create`, `update`, `delete`, `count`, `atomic_increment`
+- Auto-injects `WHERE account_id = ?` using tenant context (super admins bypass)
+- Pre-built table accessors: `credit_budgets`, `budget_plans`, `agents_def`, `agent_groups`, `agent_group_members`, `marketplace_items`, `account_connections`, `guardrails_config`, `guardrails_custom_patterns`, `guardrails_audit_log`
+- Pool initialized in `proxy_server.py` startup, closed on shutdown
+
+### Integration Clients
+- **alchemi-web**: `/workspaces/alchemi-web/src/lib/console_api/client.ts` -- TypeScript HTTP client (server-only, ~50 exported functions)
+- **alchemi-ai**: `/workspaces/alchemi-ai/gen_ui_backend/utils/console_client.py` -- Python async httpx client (budget check, usage recording, guardrails, connections)
+
+### Copilot UI Pages
+- 4 dashboard pages under COPILOT nav group: Credit Budgets, Agents & Marketplace, Connections & Tools, Enhanced Guardrails
+- React Query hooks in `ui/litellm-dashboard/src/app/(dashboard)/hooks/copilot/`
+- Super admin tabs in tenant-admin: Billing Overview, Model Registry, Account Entitlements
+
 ## MCP (MODEL CONTEXT PROTOCOL) SUPPORT
 
 LiteLLM supports MCP for agent workflows:
@@ -163,9 +198,9 @@ When opening issues or pull requests, follow these templates:
 
 ## ENTERPRISE FEATURES
 
-- Some features are enterprise-only
-- Check `enterprise/` directory for enterprise-specific code
-- Maintain compatibility between open-source and enterprise versions
+- Enterprise features live in `alchemi/` (the `enterprise/` directory has been removed)
+- All enterprise features are always enabled (`premium_user = True`)
+- Maintain compatibility between open-source LiteLLM base and Alchemi extensions
 
 ## COMMON PITFALLS TO AVOID
 

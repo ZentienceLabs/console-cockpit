@@ -17,6 +17,7 @@ const { mockUseAuthorized, mockUseOrganizations } = vi.hoisted(() => {
     userId: "test-user-id",
     accessToken: "test-access-token",
     userRole: "admin",
+    isSuperAdmin: false,
     token: "test-token",
     userEmail: "test@example.com",
     premiumUser: false,
@@ -80,6 +81,27 @@ describe("Sidebar (leftnav)", () => {
     ];
 
     topLevelLabels.forEach((label) => {
+      expect(screen.getByText(label)).toBeInTheDocument();
+    });
+  });
+
+  it("should render copilot navigation entries for admin users", () => {
+    renderWithProviders(<Sidebar {...defaultProps} />);
+
+    const copilotItems = [
+      "Overview",
+      "Directory",
+      "Credit Budgets",
+      "Agents & Marketplace",
+      "Connections & Tools",
+      "Model Visibility",
+      "Enhanced Guardrails",
+      "Observability",
+      "Notification Templates",
+      "Support Tickets",
+    ];
+
+    copilotItems.forEach((label) => {
       expect(screen.getByText(label)).toBeInTheDocument();
     });
   });
@@ -162,5 +184,43 @@ describe("Sidebar (leftnav)", () => {
     renderWithProviders(<Sidebar {...defaultProps} />);
 
     expect(screen.getByText("Organizations")).toBeInTheDocument();
+  });
+
+  it("should hide copilot section for non-admin role", () => {
+    mockUseAuthorized.mockReturnValueOnce({
+      userId: "internal-user-id",
+      accessToken: "test-access-token",
+      userRole: "internal",
+      token: "test-token",
+      userEmail: "internal@example.com",
+      premiumUser: false,
+      disabledPersonalKeyCreation: false,
+      showSSOBanner: false,
+    });
+
+    renderWithProviders(<Sidebar {...defaultProps} />);
+
+    expect(screen.queryByText("Support Tickets")).not.toBeInTheDocument();
+    expect(screen.queryByText("Notification Templates")).not.toBeInTheDocument();
+  });
+
+  it("should show Global Ops only for super admins", () => {
+    renderWithProviders(<Sidebar {...defaultProps} />);
+    expect(screen.queryByText("Global Ops")).not.toBeInTheDocument();
+
+    mockUseAuthorized.mockReturnValueOnce({
+      userId: "super-admin-id",
+      accessToken: "test-access-token",
+      userRole: "admin",
+      isSuperAdmin: true,
+      token: "test-token",
+      userEmail: "superadmin@example.com",
+      premiumUser: false,
+      disabledPersonalKeyCreation: false,
+      showSSOBanner: false,
+    });
+
+    renderWithProviders(<Sidebar {...defaultProps} />);
+    expect(screen.getByText("Global Ops")).toBeInTheDocument();
   });
 });

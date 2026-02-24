@@ -45,14 +45,39 @@ if [ -z "${VIRTUAL_ENV:-}" ] && [ -f "$PROJECT_ROOT/.venv/bin/activate" ]; then
     set -u
 fi
 
+load_env_file_safely() {
+    local env_file="$1"
+    while IFS= read -r raw_line || [ -n "$raw_line" ]; do
+        # Trim leading/trailing whitespace
+        local line
+        line="$(echo "$raw_line" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
+
+        # Skip comments/empty lines
+        [ -z "$line" ] && continue
+        [[ "$line" == \#* ]] && continue
+
+        # Support optional "export KEY=VALUE"
+        line="${line#export }"
+        [[ "$line" != *=* ]] && continue
+
+        local key="${line%%=*}"
+        local value="${line#*=}"
+        key="$(echo "$key" | sed -e 's/[[:space:]]*$//')"
+
+        # Strip matching single/double quotes without evaluating the value.
+        if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+            value="${value:1:${#value}-2}"
+        elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+            value="${value:1:${#value}-2}"
+        fi
+
+        export "$key=$value"
+    done < "$env_file"
+}
+
 # Load .env file if present and DATABASE_URL not already set
 if [ -z "${DATABASE_URL:-}" ] && [ -f "$PROJECT_ROOT/.env" ]; then
-    set +u
-    set -a
-    # shellcheck disable=SC1091
-    source "$PROJECT_ROOT/.env"
-    set +a
-    set -u
+    load_env_file_safely "$PROJECT_ROOT/.env"
 fi
 
 # ─────────────────────────────────────────────

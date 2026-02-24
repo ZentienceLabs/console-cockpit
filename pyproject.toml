@@ -108,7 +108,8 @@ extra_proxy = [
     "google-cloud-iam",
     "resend",
     "redisvl",
-    "a2a-sdk"
+    "a2a-sdk",
+    "asyncpg",
 ]
 
 utils = [

@@ -584,6 +584,21 @@ try:
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
     from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
+    from alchemi.auth.zitadel_oidc import router as alchemi_zitadel_router
+    from alchemi.auth.zitadel_webhook import router as alchemi_zitadel_webhook_router
+    from alchemi.endpoints.copilot_budget_endpoints import router as copilot_budget_router
+    from alchemi.endpoints.copilot_agent_endpoints import router as copilot_agent_router
+    from alchemi.endpoints.copilot_marketplace_endpoints import router as copilot_marketplace_router
+    from alchemi.endpoints.copilot_connection_endpoints import router as copilot_connection_router
+    from alchemi.endpoints.copilot_guardrails_endpoints import router as copilot_guardrails_router
+    from alchemi.endpoints.copilot_entitlements_endpoints import router as copilot_entitlements_router
+    from alchemi.endpoints.copilot_directory_endpoints import router as copilot_directory_router
+    from alchemi.endpoints.copilot_model_endpoints import router as copilot_model_router
+    from alchemi.endpoints.copilot_global_ops_endpoints import router as copilot_global_ops_router
+    from alchemi.endpoints.copilot_observability_endpoints import router as copilot_observability_router
+    from alchemi.endpoints.alchemi_legacy_endpoints import router as alchemi_legacy_router
+    from alchemi.endpoints.copilot_notification_template_endpoints import router as copilot_notification_template_router
+    from alchemi.endpoints.copilot_support_ticket_endpoints import router as copilot_support_ticket_router
 except ImportError:
     pass
 
@@ -877,6 +892,14 @@ async def proxy_startup_event(app: FastAPI):  # noqa: PLR0915
     ## Initialize shared aiohttp session for connection reuse
     shared_aiohttp_session = await _initialize_shared_aiohttp_session()
 
+    ## Initialize Copilot DB connection pool
+    try:
+        from alchemi.db.copilot_db import get_pool as init_copilot_pool
+        await init_copilot_pool()
+        verbose_proxy_logger.info("Copilot DB pool initialized")
+    except Exception as e:
+        verbose_proxy_logger.warning(f"Copilot DB pool init skipped: {e}")
+
     # End of startup event
     yield
 
@@ -887,6 +910,14 @@ async def proxy_startup_event(app: FastAPI):  # noqa: PLR0915
             verbose_proxy_logger.info("SESSION REUSE: Closed shared aiohttp session")
         except Exception as e:
             verbose_proxy_logger.error(f"Error closing shared aiohttp session: {e}")
+
+    # Shutdown event - close Copilot DB pool
+    try:
+        from alchemi.db.copilot_db import close_pool as close_copilot_pool
+        await close_copilot_pool()
+        verbose_proxy_logger.info("Copilot DB pool closed")
+    except Exception:
+        pass
 
     # Shutdown event - stop RDS IAM token refresh background task
     if (
@@ -1303,6 +1334,36 @@ try:
         StaticFiles(directory=os.path.join(ui_path, "_next")),
         name="next_static",
     )
+
+    # Next.js App Router metadata files are emitted at UI root in static export builds.
+    # Some clients request them at root (/__next._tree.txt) instead of /ui/__next._tree.txt.
+    # Serve root-level compatibility endpoints to avoid noisy 404s and client boot issues.
+    def _serve_ui_metadata_file(filename: str) -> FileResponse:
+        file_path = os.path.join(ui_path, filename)
+        if not os.path.isfile(file_path):
+            raise HTTPException(status_code=404, detail="Not Found")
+        return FileResponse(file_path, media_type="text/plain")
+
+    @app.get("/__next._tree.txt", include_in_schema=False)
+    async def get_next_tree_txt():
+        return _serve_ui_metadata_file("__next._tree.txt")
+
+    @app.get("/__next._full.txt", include_in_schema=False)
+    async def get_next_full_txt():
+        return _serve_ui_metadata_file("__next._full.txt")
+
+    @app.get("/__next._head.txt", include_in_schema=False)
+    async def get_next_head_txt():
+        return _serve_ui_metadata_file("__next._head.txt")
+
+    @app.get("/__next._index.txt", include_in_schema=False)
+    async def get_next_index_txt():
+        return _serve_ui_metadata_file("__next._index.txt")
+
+    @app.get("/__next.__PAGE__.txt", include_in_schema=False)
+    async def get_next_page_txt():
+        return _serve_ui_metadata_file("__next.__PAGE__.txt")
+
     # print(f"mounted _next at {server_root_path}/ui/_next")
 
     app.mount("/ui", StaticFiles(directory=ui_path, html=True), name="ui")
@@ -1420,6 +1481,11 @@ if docs_url != "/" and root_redirect_url is not None:
     @app.get("/", include_in_schema=False)
     async def root_redirect():
         return RedirectResponse(url=root_redirect_url)  # type: ignore[arg-type]
+
+
+@app.head("/", include_in_schema=False)
+async def root_head_ok():
+    return Response(status_code=200)
 
 
 from typing import Dict
@@ -10513,6 +10579,15 @@ async def login_resolve(request: Request):
                 status_code=status.HTTP_200_OK,
             )
 
+        if sso_result and sso_result.get("account_id"):
+            return JSONResponse(
+                content={
+                    "method": "password",
+                    "account_id": sso_result.get("account_id"),
+                },
+                status_code=status.HTTP_200_OK,
+            )
+
         return JSONResponse(
             content={"method": "password"},
             status_code=status.HTTP_200_OK,
@@ -12592,6 +12667,29 @@ try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
     app.include_router(alchemi_email_event_router)
+    app.include_router(alchemi_zitadel_router)
+    app.include_router(alchemi_zitadel_webhook_router)
+    app.include_router(copilot_budget_router)
+    app.include_router(copilot_agent_router)
+    app.include_router(copilot_marketplace_router)
+    app.include_router(copilot_connection_router)
+    app.include_router(copilot_guardrails_router)
+    app.include_router(copilot_entitlements_router)
+    app.include_router(copilot_directory_router)
+    app.include_router(copilot_model_router)
+    app.include_router(copilot_global_ops_router)
+    app.include_router(copilot_observability_router)
+    app.include_router(copilot_notification_template_router)
+    app.include_router(copilot_support_ticket_router)
+    enable_legacy_compat = (
+        os.getenv("ALCHEMI_ENABLE_LEGACY_COMPAT", "true").strip().lower() == "true"
+    )
+    if enable_legacy_compat:
+        app.include_router(alchemi_legacy_router)
+    else:
+        verbose_proxy_logger.info(
+            "ALCHEMI legacy compatibility endpoints are disabled (ALCHEMI_ENABLE_LEGACY_COMPAT=false)."
+        )
 except NameError:
     pass
 ########################################################

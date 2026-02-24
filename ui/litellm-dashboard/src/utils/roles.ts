@@ -2,7 +2,15 @@ import { Member, Team } from "@/components/networking";
 
 // Define admin roles and permissions
 export const old_admin_roles = ["Admin", "Admin Viewer"];
-export const v2_admin_role_names = ["proxy_admin", "proxy_admin_viewer", "org_admin"];
+export const v2_admin_role_names = [
+  "proxy_admin",
+  "proxy_admin_viewer",
+  "proxy_admin_view_only",
+  "org_admin",
+  "app_admin",
+  "app_owner",
+  "demo_app_owner",
+];
 export const all_admin_roles = [...old_admin_roles, ...v2_admin_role_names];
 
 export const internalUserRoles = ["Internal User", "Internal Viewer"];

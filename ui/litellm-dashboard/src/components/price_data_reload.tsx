@@ -44,9 +44,19 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
   const [hours, setHours] = useState<number>(6);
   const [reloadStatus, setReloadStatus] = useState<ReloadStatus | null>(null);
   const [loadingStatus, setLoadingStatus] = useState(false);
+  const isVirtualKeySession = accessToken.startsWith("sk-");
 
   // Fetch status on component mount and periodically
   useEffect(() => {
+    if (!isVirtualKeySession) {
+      setReloadStatus({
+        scheduled: false,
+        interval_hours: null,
+        last_run: null,
+        next_run: null,
+      });
+      return;
+    }
     fetchReloadStatus();
 
     // Refresh status every 30 seconds to keep it up to date
@@ -55,10 +65,10 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
     }, 30000);
 
     return () => clearInterval(interval);
-  }, [accessToken]);
+  }, [accessToken, isVirtualKeySession]);
 
   const fetchReloadStatus = async () => {
-    if (!accessToken) return;
+    if (!accessToken || !isVirtualKeySession) return;
 
     setLoadingStatus(true);
     try {
@@ -85,6 +95,10 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
       NotificationsManager.fromBackend("No access token available");
       return;
     }
+    if (!isVirtualKeySession) {
+      NotificationsManager.fromBackend("Price data reload requires a LiteLLM virtual key (sk-...).");
+      return;
+    }
 
     setIsLoading(true);
     try {
@@ -109,6 +123,10 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
   const handleScheduleReload = async () => {
     if (!accessToken) {
       NotificationsManager.fromBackend("No access token available");
+      return;
+    }
+    if (!isVirtualKeySession) {
+      NotificationsManager.fromBackend("Periodic reload requires a LiteLLM virtual key (sk-...).");
       return;
     }
 
@@ -139,6 +157,10 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
   const handleCancelReload = async () => {
     if (!accessToken) {
       NotificationsManager.fromBackend("No access token available");
+      return;
+    }
+    if (!isVirtualKeySession) {
+      NotificationsManager.fromBackend("Periodic reload requires a LiteLLM virtual key (sk-...).");
       return;
     }
 
@@ -217,6 +239,7 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
             type={type}
             size={size}
             loading={isLoading}
+            disabled={!isVirtualKeySession}
             icon={showIcon ? <ReloadOutlined /> : undefined}
             style={{
               backgroundColor: "#6366f1",
@@ -247,6 +270,7 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
             type="default"
             size={size}
             icon={<ClockCircleOutlined />}
+            disabled={!isVirtualKeySession}
             onClick={() => setShowScheduleModal(true)}
             style={{
               borderColor: "#d9d9d9",
@@ -268,6 +292,7 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
             danger
             icon={<StopOutlined />}
             loading={isCancelling}
+            disabled={!isVirtualKeySession}
             onClick={handleCancelReload}
             style={{
               borderColor: "#ff4d4f",
@@ -284,6 +309,12 @@ const PriceDataReload: React.FC<PriceDataReloadProps> = ({
           </Button>
         )}
       </Space>
+
+      {!isVirtualKeySession && (
+        <Text type="secondary" style={{ display: "block", marginBottom: 12 }}>
+          Price data reload controls require a LiteLLM virtual key (`sk-...`). SSO JWT sessions are read-only here.
+        </Text>
+      )}
 
       {/* Status Card */}
       {reloadStatus && (

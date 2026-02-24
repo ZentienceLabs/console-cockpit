@@ -3,7 +3,7 @@ Account (tenant) management endpoints - Super admin only.
 Includes account CRUD, admin management with password support, and per-account SSO config.
 """
 from fastapi import APIRouter, HTTPException, Depends, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, List, Dict, Any
 from prisma import Json
 import uuid
@@ -17,7 +17,7 @@ class AccountCreateRequest(BaseModel):
     account_alias: Optional[str] = None
     domain: Optional[str] = None
     max_budget: Optional[float] = None
-    metadata: Optional[dict] = {}
+    metadata: Optional[dict] = Field(default_factory=dict)
     admin_email: Optional[str] = None
     admin_password: Optional[str] = None  # Password for the initial admin
 
@@ -489,6 +489,21 @@ async def update_account(
     update_data = {k: v for k, v in data.dict().items() if v is not None}
     if not update_data:
         raise HTTPException(status_code=400, detail="No fields to update")
+
+    # Prisma expects explicit Json wrapper for JSON fields.
+    if "metadata" in update_data:
+        metadata_value = update_data["metadata"]
+        if metadata_value is None:
+            update_data["metadata"] = Json({})
+        elif isinstance(metadata_value, str):
+            try:
+                update_data["metadata"] = Json(json.loads(metadata_value))
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"Invalid metadata JSON: {exc}")
+        elif isinstance(metadata_value, dict):
+            update_data["metadata"] = Json(metadata_value)
+        else:
+            raise HTTPException(status_code=400, detail="metadata must be an object")
 
     account = await prisma_client.db.alchemi_accounttable.update(
         where={"account_id": account_id},

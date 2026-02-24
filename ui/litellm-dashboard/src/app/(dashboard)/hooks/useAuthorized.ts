@@ -36,7 +36,7 @@ function formatUserRole(userRole: string) {
   }
 }
 
-const useAuthorized = () => {
+const useAuthorized = (): any => {
   const router = useRouter();
   const { data: uiConfig, isLoading: isUIConfigLoading } = useUIConfig();
 
@@ -73,6 +73,7 @@ const useAuthorized = () => {
     // Alchemi: Multi-tenant fields
     accountId: decoded?.account_id ?? null,
     isSuperAdmin: decoded?.is_super_admin ?? false,
+    loginMethod: decoded?.login_method ?? "password",
   };
 };
 

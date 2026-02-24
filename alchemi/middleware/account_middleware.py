@@ -30,6 +30,10 @@ PUBLIC_PATHS = {
     "/get_image",
     "/.well-known/litellm-ui-config",
     "/litellm/.well-known/litellm-ui-config",
+    "/zitadel/authorize",
+    "/zitadel/callback",
+    "/zitadel/logout",
+    "/zitadel/webhook",
 }
 
 

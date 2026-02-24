@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, Suspense } from "react";
 import {
   Table,
   Button,
@@ -39,6 +39,15 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import PriceDataReload from "@/components/price_data_reload";
+
+const BillingOverview = React.lazy(() => import("@/components/tenant-admin/BillingOverview"));
+const ModelRegistry = React.lazy(() => import("@/components/tenant-admin/ModelRegistry"));
+const AccountEntitlements = React.lazy(() => import("@/components/tenant-admin/AccountEntitlements"));
+const CopilotSupportTicketsPage = React.lazy(() => import("@/components/copilot/CopilotSupportTicketsPage"));
+const CopilotNotificationTemplatesPage = React.lazy(() => import("@/components/copilot/CopilotNotificationTemplatesPage"));
+const CopilotModelsPage = React.lazy(() => import("@/components/copilot/CopilotModelsPage"));
+const CopilotDirectoryPage = React.lazy(() => import("@/components/copilot/CopilotDirectoryPage"));
+const CopilotGlobalOpsPage = React.lazy(() => import("@/components/copilot/CopilotGlobalOpsPage"));
 
 const { Title, Text } = Typography;
 const { TabPane } = Tabs;
@@ -80,6 +89,28 @@ function getCookie(name: string): string | null {
   const parts = value.split(`; ${name}=`);
   if (parts.length === 2) return parts.pop()?.split(";").shift() || null;
   return null;
+}
+
+function normalizeAuthOrgId(value: unknown): string | undefined {
+  const normalized = String(value ?? "").trim();
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function mergeAccountMetadata(
+  existingMetadata: Record<string, any> | undefined,
+  authOrgIdValue: unknown
+): Record<string, any> {
+  const metadata =
+    existingMetadata && typeof existingMetadata === "object"
+      ? { ...existingMetadata }
+      : {};
+  const authOrgId = normalizeAuthOrgId(authOrgIdValue);
+  if (authOrgId) {
+    metadata.auth_org_id = authOrgId;
+  } else {
+    delete metadata.auth_org_id;
+  }
+  return metadata;
 }
 
 export default function TenantAdminPage() {
@@ -130,13 +161,18 @@ export default function TenantAdminPage() {
 
   const handleCreateAccount = async (values: any) => {
     try {
+      const { auth_org_id, ...rest } = values;
+      const payload = {
+        ...rest,
+        metadata: mergeAccountMetadata(values?.metadata, auth_org_id),
+      };
       const response = await fetch("/account/new", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       if (response.ok) {
         message.success("Account created successfully");
@@ -155,13 +191,18 @@ export default function TenantAdminPage() {
   const handleUpdateAccount = async (values: any) => {
     if (!selectedAccount) return;
     try {
+      const { auth_org_id, ...rest } = values;
+      const payload = {
+        ...rest,
+        metadata: mergeAccountMetadata(selectedAccount.metadata, auth_org_id),
+      };
       const response = await fetch(`/account/${selectedAccount.account_id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accessToken}`,
         },
-        body: JSON.stringify(values),
+        body: JSON.stringify(payload),
       });
       if (response.ok) {
         message.success("Account updated successfully");
@@ -456,6 +497,14 @@ export default function TenantAdminPage() {
         domain ? <Tag color="blue">{domain}</Tag> : <Text type="secondary">-</Text>,
     },
     {
+      title: "Zitadel Org ID",
+      key: "auth_org_id",
+      render: (_: any, record: Account) => {
+        const authOrgId = normalizeAuthOrgId(record?.metadata?.auth_org_id);
+        return authOrgId ? <Text code>{authOrgId}</Text> : <Text type="secondary">-</Text>;
+      },
+    },
+    {
       title: "Status",
       dataIndex: "status",
       key: "status",
@@ -527,6 +576,7 @@ export default function TenantAdminPage() {
                   account_name: record.account_name,
                   account_alias: record.account_alias,
                   domain: record.domain,
+                  auth_org_id: normalizeAuthOrgId(record?.metadata?.auth_org_id),
                   max_budget: record.max_budget,
                 });
                 setEditModalOpen(true);
@@ -617,6 +667,8 @@ export default function TenantAdminPage() {
         </Text>
       </div>
 
+      <Tabs defaultActiveKey="accounts" size="large">
+        <TabPane tab="Accounts" key="accounts">
       <Row gutter={16} style={{ marginBottom: 24 }}>
         <Col span={6}>
           <Card>
@@ -718,6 +770,55 @@ export default function TenantAdminPage() {
           />
         </div>
       </Card>
+        </TabPane>
+
+        <TabPane tab="Billing" key="billing">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <BillingOverview />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Gateway Models" key="models">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <ModelRegistry />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Entitlements" key="entitlements">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <AccountEntitlements />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Copilot Ticket Ops" key="copilot-ticket-ops">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <CopilotSupportTicketsPage />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Copilot Notification Ops" key="copilot-notification-ops">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <CopilotNotificationTemplatesPage />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Copilot Model Governance" key="copilot-model-governance">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <CopilotModelsPage />
+          </Suspense>
+        </TabPane>
+
+        <TabPane tab="Copilot Directory Ops" key="copilot-directory-ops">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <CopilotDirectoryPage />
+          </Suspense>
+        </TabPane>
+        <TabPane tab="Copilot Global Ops" key="copilot-global-ops">
+          <Suspense fallback={<div style={{ textAlign: "center", padding: 48 }}>Loading...</div>}>
+            <CopilotGlobalOpsPage />
+          </Suspense>
+        </TabPane>
+      </Tabs>
 
       {/* Create Account Modal */}
       <Modal
@@ -741,6 +842,13 @@ export default function TenantAdminPage() {
           </Form.Item>
           <Form.Item name="domain" label="Email Domain (for SSO routing)">
             <Input placeholder="e.g., acme.com" />
+          </Form.Item>
+          <Form.Item
+            name="auth_org_id"
+            label="Zitadel Organization ID"
+            extra="Optional. Map this tenant to a specific Zitadel org ID for reliable account resolution."
+          >
+            <Input placeholder="e.g., 2814390123422307" />
           </Form.Item>
           <Divider orientation="left" plain>
             Initial Admin
@@ -794,6 +902,13 @@ export default function TenantAdminPage() {
             <Input />
           </Form.Item>
           <Form.Item name="domain" label="Email Domain">
+            <Input />
+          </Form.Item>
+          <Form.Item
+            name="auth_org_id"
+            label="Zitadel Organization ID"
+            extra="If set, Zitadel users from this org resolve directly to this tenant."
+          >
             <Input />
           </Form.Item>
           <Form.Item name="max_budget" label="Max Budget (USD)">

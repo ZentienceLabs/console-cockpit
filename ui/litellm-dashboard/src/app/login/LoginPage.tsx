@@ -147,6 +147,23 @@ function LoginPageContent() {
 
           {error && <Alert message={error} type="error" showIcon />}
 
+          {/* Zitadel SSO Login */}
+          <Button
+            type="default"
+            size="large"
+            block
+            onClick={() => {
+              window.location.href = `${getProxyBaseUrl()}/zitadel/authorize`;
+            }}
+            className="mb-2"
+          >
+            Sign in with Alchemi SSO
+          </Button>
+
+          <div className="text-center my-2">
+            <Text type="secondary">or sign in with email</Text>
+          </div>
+
           {loginStep === "email" ? (
             <Form onFinish={handleEmailSubmit} layout="vertical" requiredMark={true}>
               <Form.Item

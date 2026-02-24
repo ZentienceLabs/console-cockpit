@@ -100,13 +100,23 @@ Super Admin (UI_USERNAME/UI_PASSWORD)
 - **`proxy/_experimental/out/`** -- Next.js compiled UI (served statically)
 
 #### Alchemi Extension (`alchemi/`)
-- **`auth/account_resolver.py`** -- Resolves `account_id` from email domain lookup
+- **`auth/account_resolver.py`** -- Resolves `account_id` from email domain lookup + Zitadel claims
 - **`auth/sso_router.py`** -- Per-account SSO routing (determines SSO vs password login)
-- **`auth/super_admin.py`** -- Super admin verification
+- **`auth/super_admin.py`** -- Super admin verification (password + email-based)
+- **`auth/zitadel_oidc.py`** -- Zitadel OIDC PKCE flow (`/zitadel/authorize`, `/zitadel/callback`)
+- **`auth/zitadel_webhook.py`** -- Zitadel user provisioning webhook
 - **`config/settings.py`** -- AlchemiProxyConfig (master key, UI credentials)
 - **`db/tenant_scoped_prisma.py`** -- `TenantScopedPrismaClient` that auto-injects `WHERE account_id = ?`
+- **`db/copilot_db.py`** -- `CopilotDB` async wrapper for `copilot.*` schema tables (asyncpg)
 - **`endpoints/account_endpoints.py`** -- Account CRUD REST API (super admin only)
 - **`endpoints/audit_log_endpoints.py`** -- Audit log query endpoints
+- **`endpoints/copilot_budget_endpoints.py`** -- Credit budget CRUD + usage recording (`/copilot/budgets`)
+- **`endpoints/copilot_agent_endpoints.py`** -- Agent definitions + groups (`/copilot/agents`)
+- **`endpoints/copilot_marketplace_endpoints.py`** -- Marketplace items CRUD (`/copilot/marketplace`)
+- **`endpoints/copilot_connection_endpoints.py`** -- Account connections CRUD (`/copilot/connections`)
+- **`endpoints/copilot_guardrails_endpoints.py`** -- Guardrails config, patterns, audit log (`/copilot/guardrails`)
+- **`endpoints/copilot_entitlements_endpoints.py`** -- Per-account entitlements (super admin, `/copilot/entitlements`)
+- **`endpoints/copilot_types.py`** -- Shared Pydantic models and enums for copilot endpoints
 - **`hooks/audit_logger.py`** -- Captures audit events and sends to OpenObserve
 - **`hooks/secret_detection.py`** -- PII/secret masking in LLM requests
 - **`hooks/batch_cost.py`** -- Batch processing cost tracking
@@ -115,25 +125,36 @@ Super Admin (UI_USERNAME/UI_PASSWORD)
 - **`integrations/openobserve.py`** -- OpenObserve HTTP client for audit logging
 - **`middleware/account_middleware.py`** -- FastAPI middleware that resolves account from JWT/API key
 - **`middleware/tenant_context.py`** -- `contextvars.ContextVar` holding current `account_id`
+- **`scripts/migrate_copilot_data.py`** -- One-time migration from alchemi-web Sequelize tables to `copilot.*`
 
 #### Admin Dashboard (`ui/litellm-dashboard/`)
 - **Next.js 16** with React 18, Tailwind CSS, Ant Design
-- **`src/app/login/LoginPage.tsx`** -- Email-first login with SSO routing
-- **`src/app/(dashboard)/tenant-admin/page.tsx`** -- Super admin tenant management page
-- **`src/components/networking.tsx`** -- API client functions (includes `accountCreateCall`, `accountListCall`, `accountUpdateCall`, `accountDeleteCall`, `accountAdminAddCall`, `accountAdminRemoveCall`, `loginResolveCall`)
-- **`src/components/leftnav.tsx`** -- Sidebar navigation (customized for Alchemi)
+- **`src/app/login/LoginPage.tsx`** -- Email-first login with SSO routing + Zitadel SSO button
+- **`src/app/(dashboard)/tenant-admin/page.tsx`** -- Super admin tenant management page (Accounts, Billing, Models, Entitlements tabs)
+- **`src/components/networking.tsx`** -- API client functions (includes `accountCreateCall`, `accountListCall`, `accountUpdateCall`, `accountDeleteCall`, `accountAdminAddCall`, `accountAdminRemoveCall`, `loginResolveCall`, copilot CRUD functions)
+- **`src/components/leftnav.tsx`** -- Sidebar navigation (customized for Alchemi, includes COPILOT nav group)
 - **`src/components/navbar.tsx`** -- Top navigation bar (Alchemi-branded)
+- **`src/components/copilot/`** -- Copilot feature pages (Budgets, Agents, Connections, Guardrails)
+- **`src/components/tenant-admin/`** -- Super admin sub-pages (BillingOverview, ModelRegistry, AccountEntitlements)
+- **`src/app/(dashboard)/hooks/copilot/`** -- React Query hooks for copilot API calls
 
 ### Database Schema
 
-**Active schema:** `/workspaces/console-cockpit/schema.prisma` (1083 lines)
+**Prisma schema:** `/workspaces/console-cockpit/schema.prisma` (1083 lines)
 **Reference schema:** `/workspaces/console-cockpit/litellm/proxy/schema.prisma` (976 lines, original LiteLLM)
 
 The active schema extends LiteLLM's with:
 - `account_id String?` column + `@@index([account_id])` on all major tables
 - 3 new Alchemi tables: `Alchemi_AccountTable`, `Alchemi_AccountAdminTable`, `Alchemi_AccountSSOConfig`
 
-**Important:** Always edit the root `schema.prisma`, then sync to `litellm/proxy/schema.prisma`.
+**Copilot schema** (`copilot.*` PostgreSQL schema, managed via asyncpg, not Prisma):
+- Migration: `prisma/migrations/20260221200000_copilot_schema/migration.sql`
+- 10 tables: `credit_budget`, `budget_plans`, `agents_def`, `agent_groups`, `agent_group_members`, `marketplace_items`, `account_connections`, `guardrails_config`, `guardrails_custom_patterns`, `guardrails_audit_log`
+- 2 views: `v_budget_summary`, `v_budget_alerts`
+- All tables have `account_id` for tenant scoping, UUID primary keys, TIMESTAMPTZ timestamps
+- Accessed via `CopilotDB` class in `alchemi/db/copilot_db.py` (connection pool initialized at proxy startup)
+
+**Important:** Always edit the root `schema.prisma`, then sync to `litellm/proxy/schema.prisma`. Copilot tables are raw SQL -- do not add them to the Prisma schema.
 
 ### Tenant Scoping Flow
 1. Request arrives → `AccountMiddleware` extracts `account_id` from JWT cookie or API key
@@ -211,6 +232,11 @@ When building new enterprise features:
 ### Optional
 | Variable | Description |
 |----------|-------------|
+| `ZITADEL_ISSUER_URL` | Zitadel issuer URL for OIDC authentication |
+| `ZITADEL_CLIENT_ID` | Zitadel OIDC client ID |
+| `ZITADEL_CLIENT_SECRET` | Zitadel OIDC client secret |
+| `ZITADEL_CALLBACK_URL` | Zitadel callback URL (default: `{PROXY_BASE_URL}/zitadel/callback`) |
+| `SUPER_ADMIN_EMAILS` | Comma-separated emails for Zitadel-based super admin access |
 | `OPENOBSERVE_URL` | OpenObserve endpoint for audit logging |
 | `OPENOBSERVE_ORG` | OpenObserve organization (default: "default") |
 | `OPENOBSERVE_STREAM` | OpenObserve stream name (default: "alchemi_audit") |
@@ -226,11 +252,12 @@ When building new enterprise features:
 | `EMAIL_LOGO_URL` | Logo URL used in invitation emails |
 | `EMAIL_SUPPORT_CONTACT` | Support email shown in invitation emails |
 | `PROXY_BASE_URL` | Base URL of the proxy (used in invitation links) |
+| `ALCHEMI_WEB_DATABASE_URL` | Source DB for copilot data migration script (alchemi-web) |
 
 ## Files Modified from LiteLLM Base
 
 ### Python (Backend)
-- `litellm/proxy/proxy_server.py` -- Alchemi middleware registration, account router, premium_user override, docs link removal
+- `litellm/proxy/proxy_server.py` -- Alchemi middleware registration, account router, copilot routers, copilot DB pool lifecycle, premium_user override, docs link removal
 - `litellm/proxy/auth/user_api_key_auth.py` -- Account context from API key
 - `litellm/proxy/auth/login_utils.py` -- Docs link removal from error messages
 - `litellm/proxy/management_endpoints/ui_sso.py` -- Account resolution in SSO callback (line ~2384), docs link removal
@@ -251,6 +278,41 @@ When building new enterprise features:
 
 ### Schema
 - `/schema.prisma` (root) -- Added 3 Alchemi tables + account_id to all existing tables
+- `prisma/migrations/20260221200000_copilot_schema/migration.sql` -- Copilot schema (10 tables, 2 views)
+
+### Copilot API Surface
+
+All copilot endpoints are tenant-scoped (account_id auto-injected from JWT/API key context).
+
+| Prefix | Endpoints | Purpose |
+|--------|-----------|---------|
+| `/copilot/budgets` | CRUD + `/summary`, `/alerts`, `/record-usage`, `/plans` | Credit budgets and usage recording |
+| `/copilot/agents` | CRUD + `/groups`, `/groups/{id}/members` | Agent definitions and groups |
+| `/copilot/marketplace` | CRUD + `/featured`, `/{id}/install` | Marketplace item listings |
+| `/copilot/connections` | CRUD + `/{id}/test` | MCP/OpenAPI/integration connections |
+| `/copilot/guardrails` | `/config`, `/config/{type}/toggle`, `/patterns`, `/audit` | Guard configs, patterns, audit log |
+| `/copilot/entitlements` | `GET/PUT /{account_id}` (super admin only) | Per-account feature flags and limits |
+
+### Integration Clients (External Repos)
+
+**alchemi-web** (`/workspaces/alchemi-web/src/lib/console_api/client.ts`):
+- TypeScript HTTP client using `fetch` with 30s timeout
+- `import "server-only"` (Next.js server components only)
+- Functions: `consoleGet`, `consolePost`, `consolePut`, `consoleDelete`, `consolePatch` + ~50 domain-specific exports
+- Config: `CONSOLE_API_URL` env var (default: `http://localhost:4000`)
+
+**alchemi-ai** (`/workspaces/alchemi-ai/gen_ui_backend/utils/console_client.py`):
+- Python async httpx client with singleton pattern
+- Methods: `check_budget`, `record_usage`, `get_budget_summary`, `get_guardrails_config`, `list_connections`
+- Config: `CONSOLE_API_URL`, `CONSOLE_API_KEY`, `CONSOLE_TIMEOUT` env vars
+
+### Data Migration
+
+**Script:** `python -m alchemi.scripts.migrate_copilot_data`
+- Migrates data from alchemi-web Sequelize tables (public schema) to `copilot.*` tables
+- Requires: `ALCHEMI_WEB_DATABASE_URL` (source) + `DATABASE_URL` (target)
+- All INSERTs use `ON CONFLICT DO NOTHING` for safe re-runs
+- Migrates 10 tables: credit_budget, budget_plans, agents_def, agent_groups, agent_group_members, marketplace_items (from agent_marketplace), account_connections, guardrails_config, guardrails_custom_patterns, guardrails_audit_log
 
 ## Common Pitfalls
 

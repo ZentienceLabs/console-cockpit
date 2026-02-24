@@ -9563,3 +9563,2246 @@ export const loginResolveCall = async (email: string) => {
     throw error;
   }
 };
+
+// ============================================
+// Copilot - Credit Budgets
+// ============================================
+
+export const copilotBudgetListCall = async (
+  accessToken: string,
+  params?: {
+    account_id?: string;
+    scope_type?: string;
+    scope_id?: string;
+    active_only?: boolean;
+    resolve_inherited?: boolean;
+    limit?: number;
+    offset?: number;
+  },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    if (typeof params?.active_only === "boolean") query.set("active_only", String(params.active_only));
+    if (typeof params?.resolve_inherited === "boolean") query.set("resolve_inherited", String(params.resolve_inherited));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${qs}` : `/copilot/budgets/${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list budgets:", error); throw error; }
+};
+
+export const copilotBudgetCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${qs}` : `/copilot/budgets/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create budget:", error); throw error; }
+};
+
+export const copilotBudgetGetCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${id}` : `/copilot/budgets/${id}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get budget:", error); throw error; }
+};
+
+export const copilotBudgetUpdateCall = async (accessToken: string, id: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${id}` : `/copilot/budgets/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update budget:", error); throw error; }
+};
+
+export const copilotBudgetDeleteCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${id}` : `/copilot/budgets/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete budget:", error); throw error; }
+};
+
+export const copilotBudgetSummaryCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/summary${qs}` : `/copilot/budgets/summary${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get budget summary:", error); throw error; }
+};
+
+export const copilotBudgetAllocationOverviewCall = async (
+  accessToken: string,
+  params?: { account_id?: string; active_only?: boolean },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (typeof params?.active_only === "boolean") query.set("active_only", String(params.active_only));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/allocation-overview${qs}` : `/copilot/budgets/allocation-overview${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get budget allocation overview:", error); throw error; }
+};
+
+export const copilotBudgetAllocateCall = async (
+  accessToken: string,
+  parentBudgetId: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/${parentBudgetId}/allocate` : `/copilot/budgets/${parentBudgetId}/allocate`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to allocate budget:", error); throw error; }
+};
+
+export const copilotBudgetDistributeEqualCall = async (
+  accessToken: string,
+  parentBudgetId: string,
+  data?: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/budgets/${parentBudgetId}/distribute-equal`
+      : `/copilot/budgets/${parentBudgetId}/distribute-equal`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data || {}),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to distribute budget equally:", error); throw error; }
+};
+
+export const copilotBudgetAlertsCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/alerts${qs}` : `/copilot/budgets/alerts${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get budget alerts:", error); throw error; }
+};
+
+export const copilotBudgetRecordUsageCall = async (accessToken: string, data: { scope_type: string; scope_id: string; amount: number }) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/record-usage` : `/copilot/budgets/record-usage`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to record usage:", error); throw error; }
+};
+
+export const copilotBudgetPlanListCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/plans${qs}` : `/copilot/budgets/plans${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list budget plans:", error); throw error; }
+};
+
+export const copilotBudgetPlanCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/plans${qs}` : `/copilot/budgets/plans${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create budget plan:", error); throw error; }
+};
+
+export const copilotBudgetPlanUpdateCall = async (accessToken: string, id: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/plans/${id}` : `/copilot/budgets/plans/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update budget plan:", error); throw error; }
+};
+
+export const copilotBudgetPlanDeleteCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/plans/${id}` : `/copilot/budgets/plans/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete budget plan:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Agents & Groups
+// ============================================
+
+export const copilotAgentListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; status?: string; provider?: string; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.status) query.set("status", params.status);
+    if (params?.provider) query.set("provider", params.provider);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/${qs}` : `/copilot/agents/${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list agents:", error); throw error; }
+};
+
+export const copilotAgentCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/${qs}` : `/copilot/agents/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create agent:", error); throw error; }
+};
+
+export const copilotAgentGetCall = async (accessToken: string, agentId: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/${agentId}` : `/copilot/agents/${agentId}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get agent:", error); throw error; }
+};
+
+export const copilotAgentUpdateCall = async (accessToken: string, agentId: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/${agentId}` : `/copilot/agents/${agentId}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update agent:", error); throw error; }
+};
+
+export const copilotAgentDeleteCall = async (accessToken: string, agentId: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/${agentId}` : `/copilot/agents/${agentId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete agent:", error); throw error; }
+};
+
+export const copilotAgentGroupListCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/groups${qs}` : `/copilot/agents/groups${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list agent groups:", error); throw error; }
+};
+
+export const copilotAgentGroupCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/groups${qs}` : `/copilot/agents/groups${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create agent group:", error); throw error; }
+};
+
+export const copilotAgentGroupUpdateCall = async (accessToken: string, id: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/groups/${id}` : `/copilot/agents/groups/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update agent group:", error); throw error; }
+};
+
+export const copilotAgentGroupDeleteCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/groups/${id}` : `/copilot/agents/groups/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete agent group:", error); throw error; }
+};
+
+export const copilotAgentGroupMemberAddCall = async (accessToken: string, groupId: string, data: { agent_id: string; display_order?: number }) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/agents/groups/${groupId}/members` : `/copilot/agents/groups/${groupId}/members`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to add group member:", error); throw error; }
+};
+
+export const copilotAgentGroupMemberRemoveCall = async (accessToken: string, groupId: string, agentId: string) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/agents/groups/${groupId}/members/${agentId}`
+      : `/copilot/agents/groups/${groupId}/members/${agentId}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to remove group member:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Marketplace
+// ============================================
+
+export const copilotMarketplaceListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; entity_type?: string; status?: string; is_featured?: boolean; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.entity_type) query.set("entity_type", params.entity_type);
+    if (params?.status) query.set("marketplace_status", params.status);
+    if (params?.is_featured !== undefined) query.set("is_featured", String(params.is_featured));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/${qs}` : `/copilot/marketplace/${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list marketplace items:", error); throw error; }
+};
+
+export const copilotMarketplaceCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/${qs}` : `/copilot/marketplace/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create marketplace item:", error); throw error; }
+};
+
+export const copilotMarketplaceGetCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/${id}` : `/copilot/marketplace/${id}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get marketplace item:", error); throw error; }
+};
+
+export const copilotMarketplaceUpdateCall = async (accessToken: string, id: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/${id}` : `/copilot/marketplace/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update marketplace item:", error); throw error; }
+};
+
+export const copilotMarketplaceDeleteCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/${id}` : `/copilot/marketplace/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete marketplace item:", error); throw error; }
+};
+
+export const copilotMarketplaceFeaturedCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/marketplace/featured${qs}` : `/copilot/marketplace/featured${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get featured items:", error); throw error; }
+};
+
+export const copilotMarketplaceInstallCall = async (
+  accessToken: string,
+  id: string,
+  data?: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/marketplace/${id}/install${qs}`
+      : `/copilot/marketplace/${id}/install${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: data ? JSON.stringify(data) : undefined,
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to install marketplace item:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Connections
+// ============================================
+
+export const copilotConnectionListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; connection_type?: string; is_active?: boolean; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.connection_type) query.set("connection_type", params.connection_type);
+    if (params?.is_active !== undefined) query.set("is_active", String(params.is_active));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${qs}` : `/copilot/connections/${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list connections:", error); throw error; }
+};
+
+export const copilotConnectionCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${qs}` : `/copilot/connections/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create connection:", error); throw error; }
+};
+
+export const copilotConnectionGetCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${id}` : `/copilot/connections/${id}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get connection:", error); throw error; }
+};
+
+export const copilotConnectionUpdateCall = async (accessToken: string, id: string, data: Record<string, any>) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${id}` : `/copilot/connections/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update connection:", error); throw error; }
+};
+
+export const copilotConnectionDeleteCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${id}` : `/copilot/connections/${id}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete connection:", error); throw error; }
+};
+
+export const copilotConnectionTestCall = async (accessToken: string, id: string) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/connections/${id}/test` : `/copilot/connections/${id}/test`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to test connection:", error); throw error; }
+};
+
+export const copilotIntegrationCatalogListCall = async (
+  accessToken: string,
+  params?: { include_inactive?: boolean },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.include_inactive !== undefined) query.set("include_inactive", String(params.include_inactive));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/catalog${qs}`
+      : `/copilot/connections/integrations/catalog${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list integration catalog:", error); throw error; }
+};
+
+export const copilotIntegrationCatalogCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/catalog`
+      : `/copilot/connections/integrations/catalog`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create integration catalog entry:", error); throw error; }
+};
+
+export const copilotIntegrationCatalogUpdateCall = async (
+  accessToken: string,
+  id: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/catalog/${id}`
+      : `/copilot/connections/integrations/catalog/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update integration catalog entry:", error); throw error; }
+};
+
+export const copilotIntegrationCatalogDeleteCall = async (
+  accessToken: string,
+  id: string,
+  hardDelete: boolean = false,
+) => {
+  try {
+    const qs = hardDelete ? "?hard_delete=true" : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/catalog/${id}${qs}`
+      : `/copilot/connections/integrations/catalog/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete integration catalog entry:", error); throw error; }
+};
+
+export const copilotEnabledIntegrationsGetCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/enabled${qs}`
+      : `/copilot/connections/integrations/enabled${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get enabled integrations:", error); throw error; }
+};
+
+export const copilotEnabledIntegrationsUpdateCall = async (
+  accessToken: string,
+  data: { integration_ids: string[]; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/integrations/enabled`
+      : `/copilot/connections/integrations/enabled`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update enabled integrations:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Guardrails
+// ============================================
+
+export const copilotGuardrailsConfigListCall = async (accessToken: string, params?: { account_id?: string }) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/config${qs}` : `/copilot/guardrails/config${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list guardrails config:", error); throw error; }
+};
+
+export const copilotGuardrailsConfigGetCall = async (
+  accessToken: string,
+  guardType: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/config/${guardType}${qs}` : `/copilot/guardrails/config/${guardType}${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to get guardrails config:", error); throw error; }
+};
+
+export const copilotGuardrailsConfigUpsertCall = async (
+  accessToken: string,
+  guardType: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/config/${guardType}${qs}` : `/copilot/guardrails/config/${guardType}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to upsert guardrails config:", error); throw error; }
+};
+
+export const copilotGuardrailsConfigToggleCall = async (
+  accessToken: string,
+  guardType: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/config/${guardType}/toggle${qs}` : `/copilot/guardrails/config/${guardType}/toggle${qs}`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to toggle guardrails config:", error); throw error; }
+};
+
+export const copilotGuardrailsPatternListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; guard_type?: string; enabled?: boolean; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.guard_type) query.set("guard_type", params.guard_type);
+    if (params?.enabled !== undefined) query.set("enabled", String(params.enabled));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/patterns${qs}` : `/copilot/guardrails/patterns${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list guardrails patterns:", error); throw error; }
+};
+
+export const copilotGuardrailsPatternCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/patterns${qs}` : `/copilot/guardrails/patterns${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to create guardrails pattern:", error); throw error; }
+};
+
+export const copilotGuardrailsPatternUpdateCall = async (
+  accessToken: string,
+  id: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/guardrails/patterns/${id}${qs}`
+      : `/copilot/guardrails/patterns/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to update guardrails pattern:", error); throw error; }
+};
+
+export const copilotGuardrailsPatternDeleteCall = async (
+  accessToken: string,
+  id: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/guardrails/patterns/${id}${qs}`
+      : `/copilot/guardrails/patterns/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete guardrails pattern:", error); throw error; }
+};
+
+export const copilotGuardrailsAuditListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; guard_type?: string; date_from?: string; date_to?: string; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.guard_type) query.set("guard_type", params.guard_type);
+    if (params?.date_from) query.set("date_from", params.date_from);
+    if (params?.date_to) query.set("date_to", params.date_to);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/audit${qs}` : `/copilot/guardrails/audit${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list guardrails audit log:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Observability
+// ============================================
+
+export const copilotObservabilityAlertsCall = async (
+  accessToken: string,
+  params?: { account_id?: string; limit?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.limit) query.set("limit", String(params.limit));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/observability/alerts${qs}` : `/copilot/observability/alerts${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to fetch copilot observability alerts:", error); throw error; }
+};
+
+export const copilotObservabilityAuditCall = async (
+  accessToken: string,
+  params?: {
+    account_id?: string;
+    event_type?: string;
+    severity?: string;
+    date_from?: string;
+    date_to?: string;
+    limit?: number;
+    offset?: number;
+  },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.event_type) query.set("event_type", params.event_type);
+    if (params?.severity) query.set("severity", params.severity);
+    if (params?.date_from) query.set("date_from", params.date_from);
+    if (params?.date_to) query.set("date_to", params.date_to);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/observability/audit${qs}` : `/copilot/observability/audit${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to fetch copilot observability audit:", error); throw error; }
+};
+
+export const copilotObservabilitySummaryCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/observability/summary${qs}` : `/copilot/observability/summary${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to fetch copilot observability summary:", error); throw error; }
+};
+
+// ============================================
+// Copilot - Notification Templates
+// ============================================
+
+export const copilotNotificationTemplateListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; event_id?: string; type?: string; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.event_id) query.set("event_id", params.event_id);
+    if (params?.type) query.set("type", params.type);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/notification-templates${qs}`
+      : `/copilot/notification-templates${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list notification templates:", error);
+    throw error;
+  }
+};
+
+export const copilotNotificationTemplateCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/notification-templates/${qs}` : `/copilot/notification-templates/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create notification template:", error);
+    throw error;
+  }
+};
+
+export const copilotNotificationTemplateSummaryCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/notification-templates/summary${qs}`
+      : `/copilot/notification-templates/summary${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch notification template summary:", error);
+    throw error;
+  }
+};
+
+export const copilotNotificationTemplateBulkDeleteCall = async (
+  accessToken: string,
+  data: { template_ids: string[]; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/notification-templates/bulk-delete`
+      : `/copilot/notification-templates/bulk-delete`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to bulk delete notification templates:", error);
+    throw error;
+  }
+};
+
+export const copilotNotificationTemplateUpdateCall = async (
+  accessToken: string,
+  id: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/notification-templates/${id}${qs}`
+      : `/copilot/notification-templates/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update notification template:", error);
+    throw error;
+  }
+};
+
+export const copilotNotificationTemplateDeleteCall = async (
+  accessToken: string,
+  id: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/notification-templates/${id}${qs}`
+      : `/copilot/notification-templates/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete notification template:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// Copilot - Support Tickets
+// ============================================
+
+export const copilotSupportTicketListCall = async (
+  accessToken: string,
+  params?: {
+    account_id?: string;
+    status?: string;
+    priority?: string;
+    search_text?: string;
+    include_user_profile?: boolean;
+    include_assigned_to?: boolean;
+    limit?: number;
+    offset?: number;
+  },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.status) query.set("status", params.status);
+    if (params?.priority) query.set("priority", params.priority);
+    if (params?.search_text) query.set("search_text", params.search_text);
+    if (params?.include_user_profile !== undefined) {
+      query.set("include_user_profile", String(params.include_user_profile));
+    }
+    if (params?.include_assigned_to !== undefined) {
+      query.set("include_assigned_to", String(params.include_assigned_to));
+    }
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/support-tickets${qs}` : `/copilot/support-tickets${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list support tickets:", error);
+    throw error;
+  }
+};
+
+export const copilotSupportTicketCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/support-tickets/${qs}` : `/copilot/support-tickets/${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create support ticket:", error);
+    throw error;
+  }
+};
+
+export const copilotSupportTicketSummaryCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/support-tickets/summary${qs}` : `/copilot/support-tickets/summary${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch support ticket summary:", error);
+    throw error;
+  }
+};
+
+export const copilotSupportTicketBulkUpdateCall = async (
+  accessToken: string,
+  data: { ticket_ids: string[]; status?: string; priority?: string; assigned_to?: string | null; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/support-tickets/bulk-update` : `/copilot/support-tickets/bulk-update`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to bulk update support tickets:", error);
+    throw error;
+  }
+};
+
+export const copilotSupportTicketUpdateCall = async (
+  accessToken: string,
+  id: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/support-tickets/${id}${qs}`
+      : `/copilot/support-tickets/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update support ticket:", error);
+    throw error;
+  }
+};
+
+export const copilotSupportTicketDeleteCall = async (
+  accessToken: string,
+  id: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/support-tickets/${id}${qs}`
+      : `/copilot/support-tickets/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete support ticket:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// Copilot - Global Ops
+// ============================================
+
+export const copilotGlobalOpsSummaryCall = async (
+  accessToken: string,
+  params?: { account_ids?: string[] },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_ids && params.account_ids.length > 0) {
+      params.account_ids.forEach((accountId) => query.append("account_ids", accountId));
+    }
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/ops/global/summary${qs}`
+      : `/copilot/ops/global/summary${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch global ops summary:", error);
+    throw error;
+  }
+};
+
+export const copilotGlobalOpsBulkUpdateTicketsCall = async (
+  accessToken: string,
+  data: {
+    account_ids?: string[];
+    current_status?: string;
+    search_text?: string;
+    status?: string;
+    priority?: string;
+    assigned_to?: string | null;
+    limit?: number;
+  },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/ops/global/bulk/tickets`
+      : `/copilot/ops/global/bulk/tickets`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to bulk update global tickets:", error);
+    throw error;
+  }
+};
+
+export const copilotGlobalOpsBulkDeleteTemplatesCall = async (
+  accessToken: string,
+  data: {
+    account_ids?: string[];
+    event_ids?: string[];
+    types?: string[];
+    template_ids?: string[];
+    limit?: number;
+    dry_run?: boolean;
+  },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/ops/global/bulk/notification-templates/delete`
+      : `/copilot/ops/global/bulk/notification-templates/delete`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to bulk delete global notification templates:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// Copilot - Directory
+// ============================================
+
+export const copilotUserListCall = async (
+  accessToken: string,
+  params?: {
+    account_id?: string;
+    source?: string;
+    is_active?: boolean;
+    include_memberships?: boolean;
+    limit?: number;
+    offset?: number;
+  },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.source) query.set("source", params.source);
+    if (params?.is_active !== undefined) query.set("is_active", String(params.is_active));
+    if (params?.include_memberships !== undefined) {
+      query.set("include_memberships", String(params.include_memberships));
+    }
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/users${qs}` : `/copilot/users${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot users:", error);
+    throw error;
+  }
+};
+
+export const copilotUserCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/users${qs}` : `/copilot/users${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create copilot user:", error);
+    throw error;
+  }
+};
+
+export const copilotUserUpdateCall = async (
+  accessToken: string,
+  userId: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/users/${userId}${qs}`
+      : `/copilot/users/${userId}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot user:", error);
+    throw error;
+  }
+};
+
+export const copilotUserMembershipUpdateCall = async (
+  accessToken: string,
+  userId: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/users/${userId}/membership${qs}`
+      : `/copilot/users/${userId}/membership${qs}`;
+    const response = await fetch(url, {
+      method: "PATCH",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot membership:", error);
+    throw error;
+  }
+};
+
+export const copilotMembershipListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; user_id?: string; source?: string; is_active?: boolean; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.user_id) query.set("user_id", params.user_id);
+    if (params?.source) query.set("source", params.source);
+    if (params?.is_active !== undefined) query.set("is_active", String(params.is_active));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/memberships${qs}` : `/copilot/memberships${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot memberships:", error);
+    throw error;
+  }
+};
+
+export const copilotGroupListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; source?: string; include_teams?: boolean; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.source) query.set("source", params.source);
+    if (params?.include_teams !== undefined) query.set("include_teams", String(params.include_teams));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/groups${qs}` : `/copilot/groups${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot groups:", error);
+    throw error;
+  }
+};
+
+export const copilotGroupCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/groups${qs}` : `/copilot/groups${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create copilot group:", error);
+    throw error;
+  }
+};
+
+export const copilotGroupUpdateCall = async (
+  accessToken: string,
+  groupId: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/groups/${groupId}${qs}`
+      : `/copilot/groups/${groupId}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot group:", error);
+    throw error;
+  }
+};
+
+export const copilotGroupDeleteCall = async (
+  accessToken: string,
+  groupId: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/groups/${groupId}${qs}`
+      : `/copilot/groups/${groupId}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete copilot group:", error);
+    throw error;
+  }
+};
+
+export const copilotTeamListCall = async (
+  accessToken: string,
+  params?: {
+    account_id?: string;
+    source?: string;
+    group_id?: string;
+    include_members?: boolean;
+    include_group?: boolean;
+    limit?: number;
+    offset?: number;
+  },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.source) query.set("source", params.source);
+    if (params?.group_id) query.set("group_id", params.group_id);
+    if (params?.include_members !== undefined) query.set("include_members", String(params.include_members));
+    if (params?.include_group !== undefined) query.set("include_group", String(params.include_group));
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/teams${qs}` : `/copilot/teams${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot teams:", error);
+    throw error;
+  }
+};
+
+export const copilotTeamCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/teams${qs}` : `/copilot/teams${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create copilot team:", error);
+    throw error;
+  }
+};
+
+export const copilotTeamUpdateCall = async (
+  accessToken: string,
+  teamId: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/teams/${teamId}${qs}`
+      : `/copilot/teams/${teamId}${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot team:", error);
+    throw error;
+  }
+};
+
+export const copilotTeamDeleteCall = async (
+  accessToken: string,
+  teamId: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/teams/${teamId}${qs}`
+      : `/copilot/teams/${teamId}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete copilot team:", error);
+    throw error;
+  }
+};
+
+export const copilotInviteListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; email?: string; status?: string; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.email) query.set("email", params.email);
+    if (params?.status) query.set("status", params.status);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/invites${qs}` : `/copilot/invites${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot invites:", error);
+    throw error;
+  }
+};
+
+export const copilotInviteCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/invites${qs}` : `/copilot/invites${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create copilot invite:", error);
+    throw error;
+  }
+};
+
+export const copilotInviteAcceptCall = async (
+  accessToken: string,
+  inviteId: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/invites/${inviteId}/accept${qs}`
+      : `/copilot/invites/${inviteId}/accept${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to accept copilot invite:", error);
+    throw error;
+  }
+};
+
+export const copilotInviteRejectCall = async (
+  accessToken: string,
+  inviteId: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/invites/${inviteId}/reject${qs}`
+      : `/copilot/invites/${inviteId}/reject${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to reject copilot invite:", error);
+    throw error;
+  }
+};
+
+// ============================================
+// Copilot - Model Selection
+// ============================================
+
+export const copilotModelSelectionGetCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/selection${qs}` : `/copilot/models/selection${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to get copilot model selection:", error);
+    throw error;
+  }
+};
+
+export const copilotModelSelectionUpdateCall = async (
+  accessToken: string,
+  data: { selected_models: string[]; account_id?: string; scope?: "super_admin" | "tenant_admin" },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/selection` : `/copilot/models/selection`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot model selection:", error);
+    throw error;
+  }
+};
+
+export const copilotModelSelectionAccountsCall = async (
+  accessToken: string,
+  params?: { account_id?: string; limit?: number; offset?: number },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.offset) query.set("offset", String(params.offset));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/selection/accounts${qs}` : `/copilot/models/selection/accounts${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch copilot model selection accounts:", error);
+    throw error;
+  }
+};
+
+export const copilotModelSelectionBulkUpdateCall = async (
+  accessToken: string,
+  data: { account_ids: string[]; selected_models: string[]; scope?: "super_admin" | "tenant_admin" },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/selection/bulk` : `/copilot/models/selection/bulk`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to bulk update copilot model selection:", error);
+    throw error;
+  }
+};
+
+export const copilotModelCatalogListCall = async (
+  accessToken: string,
+  params?: { include_inactive?: boolean },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.include_inactive !== undefined) query.set("include_inactive", String(params.include_inactive));
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/catalog${qs}` : `/copilot/models/catalog${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to fetch copilot model catalog:", error);
+    throw error;
+  }
+};
+
+export const copilotModelCatalogCreateCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/catalog` : `/copilot/models/catalog`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to create copilot model catalog entry:", error);
+    throw error;
+  }
+};
+
+export const copilotModelCatalogUpdateCall = async (
+  accessToken: string,
+  id: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/catalog/${id}` : `/copilot/models/catalog/${id}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to update copilot model catalog entry:", error);
+    throw error;
+  }
+};
+
+export const copilotModelCatalogDeleteCall = async (
+  accessToken: string,
+  id: string,
+  hardDelete: boolean = false,
+) => {
+  try {
+    const qs = hardDelete ? "?hard_delete=true" : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/catalog/${id}${qs}` : `/copilot/models/catalog/${id}${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete copilot model catalog entry:", error);
+    throw error;
+  }
+};
+
+export const copilotModelCatalogImportFromRouterCall = async (
+  accessToken: string,
+  data?: { model_names?: string[] },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/catalog/import/router` : `/copilot/models/catalog/import/router`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data || {}),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to import copilot model catalog from router:", error);
+    throw error;
+  }
+};

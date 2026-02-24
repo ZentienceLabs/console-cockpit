@@ -38,7 +38,6 @@ import UserDashboard from "@/components/user_dashboard";
 import { AccessGroupsPage } from "@/components/AccessGroups/AccessGroupsPage";
 import VectorStoreManagement from "@/components/vector_store_management";
 import SpendLogsTable from "@/components/view_logs";
-import ViewUserDashboard from "@/components/view_users";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { isJwtExpired } from "@/utils/jwtUtils";
 import { isAdminRole } from "@/utils/roles";
@@ -50,6 +49,19 @@ import { ConfigProvider, theme } from "antd";
 
 // Alchemi: Lazy-load Tenant Admin page for super admins
 const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
+
+// Alchemi: Lazy-load Copilot pages
+const CopilotBudgetsPage = React.lazy(() => import("@/components/copilot/CopilotBudgetsPage"));
+const CopilotAgentsPage = React.lazy(() => import("@/components/copilot/CopilotAgentsPage"));
+const CopilotConnectionsPage = React.lazy(() => import("@/components/copilot/CopilotConnectionsPage"));
+const CopilotDirectoryPage = React.lazy(() => import("@/components/copilot/CopilotDirectoryPage"));
+const CopilotGuardrailsPage = React.lazy(() => import("@/components/copilot/CopilotGuardrailsPage"));
+const CopilotModelsPage = React.lazy(() => import("@/components/copilot/CopilotModelsPage"));
+const CopilotObservabilityPage = React.lazy(() => import("@/components/copilot/CopilotObservabilityPage"));
+const CopilotGlobalOpsPage = React.lazy(() => import("@/components/copilot/CopilotGlobalOpsPage"));
+const CopilotOverviewPage = React.lazy(() => import("@/components/copilot/CopilotOverviewPage"));
+const CopilotNotificationTemplatesPage = React.lazy(() => import("@/components/copilot/CopilotNotificationTemplatesPage"));
+const CopilotSupportTicketsPage = React.lazy(() => import("@/components/copilot/CopilotSupportTicketsPage"));
 
 function getCookie(name: string) {
   // Safer cookie read + decoding; handles '=' inside values
@@ -484,15 +496,7 @@ function CreateKeyPageContent() {
                   ) : page == "llm-playground" ? (
                     <PlaygroundPage />
                   ) : page == "users" ? (
-                    <ViewUserDashboard
-                      userID={userID}
-                      userRole={userRole}
-                      token={token}
-                      keys={keys}
-                      teams={teams}
-                      accessToken={accessToken}
-                      setKeys={setKeys}
-                    />
+                    <Suspense fallback={<div>Loading...</div>}><CopilotDirectoryPage /></Suspense>
                   ) : page == "teams" ? (
                     <OldTeams
                       teams={teams}
@@ -597,6 +601,28 @@ function CreateKeyPageContent() {
                       teams={(teams as Team[]) ?? []}
                       organizations={(organizations as Organization[]) ?? []}
                     />
+                  ) : page == "copilot-budgets" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotBudgetsPage /></Suspense>
+                  ) : page == "copilot-overview" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotOverviewPage /></Suspense>
+                  ) : page == "copilot-directory" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotDirectoryPage /></Suspense>
+                  ) : page == "copilot-agents" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotAgentsPage /></Suspense>
+                  ) : page == "copilot-connections" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotConnectionsPage /></Suspense>
+                  ) : page == "copilot-models" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotModelsPage /></Suspense>
+                  ) : page == "copilot-guardrails" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotGuardrailsPage /></Suspense>
+                  ) : page == "copilot-observability" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotObservabilityPage /></Suspense>
+                  ) : page == "copilot-global-ops" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotGlobalOpsPage /></Suspense>
+                  ) : page == "copilot-notification-templates" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotNotificationTemplatesPage /></Suspense>
+                  ) : page == "copilot-support-tickets" ? (
+                    <Suspense fallback={<div>Loading...</div>}><CopilotSupportTicketsPage /></Suspense>
                   ) : (
                     <Usage
                       userID={userID}

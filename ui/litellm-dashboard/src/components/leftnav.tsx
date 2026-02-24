@@ -11,10 +11,12 @@ import {
   BookOutlined,
   CreditCardOutlined,
   DatabaseOutlined,
+  DollarOutlined,
   ExperimentOutlined,
   FileTextOutlined,
   KeyOutlined,
   LineChartOutlined,
+  LinkOutlined,
   PlayCircleOutlined,
   RobotOutlined,
   SafetyOutlined,
@@ -47,6 +49,7 @@ interface MenuItem {
   page: string;
   label: string | React.ReactNode;
   roles?: string[];
+  superAdminOnly?: boolean;
   children?: MenuItem[];
   icon?: React.ReactNode;
   external_url?: string;
@@ -152,6 +155,89 @@ const menuGroups: MenuGroup[] = [
         page: "logs",
         label: "Logs",
         icon: <LineChartOutlined />,
+      },
+    ],
+  },
+  {
+    groupLabel: "COPILOT",
+    items: [
+      {
+        key: "copilot-overview",
+        page: "copilot-overview",
+        label: "Overview",
+        icon: <BarChartOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-directory",
+        page: "copilot-directory",
+        label: "Directory",
+        icon: <TeamOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-budgets",
+        page: "copilot-budgets",
+        label: "Credit Budgets",
+        icon: <DollarOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-agents",
+        page: "copilot-agents",
+        label: "Agents & Marketplace",
+        icon: <RobotOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-connections",
+        page: "copilot-connections",
+        label: "Connections & Tools",
+        icon: <LinkOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-models",
+        page: "copilot-models",
+        label: "Model Visibility",
+        icon: <BlockOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-guardrails",
+        page: "copilot-guardrails",
+        label: "Enhanced Guardrails",
+        icon: <SafetyOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-observability",
+        page: "copilot-observability",
+        label: "Observability",
+        icon: <LineChartOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-global-ops",
+        page: "copilot-global-ops",
+        label: "Global Ops",
+        icon: <AuditOutlined />,
+        roles: all_admin_roles,
+        superAdminOnly: true,
+      },
+      {
+        key: "copilot-notification-templates",
+        page: "copilot-notification-templates",
+        label: "Notification Templates",
+        icon: <BgColorsOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-support-tickets",
+        page: "copilot-support-tickets",
+        label: "Support Tickets",
+        icon: <FileTextOutlined />,
+        roles: all_admin_roles,
       },
     ],
   },
@@ -316,7 +402,7 @@ const menuGroups: MenuGroup[] = [
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapsed = false, enabledPagesInternalUsers }) => {
-  const { userId, accessToken, userRole } = useAuthorized();
+  const { userId, accessToken, userRole, isSuperAdmin } = useAuthorized();
   const { data: organizations } = useOrganizations();
 
   // Check if user is an org_admin
@@ -370,6 +456,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
 
         // Existing role check
         if (item.roles && !item.roles.includes(userRole)) return false;
+        if (item.superAdminOnly && !isSuperAdmin) return false;
 
         // Check enabled pages for internal users (non-admins)
         if (!isAdmin && enabledPagesInternalUsers !== null && enabledPagesInternalUsers !== undefined) {

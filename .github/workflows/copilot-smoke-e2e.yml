@@ -1,0 +1,91 @@
+name: Copilot Smoke E2E
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "alchemi/**"
+      - "litellm/proxy/**"
+      - "ui/litellm-dashboard/**"
+      - "prisma/**"
+      - "scripts/deploy.sh"
+      - "tests/test_copilot_e2e.py"
+      - ".github/workflows/copilot-smoke-e2e.yml"
+  push:
+    branches: [main]
+    paths:
+      - "alchemi/**"
+      - "litellm/proxy/**"
+      - "ui/litellm-dashboard/**"
+      - "prisma/**"
+      - "scripts/deploy.sh"
+      - "tests/test_copilot_e2e.py"
+      - ".github/workflows/copilot-smoke-e2e.yml"
+
+jobs:
+  copilot-smoke-e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: litellm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d litellm"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/litellm
+      LITELLM_MASTER_KEY: sk-ci-master-key
+      ALCHEMI_ENABLE_LEGACY_COMPAT: "true"
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Poetry
+        run: pip install poetry
+
+      - name: Install dependencies
+        run: poetry install -E proxy -E extra_proxy
+
+      - name: Build UI artifact
+        run: ./scripts/deploy.sh build-ui
+
+      - name: Start proxy
+        run: |
+          ./scripts/deploy.sh start > /tmp/copilot-proxy.log 2>&1 &
+          for i in {1..60}; do
+            if curl -sf http://localhost:4000/health/liveliness >/dev/null; then
+              echo "Proxy is ready"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Proxy failed to become ready in time"
+          tail -n 200 /tmp/copilot-proxy.log || true
+          exit 1
+
+      - name: Run Copilot E2E tests
+        run: poetry run pytest tests/test_copilot_e2e.py -q -p no:retry
+
+      - name: Dump proxy logs on failure
+        if: failure()
+        run: tail -n 300 /tmp/copilot-proxy.log || true
