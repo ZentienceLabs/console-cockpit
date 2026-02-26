@@ -142,8 +142,8 @@ build_ui() {
     log "Building admin UI..."
 
     cd "$PROJECT_ROOT/ui/litellm-dashboard"
-    npm install --prefer-offline 2>&1 | tail -1
-    npm run build 2>&1
+    pnpm install 2>&1 | tail -1
+    pnpm run build 2>&1
 
     log "  Copying build output to proxy static directory..."
     rm -rf "$PROJECT_ROOT/litellm/proxy/_experimental/out"

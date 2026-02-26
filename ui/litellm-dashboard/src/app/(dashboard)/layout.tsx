@@ -22,9 +22,6 @@ function withBase(path: string): string {
 }
 /** -------------------------------- */
 
-// Alchemi: Lazy-load Tenant Admin page for super admins
-const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
-
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,34 +44,9 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const toggleSidebar = () => setSidebarCollapsed((v) => !v);
 
-  // Alchemi: Super admin sees only the Tenant Management page
-  if (isSuperAdmin) {
-    return (
-      <ThemeProvider accessToken={""}>
-        <div className="flex flex-col min-h-screen">
-          <Navbar
-            isPublicPage={false}
-            sidebarCollapsed={false}
-            onToggleSidebar={() => {}}
-            userID={userId}
-            userEmail={userEmail}
-            userRole="Super Admin"
-            premiumUser={true}
-            proxySettings={undefined}
-            setProxySettings={() => {}}
-            accessToken={accessToken}
-            isDarkMode={false}
-            toggleDarkMode={() => {}}
-          />
-          <main className="flex-1">
-            <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
-              <TenantAdminPage />
-            </React.Suspense>
-          </main>
-        </div>
-      </ThemeProvider>
-    );
-  }
+  // Alchemi: Super admins get the full sidebar layout (including copilot + tenant admin)
+  // Their userRole is mapped to "proxy_admin" which is in super_admin_only_roles
+  const effectiveRole = isSuperAdmin ? "proxy_admin" : userRole;
 
   return (
     <ThemeProvider accessToken={""}>
@@ -85,8 +57,8 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           onToggleSidebar={toggleSidebar}
           userID={userId}
           userEmail={userEmail}
-          userRole={userRole}
-          premiumUser={premiumUser}
+          userRole={isSuperAdmin ? "Super Admin" : userRole}
+          premiumUser={isSuperAdmin ? true : premiumUser}
           proxySettings={undefined}
           setProxySettings={() => { }}
           accessToken={accessToken}
@@ -95,7 +67,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
         />
         <div className="flex flex-1 overflow-auto">
           <div className="mt-2">
-            <Sidebar2 defaultSelectedKey={page} accessToken={accessToken} userRole={userRole} />
+            <Sidebar2 defaultSelectedKey={page} accessToken={accessToken} userRole={effectiveRole} />
           </div>
           <main className="flex-1">{children}</main>
         </div>

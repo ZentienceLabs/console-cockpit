@@ -51,6 +51,20 @@ import { ConfigProvider, theme } from "antd";
 // Alchemi: Lazy-load Tenant Admin page for super admins
 const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
 
+// Alchemi: Lazy-load Copilot pages
+const CopilotDirectoryPage = React.lazy(() => import("@/app/(dashboard)/copilot/directory/page"));
+const CopilotCreditsPage = React.lazy(() => import("@/app/(dashboard)/copilot/credits/page"));
+const CopilotModelsPage = React.lazy(() => import("@/app/(dashboard)/copilot/models/page"));
+const CopilotAgentsPage = React.lazy(() => import("@/app/(dashboard)/copilot/agents/page"));
+const CopilotMarketplacePage = React.lazy(() => import("@/app/(dashboard)/copilot/marketplace/page"));
+const CopilotConnectionsPage = React.lazy(() => import("@/app/(dashboard)/copilot/connections/page"));
+const CopilotGuardrailsPage = React.lazy(() => import("@/app/(dashboard)/copilot/guardrails/page"));
+const CopilotObservabilityPage = React.lazy(() => import("@/app/(dashboard)/copilot/observability/page"));
+const CopilotNotificationsPage = React.lazy(() => import("@/app/(dashboard)/copilot/notifications/page"));
+const CopilotSupportPage = React.lazy(() => import("@/app/(dashboard)/copilot/support/page"));
+const CopilotEntitlementsPage = React.lazy(() => import("@/app/(dashboard)/copilot/entitlements/page"));
+const CopilotGlobalOpsPage = React.lazy(() => import("@/app/(dashboard)/copilot/global-ops/page"));
+
 function getCookie(name: string) {
   // Safer cookie read + decoding; handles '=' inside values
   const match = document.cookie.split("; ").find((row) => row.startsWith(name + "="));
@@ -92,6 +106,9 @@ function formatUserRole(userRole: string) {
       return "Internal Viewer";
     case "app_user":
       return "App User";
+    case "account_admin":
+    case "tenant_admin":
+      return "Account Admin";
     default:
       return "Unknown Role";
   }
@@ -377,40 +394,9 @@ function CreateKeyPageContent() {
     return <LoadingScreen />;
   }
 
-  // Alchemi: Super admin sees only the Tenant Management page
-  if (isSuperAdmin) {
-    return (
-      <Suspense fallback={<LoadingScreen />}>
-        <QueryClientProvider client={queryClient}>
-          <ConfigProvider theme={{ algorithm: theme.defaultAlgorithm }}>
-            <ThemeProvider accessToken={accessToken}>
-              <div className="flex flex-col min-h-screen">
-                <Navbar
-                  userID={userID}
-                  userRole="Super Admin"
-                  premiumUser={true}
-                  userEmail={userEmail}
-                  setProxySettings={setProxySettings}
-                  proxySettings={proxySettings}
-                  accessToken={accessToken}
-                  isPublicPage={false}
-                  sidebarCollapsed={false}
-                  onToggleSidebar={() => {}}
-                  isDarkMode={isDarkMode}
-                  toggleDarkMode={toggleDarkMode}
-                />
-                <main className="flex-1">
-                  <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
-                    <TenantAdminPage />
-                  </React.Suspense>
-                </main>
-              </div>
-            </ThemeProvider>
-          </ConfigProvider>
-        </QueryClientProvider>
-      </Suspense>
-    );
-  }
+  // Alchemi: Super admins get the full interface with sidebar
+  // Their effective role is "proxy_admin" so they see all menu items including copilot
+  const effectiveRole = isSuperAdmin ? "proxy_admin" : userRole;
 
   return (
     <Suspense fallback={<LoadingScreen />}>
@@ -439,8 +425,8 @@ function CreateKeyPageContent() {
               <div className="flex flex-col min-h-screen">
                 <Navbar
                   userID={userID}
-                  userRole={userRole}
-                  premiumUser={premiumUser}
+                  userRole={isSuperAdmin ? "Super Admin" : effectiveRole}
+                  premiumUser={isSuperAdmin ? true : premiumUser}
                   userEmail={userEmail}
                   setProxySettings={setProxySettings}
                   proxySettings={proxySettings}
@@ -597,6 +583,32 @@ function CreateKeyPageContent() {
                       teams={(teams as Team[]) ?? []}
                       organizations={(organizations as Organization[]) ?? []}
                     />
+                  ) : page == "tenant-admin" ? (
+                    <TenantAdminPage />
+                  ) : page == "copilot-directory" ? (
+                    <CopilotDirectoryPage />
+                  ) : page == "copilot-credits" ? (
+                    <CopilotCreditsPage />
+                  ) : page == "copilot-models" ? (
+                    <CopilotModelsPage />
+                  ) : page == "copilot-agents" ? (
+                    <CopilotAgentsPage />
+                  ) : page == "copilot-marketplace" ? (
+                    <CopilotMarketplacePage />
+                  ) : page == "copilot-connections" ? (
+                    <CopilotConnectionsPage />
+                  ) : page == "copilot-guardrails" ? (
+                    <CopilotGuardrailsPage />
+                  ) : page == "copilot-observability" ? (
+                    <CopilotObservabilityPage />
+                  ) : page == "copilot-notifications" ? (
+                    <CopilotNotificationsPage />
+                  ) : page == "copilot-support" ? (
+                    <CopilotSupportPage />
+                  ) : page == "copilot-entitlements" ? (
+                    <CopilotEntitlementsPage />
+                  ) : page == "copilot-global-ops" ? (
+                    <CopilotGlobalOpsPage />
                   ) : (
                     <Usage
                       userID={userID}

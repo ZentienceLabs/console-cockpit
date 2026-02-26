@@ -20,6 +20,17 @@ import {
   ToolOutlined,
   TagsOutlined,
   AuditOutlined,
+  DashboardOutlined,
+  UsergroupAddOutlined,
+  DollarOutlined,
+  RobotOutlined,
+  ShopOutlined,
+  LinkOutlined,
+  EyeOutlined,
+  BellOutlined,
+  CustomerServiceOutlined,
+  GoldOutlined,
+  GlobalOutlined,
 } from "@ant-design/icons";
 // import {
 //   all_admin_roles,
@@ -30,7 +41,7 @@ import {
 // import UsageIndicator from "./usage_indicator";
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess } from "@/utils/roles";
+import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess, copilot_admin_roles, super_admin_only_roles } from "@/utils/roles";
 
 import { serverRootPath } from "@/components/networking";
 
@@ -137,6 +148,34 @@ const routeFor = (slug: string): string => {
       return "settings/admin-settings";
     case "ui-theme":
       return "settings/ui-theme";
+
+    // copilot
+    case "copilot-directory":
+      return "copilot/directory";
+    case "copilot-credits":
+      return "copilot/credits";
+    case "copilot-models":
+      return "copilot/models";
+    case "copilot-agents":
+      return "copilot/agents";
+    case "copilot-marketplace":
+      return "copilot/marketplace";
+    case "copilot-connections":
+      return "copilot/connections";
+    case "copilot-guardrails":
+      return "copilot/guardrails";
+    case "copilot-observability":
+      return "copilot/observability";
+    case "copilot-notifications":
+      return "copilot/notifications";
+    case "copilot-support":
+      return "copilot/support";
+    case "copilot-entitlements":
+      return "copilot/entitlements";
+    case "copilot-global-ops":
+      return "copilot/global-ops";
+    case "tenant-admin":
+      return "tenant-admin";
 
     default:
       // treat as already a relative path
@@ -279,6 +318,27 @@ const menuItems: MenuItemCfg[] = [
     ],
   },
   {
+    key: "copilot",
+    page: "copilot",
+    label: "Copilot",
+    icon: <DashboardOutlined style={{ fontSize: 18 }} />,
+    roles: copilot_admin_roles,
+    children: [
+      { key: "c-dir", page: "copilot-directory", label: "Directory", icon: <UsergroupAddOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-credits", page: "copilot-credits", label: "Credit Budgets", icon: <DollarOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-models", page: "copilot-models", label: "Model Governance", icon: <BlockOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-agents", page: "copilot-agents", label: "Agents", icon: <RobotOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-mkt", page: "copilot-marketplace", label: "Marketplace", icon: <ShopOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-conn", page: "copilot-connections", label: "Connections", icon: <LinkOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-guard", page: "copilot-guardrails", label: "Guardrails", icon: <SafetyOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-obs", page: "copilot-observability", label: "Observability", icon: <EyeOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-notif", page: "copilot-notifications", label: "Notifications", icon: <BellOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-support", page: "copilot-support", label: "Support", icon: <CustomerServiceOutlined style={{ fontSize: 18 }} />, roles: copilot_admin_roles },
+      { key: "c-ent", page: "copilot-entitlements", label: "Entitlements", icon: <GoldOutlined style={{ fontSize: 18 }} />, roles: super_admin_only_roles },
+      { key: "c-gops", page: "copilot-global-ops", label: "Global Ops", icon: <GlobalOutlined style={{ fontSize: 18 }} />, roles: super_admin_only_roles },
+    ],
+  },
+  {
     key: "settings",
     page: "settings",
     label: "Settings",
@@ -314,6 +374,13 @@ const menuItems: MenuItemCfg[] = [
         roles: all_admin_roles,
       },
     ],
+  },
+  {
+    key: "tenant-admin",
+    page: "tenant-admin",
+    label: "Tenant Admin",
+    icon: <SettingOutlined style={{ fontSize: 18 }} />,
+    roles: super_admin_only_roles,
   },
 ];
 

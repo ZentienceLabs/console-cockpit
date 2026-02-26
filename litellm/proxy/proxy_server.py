@@ -583,7 +583,42 @@ try:
     from alchemi.config.settings import AlchemiProxyConfig
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
+    from alchemi.endpoints.copilot_agent_endpoints import router as alchemi_copilot_agent_router
     from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
+    from alchemi.endpoints.copilot_budget_endpoints import router as alchemi_copilot_budget_router
+    from alchemi.endpoints.copilot_connection_endpoints import (
+        router as alchemi_copilot_connection_router,
+    )
+    from alchemi.endpoints.copilot_directory_endpoints import (
+        router as alchemi_copilot_directory_router,
+    )
+    from alchemi.endpoints.copilot_entitlements_endpoints import (
+        router as alchemi_copilot_entitlements_router,
+    )
+    from alchemi.endpoints.copilot_global_ops_endpoints import (
+        router as alchemi_copilot_global_ops_router,
+    )
+    from alchemi.endpoints.copilot_guardrails_endpoints import (
+        router as alchemi_copilot_guardrails_router,
+    )
+    from alchemi.endpoints.copilot_marketplace_endpoints import (
+        router as alchemi_copilot_marketplace_router,
+    )
+    from alchemi.endpoints.copilot_model_endpoints import (
+        router as alchemi_copilot_model_router,
+    )
+    from alchemi.endpoints.copilot_notification_template_endpoints import (
+        router as alchemi_copilot_notification_template_router,
+    )
+    from alchemi.endpoints.copilot_observability_endpoints import (
+        router as alchemi_copilot_observability_router,
+    )
+    from alchemi.endpoints.copilot_support_ticket_endpoints import (
+        router as alchemi_copilot_support_ticket_router,
+    )
+    from alchemi.endpoints.copilot_superadmin_endpoints import (
+        router as alchemi_copilot_superadmin_router,
+    )
 except ImportError:
     pass
 
@@ -12592,6 +12627,19 @@ try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
     app.include_router(alchemi_email_event_router)
+    app.include_router(alchemi_copilot_directory_router)
+    app.include_router(alchemi_copilot_budget_router)
+    app.include_router(alchemi_copilot_model_router)
+    app.include_router(alchemi_copilot_agent_router)
+    app.include_router(alchemi_copilot_marketplace_router)
+    app.include_router(alchemi_copilot_connection_router)
+    app.include_router(alchemi_copilot_guardrails_router)
+    app.include_router(alchemi_copilot_support_ticket_router)
+    app.include_router(alchemi_copilot_notification_template_router)
+    app.include_router(alchemi_copilot_observability_router)
+    app.include_router(alchemi_copilot_global_ops_router)
+    app.include_router(alchemi_copilot_entitlements_router)
+    app.include_router(alchemi_copilot_superadmin_router)
 except NameError:
     pass
 ########################################################

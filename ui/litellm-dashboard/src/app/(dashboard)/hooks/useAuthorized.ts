@@ -31,6 +31,9 @@ function formatUserRole(userRole: string) {
       return "Internal Viewer";
     case "app_user":
       return "App User";
+    case "account_admin":
+    case "tenant_admin":
+      return "Account Admin";
     default:
       return "Unknown Role";
   }

@@ -1,6 +1,6 @@
 """
 Async context variables for multi-tenant request scoping.
-Stores the current account_id and super admin flag for the duration of each request.
+Stores the current account_id, super admin flag, and actor role for the duration of each request.
 """
 import contextvars
 from typing import Optional
@@ -10,6 +10,9 @@ _current_account_id: contextvars.ContextVar[Optional[str]] = contextvars.Context
 )
 _is_super_admin: contextvars.ContextVar[bool] = contextvars.ContextVar(
     "is_super_admin", default=False
+)
+_actor_role: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "actor_role", default="end_user"
 )
 
 
@@ -31,3 +34,13 @@ def is_super_admin() -> bool:
 def set_super_admin(value: bool) -> None:
     """Set the super admin flag for the current request context."""
     _is_super_admin.set(value)
+
+
+def get_actor_role() -> str:
+    """Get the actor role for the current request context (super_admin, account_admin, end_user)."""
+    return _actor_role.get()
+
+
+def set_actor_role(role: str) -> None:
+    """Set the actor role for the current request context."""
+    _actor_role.set(role)

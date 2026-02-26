@@ -27,6 +27,66 @@ Super Admin (UI_USERNAME/UI_PASSWORD)
 - Super admins bypass tenant scoping and only see the Tenant Management page
 - No `config.yaml` loaded by default -- every account manages their own models/config from the database
 
+## Centralized Cockpit Architecture
+
+Console-cockpit serves as the **centralized control plane** for the entire Alchemi platform. Both `alchemi-web` (Next.js UI) and `alchemi-ai` (Python AI backend) are clients that call centralized Copilot APIs instead of managing data locally.
+
+```
+                    +---------------------------+
+                    |   console-cockpit         |
+                    |   (Centralized Cockpit)   |
+                    |                           |
+                    |  /copilot/*  (tenant APIs)|
+                    |  /copilot/super-admin/*   |
+                    |  LiteLLM proxy (LLM GW)   |
+                    |  Admin UI (Next.js)       |
+                    +----------+----------------+
+                               |
+              +----------------+----------------+
+              |                                 |
+     +--------v--------+            +-----------v----------+
+     |   alchemi-web   |            |     alchemi-ai       |
+     |  (Next.js UI)   |            |  (Python AI backend) |
+     |  Cockpit pages  |            |  Agents, workspaces  |
+     |  Feature toggle:|            |  Feature toggle:     |
+     |  CENTRALIZED_   |            |  CENTRALIZED_        |
+     |  COCKPIT_URL    |            |  COCKPIT_URL         |
+     +-----------------+            +----------------------+
+```
+
+### Centralized Copilot API Domains
+
+All management operations are served under `/copilot/*`:
+
+| Domain | Endpoint Prefix | Description |
+|--------|----------------|-------------|
+| Directory | `/copilot/users`, `/copilot/teams`, `/copilot/groups` | Users, memberships, teams, groups, invites |
+| Budgets | `/copilot/budgets` | Plans, allocations, alerts, usage recording |
+| Models | `/copilot/models` | Model catalog, account selection, effective models |
+| Agents | `/copilot/agents` | Agent definition CRUD + governance checks |
+| Marketplace | `/copilot/marketplace` | Listings CRUD, publish, install |
+| Connections | `/copilot/connections` | OpenAPI, MCP, integrations |
+| Guardrails | `/copilot/guardrails` | Configs, patterns, audit trails |
+| Support | `/copilot/support/tickets` | Support ticket CRUD + comments |
+| Notifications | `/copilot/notification-templates` | Template CRUD + preview + send |
+| Observability | `/copilot/observability` | Audit logs, usage rollups, alerts |
+| Super Admin | `/copilot/super-admin/*` | Account setup, catalogs, platform ops |
+
+### RBAC
+
+Three roles enforced via Zitadel JWT claims or master-key auth:
+
+- **super_admin** -- platform-wide access, no account scoping
+- **account_admin** -- tenant-scoped management access
+- **end_user** -- no cockpit management access
+
+### Feature Toggle
+
+Client services (`alchemi-web`, `alchemi-ai`) use a feature toggle pattern:
+- When `CENTRALIZED_COCKPIT_URL` is set, management calls route to the centralized cockpit API
+- When unset, the service falls back to local data stores (transitional mode)
+- This allows gradual rollout and instant rollback
+
 ## Project Structure
 
 ```
@@ -122,6 +182,17 @@ ALCHEMI_AUDIT_LOG_RETENTION_DAYS="90"
 
 **Important:** There is no default `config.yaml` to load. Each tenant configures their own models, guardrails, and settings through the database. Set `STORE_MODEL_IN_DB=True` to enable this.
 
+### Zitadel Auth (Centralized Cockpit)
+
+| Variable | Description |
+|----------|-------------|
+| `ZITADEL_ISSUER` | Zitadel instance URL |
+| `ZITADEL_JWKS_URL` | JWKS endpoint (auto-derived from issuer if omitted) |
+| `ZITADEL_AUDIENCE` | Expected audience claim |
+| `ZITADEL_ACCOUNT_ID_CLAIMS` | Comma-separated claim keys for account_id (default: `account_id,tenant_id,urn:alchemi:account_id,urn:alchemi:tenant_id`) |
+| `ZITADEL_SUPER_ADMIN_ROLE_KEYS` | Comma-separated super admin role names (default: `super_admin,platform_admin,alchemi_super_admin`) |
+| `ZITADEL_ACCOUNT_ADMIN_ROLE_KEYS` | Comma-separated account admin role names (default: `account_admin,org_admin,tenant_admin,admin`) |
+
 ### Environment Variables
 The frontend uses very few env vars. Only two matter at runtime:
 
@@ -184,7 +255,7 @@ The admin dashboard is a Next.js app. After modifying UI source files, you must 
 
 **Quick rebuild (one-liner):**
 ```bash
-cd ui/litellm-dashboard && npm run build && rm -rf ../../litellm/proxy/_experimental/out && cp -r out ../../litellm/proxy/_experimental/out
+cd ui/litellm-dashboard && pnpm run build && rm -rf ../../litellm/proxy/_experimental/out && cp -r out ../../litellm/proxy/_experimental/out
 ```
 
 Then restart the server:
@@ -206,18 +277,18 @@ poetry run litellm --port 4000
 
 # Terminal 2: Start Next.js dev server (frontend hot reload on :3000)
 cd ui/litellm-dashboard
-npm install
-npm run dev
+pnpm install
+pnpm run dev
 
 # When done making changes, build and deploy to the proxy:
-npm run build
+pnpm run build
 rm -rf ../../litellm/proxy/_experimental/out
 cp -r out ../../litellm/proxy/_experimental/out
 
 # Restart the proxy server to serve the updated UI
 ```
 
-**Important:** The proxy serves the UI from `litellm/proxy/_experimental/out/`. Changes to files in `ui/litellm-dashboard/src/` are not reflected until you run `npm run build` and copy the output. The `npm run dev` hot-reload server runs separately on port 3000 for development convenience only.
+**Important:** The proxy serves the UI from `litellm/proxy/_experimental/out/`. Changes to files in `ui/litellm-dashboard/src/` are not reflected until you run `pnpm run build` and copy the output. The `pnpm run dev` hot-reload server runs separately on port 3000 for development convenience only.
 
 ### 6. Run Tests
 
@@ -227,7 +298,7 @@ poetry run pytest tests/test_litellm/ -v --numprocesses=4
 
 # Frontend tests
 cd ui/litellm-dashboard
-npm test
+pnpm test
 
 # Linting
 make lint
@@ -528,8 +599,8 @@ The `Dockerfile` runs `docker/build_admin_ui.sh` during the builder stage, which
 
 ```bash
 cd ui/litellm-dashboard
-npm install
-npm run build                     # produces out/ directory (static export)
+pnpm install
+pnpm run build                     # produces out/ directory (static export)
 
 # Deploy to the proxy's static file directory
 rm -rf ../../litellm/proxy/_experimental/out
@@ -543,7 +614,7 @@ cp -r out ../../litellm/proxy/_experimental/out
 poetry run litellm --port 4000
 
 # Terminal 2: frontend (hot-reload on port 3000)
-cd ui/litellm-dashboard && npm run dev
+cd ui/litellm-dashboard && pnpm run dev
 ```
 
 ---

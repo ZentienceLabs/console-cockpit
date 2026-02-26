@@ -6,29 +6,39 @@ import {
   AuditOutlined,
   BankOutlined,
   BarChartOutlined,
+  BellOutlined,
   BgColorsOutlined,
   BlockOutlined,
   BookOutlined,
   CreditCardOutlined,
+  CustomerServiceOutlined,
+  DashboardOutlined,
   DatabaseOutlined,
+  DollarOutlined,
   ExperimentOutlined,
+  EyeOutlined,
   FileTextOutlined,
+  GlobalOutlined,
+  GoldOutlined,
   KeyOutlined,
   LineChartOutlined,
+  LinkOutlined,
   PlayCircleOutlined,
   RobotOutlined,
   SafetyOutlined,
   SearchOutlined,
   SettingOutlined,
+  ShopOutlined,
   TagsOutlined,
   TeamOutlined,
   ToolOutlined,
+  UsergroupAddOutlined,
   UserOutlined,
 } from "@ant-design/icons";
 import type { MenuProps } from "antd";
 import { ConfigProvider, Layout, Menu } from "antd";
 import { useMemo } from "react";
-import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess } from "../utils/roles";
+import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess, copilot_admin_roles, super_admin_only_roles } from "../utils/roles";
 import type { Organization } from "./networking";
 
 const { Sider } = Layout;
@@ -313,11 +323,54 @@ const menuGroups: MenuGroup[] = [
       },
     ],
   },
+  {
+    groupLabel: "COPILOT",
+    roles: copilot_admin_roles,
+    items: [
+      {
+        key: "copilot",
+        page: "copilot",
+        label: "Copilot",
+        icon: <DashboardOutlined />,
+        roles: copilot_admin_roles,
+        children: [
+          { key: "copilot-directory", page: "copilot-directory", label: "Directory", icon: <UsergroupAddOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-credits", page: "copilot-credits", label: "Credit Budgets", icon: <DollarOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-models", page: "copilot-models", label: "Model Governance", icon: <BlockOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-agents", page: "copilot-agents", label: "Agents", icon: <RobotOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-marketplace", page: "copilot-marketplace", label: "Marketplace", icon: <ShopOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-connections", page: "copilot-connections", label: "Connections", icon: <LinkOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-guardrails", page: "copilot-guardrails", label: "Guardrails", icon: <SafetyOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-observability", page: "copilot-observability", label: "Observability", icon: <EyeOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-notifications", page: "copilot-notifications", label: "Notifications", icon: <BellOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-support", page: "copilot-support", label: "Support", icon: <CustomerServiceOutlined />, roles: copilot_admin_roles },
+          { key: "copilot-entitlements", page: "copilot-entitlements", label: "Entitlements", icon: <GoldOutlined />, roles: super_admin_only_roles },
+          { key: "copilot-global-ops", page: "copilot-global-ops", label: "Global Ops", icon: <GlobalOutlined />, roles: super_admin_only_roles },
+        ],
+      },
+    ],
+  },
+  {
+    groupLabel: "SUPER ADMIN",
+    roles: super_admin_only_roles,
+    items: [
+      {
+        key: "tenant-admin",
+        page: "tenant-admin",
+        label: "Tenant Admin",
+        icon: <SettingOutlined />,
+        roles: super_admin_only_roles,
+      },
+    ],
+  },
 ];
 
 const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapsed = false, enabledPagesInternalUsers }) => {
-  const { userId, accessToken, userRole } = useAuthorized();
+  const { userId, accessToken, userRole, isSuperAdmin } = useAuthorized();
   const { data: organizations } = useOrganizations();
+
+  // Alchemi: Super admins need "proxy_admin" as effective role so super_admin_only_roles items appear
+  const effectiveRole = isSuperAdmin ? "proxy_admin" : userRole;
 
   // Check if user is an org_admin
   const isOrgAdmin = useMemo(() => {
@@ -337,12 +390,12 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
 
   // Filter items based on user role and enabled pages for internal users
   const filterItemsByRole = (items: MenuItem[]): MenuItem[] => {
-    const isAdmin = isAdminRole(userRole);
+    const isAdmin = isAdminRole(effectiveRole);
 
     // Debug logging
     if (enabledPagesInternalUsers !== null && enabledPagesInternalUsers !== undefined) {
       console.log("[LeftNav] Filtering with enabled pages:", {
-        userRole,
+        effectiveRole,
         isAdmin,
         enabledPagesInternalUsers,
       });
@@ -356,7 +409,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
       .filter((item) => {
         // Special handling for organizations menu item - allow org_admins
         if (item.key === "organizations") {
-          const hasRoleAccess = !item.roles || item.roles.includes(userRole) || isOrgAdmin;
+          const hasRoleAccess = !item.roles || item.roles.includes(effectiveRole) || isOrgAdmin;
           if (!hasRoleAccess) return false;
 
           // Check enabled pages for internal users (non-admins)
@@ -369,7 +422,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
         }
 
         // Existing role check
-        if (item.roles && !item.roles.includes(userRole)) return false;
+        if (item.roles && !item.roles.includes(effectiveRole)) return false;
 
         // Check enabled pages for internal users (non-admins)
         if (!isAdmin && enabledPagesInternalUsers !== null && enabledPagesInternalUsers !== undefined) {
@@ -399,7 +452,7 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
 
     menuGroups.forEach((group) => {
       // Check if group has role restriction
-      if (group.roles && !group.roles.includes(userRole)) {
+      if (group.roles && !group.roles.includes(effectiveRole)) {
         return;
       }
 
