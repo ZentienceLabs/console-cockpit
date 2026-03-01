@@ -3,11 +3,12 @@ import { Member, Team } from "@/components/networking";
 // Define admin roles and permissions
 export const old_admin_roles = ["Admin", "Admin Viewer"];
 export const v2_admin_role_names = ["proxy_admin", "proxy_admin_viewer", "org_admin"];
-export const all_admin_roles = [...old_admin_roles, ...v2_admin_role_names];
+export const super_admin_roles = ["Super Admin"];
+export const all_admin_roles = [...old_admin_roles, ...v2_admin_role_names, ...super_admin_roles];
 
 export const internalUserRoles = ["Internal User", "Internal Viewer"];
 export const rolesAllowedToSeeUsage = ["Admin", "Admin Viewer", "Internal User", "Internal Viewer"];
-export const rolesWithWriteAccess = ["Internal User", "Admin", "proxy_admin"];
+export const rolesWithWriteAccess = ["Internal User", "Admin", "proxy_admin", "Super Admin"];
 
 // Helper function to check if a role is in all_admin_roles
 export const isAdminRole = (role: string): boolean => {

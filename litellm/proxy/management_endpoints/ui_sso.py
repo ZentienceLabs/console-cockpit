@@ -11,6 +11,7 @@ Has all /sso/* routes
 import asyncio
 import base64
 import hashlib
+import json
 import os
 import secrets
 from copy import deepcopy
@@ -119,6 +120,332 @@ def normalize_email(email: Optional[str]) -> Optional[str]:
     if email is None:
         return None
     return email.lower() if isinstance(email, str) else email
+
+
+def _parse_settings_dict(raw_value: Any) -> Dict[str, Any]:
+    if raw_value is None:
+        return {}
+    if isinstance(raw_value, dict):
+        return dict(raw_value)
+    if isinstance(raw_value, str):
+        try:
+            parsed = json.loads(raw_value)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            return {}
+    return {}
+
+
+def _build_zitadel_generic_settings(account_record: Any) -> Dict[str, Any]:
+    """
+    Build Generic OIDC SSO settings from account metadata.zitadel + global env.
+    This keeps onboarding Zitadel-first without requiring legacy account SSO rows.
+    """
+    metadata = getattr(account_record, "metadata", None) or {}
+    if not isinstance(metadata, dict):
+        try:
+            metadata = dict(metadata)
+        except Exception:
+            metadata = {}
+
+    zitadel_cfg = metadata.get("zitadel", {}) or {}
+    if not isinstance(zitadel_cfg, dict):
+        return {}
+    if zitadel_cfg.get("enabled") is False:
+        return {}
+
+    issuer = str(
+        zitadel_cfg.get("issuer")
+        or os.getenv("ZITADEL_ISSUER")
+        or os.getenv("ZITADEL_ISSUER_URL")
+        or ""
+    ).strip().rstrip("/")
+    client_id = str(
+        zitadel_cfg.get("client_id")
+        or os.getenv("ZITADEL_CLIENT_ID")
+        or ""
+    ).strip()
+    client_secret = str(
+        zitadel_cfg.get("client_secret")
+        or os.getenv("ZITADEL_CLIENT_SECRET")
+        or ""
+    ).strip()
+
+    if not (issuer and client_id and client_secret):
+        return {}
+
+    return {
+        "generic_client_id": client_id,
+        "generic_client_secret": client_secret,
+        "generic_authorization_endpoint": f"{issuer}/oauth/v2/authorize",
+        "generic_token_endpoint": f"{issuer}/oauth/v2/token",
+        "generic_userinfo_endpoint": f"{issuer}/oidc/v1/userinfo",
+        # Better default for Zitadel subject extraction.
+        "generic_user_id_attribute": os.getenv("GENERIC_USER_ID_ATTRIBUTE", "sub"),
+        "generic_scope": os.getenv("GENERIC_SCOPE", "openid email profile"),
+    }
+
+
+def _apply_account_sso_env(
+    settings: Dict[str, Any],
+    backup: Dict[str, Optional[str]],
+) -> None:
+    env_map = {
+        "google_client_id": "GOOGLE_CLIENT_ID",
+        "google_client_secret": "GOOGLE_CLIENT_SECRET",
+        "microsoft_client_id": "MICROSOFT_CLIENT_ID",
+        "microsoft_client_secret": "MICROSOFT_CLIENT_SECRET",
+        "microsoft_tenant": "MICROSOFT_TENANT",
+        "generic_client_id": "GENERIC_CLIENT_ID",
+        "generic_client_secret": "GENERIC_CLIENT_SECRET",
+        "generic_authorization_endpoint": "GENERIC_AUTHORIZATION_ENDPOINT",
+        "generic_token_endpoint": "GENERIC_TOKEN_ENDPOINT",
+        "generic_userinfo_endpoint": "GENERIC_USERINFO_ENDPOINT",
+        "generic_scope": "GENERIC_SCOPE",
+        "generic_user_id_attribute": "GENERIC_USER_ID_ATTRIBUTE",
+    }
+    for field, env_var in env_map.items():
+        value = settings.get(field)
+        if value is None or str(value).strip() == "":
+            continue
+        if env_var not in backup:
+            backup[env_var] = os.getenv(env_var)
+        os.environ[env_var] = str(value)
+
+
+async def _maybe_pre_grant_zitadel_end_user(
+    account_record: Any,
+    login_hint: Optional[str],
+) -> None:
+    """
+    Best-effort pre-grant of tenant end_user role before redirecting to Zitadel.
+    This helps non-admin users who already exist in Zitadel but are missing app grant.
+    """
+    if account_record is None:
+        return
+    email = (login_hint or "").strip().lower()
+    if not email or "@" not in email:
+        return
+
+    try:
+        metadata = getattr(account_record, "metadata", None) or {}
+        if not isinstance(metadata, dict):
+            metadata = dict(metadata)
+        zitadel_cfg = metadata.get("zitadel", {}) or {}
+        if not isinstance(zitadel_cfg, dict):
+            return
+        if zitadel_cfg.get("enabled") is False:
+            return
+
+        project_id = str(zitadel_cfg.get("project_id") or "").strip()
+        if not project_id:
+            return
+
+        role_mappings = zitadel_cfg.get("role_mappings") or {}
+        if not isinstance(role_mappings, dict):
+            role_mappings = {}
+        end_user_role = str(role_mappings.get("end_user") or "end_user").strip()
+        if not end_user_role:
+            return
+
+        organization_id = zitadel_cfg.get("organization_id")
+        organization_id = str(organization_id).strip() if organization_id else None
+
+        from alchemi.auth.zitadel import ZitadelManagementClient
+
+        client = ZitadelManagementClient()
+        if not client.is_configured():
+            return
+
+        user_id = await client.find_user_id_by_email(email=email)
+        if not user_id:
+            return
+
+        try:
+            await client.add_user_grant(
+                user_id=user_id,
+                project_id=project_id,
+                role_keys=[end_user_role],
+                organization_id=organization_id,
+            )
+            verbose_proxy_logger.info(
+                "Pre-granted Zitadel end_user role for %s in project %s", email, project_id
+            )
+        except Exception as grant_exc:
+            if "already" in str(grant_exc).lower():
+                return
+            verbose_proxy_logger.debug(
+                "Zitadel pre-grant skipped for %s: %s", email, grant_exc
+            )
+    except Exception:
+        return
+
+
+def _extract_product_domains_from_sso_payload(
+    result: Optional[Union[CustomOpenID, OpenID, dict]],
+    received_response: Optional[dict] = None,
+) -> List[str]:
+    """Extract product-domain claims from SSO payloads."""
+    keys = (
+        "product_domains_allowed",
+        "alchemi:product_domains_allowed",
+        "product_domains",
+    )
+    domains: List[str] = []
+
+    def _append_value(value: Any) -> None:
+        if isinstance(value, str):
+            for item in [v.strip() for v in value.split(",")]:
+                if item:
+                    domains.append(item)
+            return
+        if isinstance(value, list):
+            for item in value:
+                if item:
+                    domains.append(str(item).strip())
+
+    candidates: List[Dict[str, Any]] = []
+    if isinstance(result, dict):
+        candidates.append(result)
+    elif result is not None:
+        # OpenID objects from fastapi-sso expose claims as attributes
+        candidates.append(getattr(result, "__dict__", {}) or {})
+    if isinstance(received_response, dict):
+        candidates.append(received_response)
+
+    for payload in candidates:
+        for key in keys:
+            _append_value(payload.get(key))
+
+    # Preserve order while deduplicating.
+    seen: set[str] = set()
+    out: List[str] = []
+    for domain in domains:
+        if not domain or domain in seen:
+            continue
+        seen.add(domain)
+        out.append(domain)
+    return out
+
+
+def _matches_account_domain(user_email: Optional[str], account_domain: Optional[str]) -> bool:
+    if not user_email or "@" not in user_email or not account_domain:
+        return False
+    return user_email.split("@", 1)[1].strip().lower() == account_domain.strip().lower()
+
+
+async def _resolve_account_id_for_sso_user(
+    *,
+    prisma_client: PrismaClient,
+    user_email: Optional[str],
+    state_account_id: Optional[str],
+) -> Optional[str]:
+    """Resolve tenant account for an SSO user, with state-account fallback."""
+    from alchemi.auth.account_resolver import resolve_account_for_user
+
+    resolved_account_id: Optional[str] = None
+    try:
+        resolved_account_id = await resolve_account_for_user(user_email, prisma_client)
+    except Exception:
+        resolved_account_id = None
+
+    if resolved_account_id is not None or not state_account_id:
+        return resolved_account_id
+
+    # If email is unavailable from the IdP response, trust callback state from
+    # the login initiation path as a best-effort fallback.
+    if not user_email:
+        return state_account_id
+
+    try:
+        account = await prisma_client.db.alchemi_accounttable.find_first(
+            where={"account_id": state_account_id, "status": "active"}
+        )
+        if account and _matches_account_domain(user_email, getattr(account, "domain", None)):
+            return state_account_id
+    except Exception:
+        pass
+
+    try:
+        admin = await prisma_client.db.alchemi_accountadmintable.find_first(
+            where={"account_id": state_account_id, "user_email": user_email}
+        )
+        if admin:
+            return state_account_id
+    except Exception:
+        pass
+
+    return None
+
+
+async def _sync_domain_user_from_sso(
+    *,
+    prisma_client: PrismaClient,
+    account_id: Optional[str],
+    user_email: Optional[str],
+    identity_user_id: Optional[str],
+    display_name: Optional[str],
+) -> None:
+    """
+    Best-effort SSO user sync into domain-specific directory tables.
+    This keeps Copilot/Console directories populated without manual creation.
+    """
+    if not account_id:
+        return
+    if not user_email and not identity_user_id:
+        return
+
+    email_value = normalize_email(user_email)
+    tables = (
+        '"Alchemi_CopilotUserTable"',
+        '"Alchemi_ConsoleUserTable"',
+    )
+
+    for table_name in tables:
+        try:
+            existing = await prisma_client.db.query_raw(
+                f"SELECT id FROM {table_name} WHERE account_id = $1 AND ("
+                f"($2::text IS NOT NULL AND lower(email) = lower($2::text)) OR "
+                f"($3::text IS NOT NULL AND identity_user_id = $3::text)) LIMIT 1",
+                account_id,
+                email_value,
+                identity_user_id,
+            )
+
+            if existing:
+                row = existing[0]
+                row_id = row.get("id") if isinstance(row, dict) else None
+                if row_id:
+                    await prisma_client.db.query_raw(
+                        f"UPDATE {table_name} SET "
+                        "email = COALESCE(email, $2::text), "
+                        "identity_user_id = COALESCE(identity_user_id, $3::text), "
+                        "display_name = COALESCE(display_name, $4::text), "
+                        "updated_at = CURRENT_TIMESTAMP "
+                        "WHERE id = $1",
+                        str(row_id),
+                        email_value,
+                        identity_user_id,
+                        display_name,
+                    )
+                continue
+
+            await prisma_client.db.query_raw(
+                f"INSERT INTO {table_name} "
+                "(id, account_id, identity_user_id, email, display_name, created_by) "
+                "VALUES ($1, $2, $3, $4, $5, $6)",
+                str(uuid.uuid4()),
+                account_id,
+                identity_user_id,
+                email_value,
+                display_name,
+                "sso_sync",
+            )
+        except Exception as e:
+            verbose_proxy_logger.debug(
+                f"Skipping SSO directory sync for {table_name}: {e}"
+            )
 
 
 def determine_role_from_groups(
@@ -274,6 +601,7 @@ async def google_login(
     key: Optional[str] = None,
     existing_key: Optional[str] = None,
     account_id: Optional[str] = None,
+    login_hint: Optional[str] = None,
 ):  # noqa: PLR0915
     """
     Create Proxy API Keys using Google Workspace SSO. Requires setting PROXY_BASE_URL in .env
@@ -289,38 +617,45 @@ async def google_login(
     microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
     google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
     generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
+    _alchemi_account_record = None
 
     # Alchemi: Load per-account SSO config if account_id is provided
     _alchemi_account_sso_env_backup = {}
     if account_id and prisma_client:
         try:
-            import json as _json
+            _alchemi_account_record = await prisma_client.db.alchemi_accounttable.find_first(
+                where={"account_id": account_id, "status": "active"}
+            )
             _acct_sso = await prisma_client.db.alchemi_accountssoconfig.find_first(
                 where={"account_id": account_id, "enabled": True}
             )
-            if _acct_sso and _acct_sso.sso_settings:
-                _raw = _acct_sso.sso_settings
-                _settings = _json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
-                _env_map = {
-                    "google_client_id": "GOOGLE_CLIENT_ID",
-                    "google_client_secret": "GOOGLE_CLIENT_SECRET",
-                    "microsoft_client_id": "MICROSOFT_CLIENT_ID",
-                    "microsoft_client_secret": "MICROSOFT_CLIENT_SECRET",
-                    "microsoft_tenant": "MICROSOFT_TENANT",
-                    "generic_client_id": "GENERIC_CLIENT_ID",
-                    "generic_client_secret": "GENERIC_CLIENT_SECRET",
-                    "generic_authorization_endpoint": "GENERIC_AUTHORIZATION_ENDPOINT",
-                    "generic_token_endpoint": "GENERIC_TOKEN_ENDPOINT",
-                    "generic_userinfo_endpoint": "GENERIC_USERINFO_ENDPOINT",
-                }
-                for _field, _env_var in _env_map.items():
-                    if _settings.get(_field):
-                        _alchemi_account_sso_env_backup[_env_var] = os.getenv(_env_var)
-                        os.environ[_env_var] = str(_settings[_field])
+            _settings = _parse_settings_dict(
+                _acct_sso.sso_settings if _acct_sso else None
+            )
+
+            # Zitadel-first fallback: synthesize generic OIDC settings from
+            # account metadata + global ZITADEL_* env when no legacy SSO row
+            # exists yet.
+            if not _settings:
+                _settings = (
+                    _build_zitadel_generic_settings(_alchemi_account_record)
+                    if _alchemi_account_record
+                    else {}
+                )
+
+            if _settings:
+                _apply_account_sso_env(_settings, _alchemi_account_sso_env_backup)
+
                 # Re-read the env vars after override
                 microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
                 google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
                 generic_client_id = os.getenv("GENERIC_CLIENT_ID", None)
+
+            # Best-effort pre-grant for existing tenant users.
+            await _maybe_pre_grant_zitadel_end_user(
+                account_record=_alchemi_account_record,
+                login_hint=login_hint,
+            )
         except Exception:
             pass
 
@@ -384,6 +719,17 @@ async def google_login(
         else:
             cli_state = _acct_state
 
+    # Carry login_hint through OAuth state so callback can recover account context
+    # even when IdP payload omits email.
+    if login_hint:
+        from urllib.parse import quote_plus
+
+        _hint_state = f"alchemi_login_hint:{quote_plus(login_hint)}"
+        if cli_state:
+            cli_state = f"{cli_state}|{_hint_state}"
+        else:
+            cli_state = _hint_state
+
     # check if user defined a custom auth sso sign in handler, if yes, use it
     if user_custom_ui_sso_sign_in_handler is not None:
         try:
@@ -414,6 +760,7 @@ async def google_login(
                 google_client_id=google_client_id,
                 generic_client_id=generic_client_id,
                 state=cli_state,
+                login_hint=login_hint,
             )
         elif ui_username is not None:
             # No Google, Microsoft SSO
@@ -930,11 +1277,12 @@ async def get_user_info_from_db(
             if _id is not None and isinstance(_id, str):
                 potential_user_ids.append(_id)
 
-        user_email = normalize_email(
+        result_email = (
             getattr(result, "email", None)
             if not isinstance(result, dict)
             else result.get("email", None)
         )
+        user_email = normalize_email(result_email) or normalize_email(user_email)
 
         user_info: Optional[Union[LiteLLM_UserTable, NewUserResponse]] = None
 
@@ -1132,14 +1480,20 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
 
     # Alchemi: Extract account_id from state and load per-account SSO config
     _alchemi_callback_account_id: Optional[str] = None
+    _alchemi_callback_login_hint: Optional[str] = None
     _alchemi_callback_env_backup = {}
-    if state and "alchemi_account:" in state:
-        # Parse account_id from state (format: "...|alchemi_account:{account_id}" or "alchemi_account:{account_id}")
+    if state and ("alchemi_account:" in state or "alchemi_login_hint:" in state):
+        # Parse account_id/login_hint from state.
         _parts = state.split("|")
         _non_acct_parts = []
         for _part in _parts:
             if _part.startswith("alchemi_account:"):
                 _alchemi_callback_account_id = _part.split(":", 1)[1]
+            elif _part.startswith("alchemi_login_hint:"):
+                from urllib.parse import unquote_plus
+
+                _raw_hint = _part.split(":", 1)[1]
+                _alchemi_callback_login_hint = unquote_plus(_raw_hint)
             else:
                 _non_acct_parts.append(_part)
         # Rebuild state without the account part for downstream processing
@@ -1148,29 +1502,25 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
         # Load per-account SSO config
         if _alchemi_callback_account_id:
             try:
-                import json as _json
                 _acct_sso = await prisma_client.db.alchemi_accountssoconfig.find_first(
                     where={"account_id": _alchemi_callback_account_id, "enabled": True}
                 )
-                if _acct_sso and _acct_sso.sso_settings:
-                    _raw = _acct_sso.sso_settings
-                    _settings = _json.loads(_raw) if isinstance(_raw, str) else dict(_raw)
-                    _env_map = {
-                        "google_client_id": "GOOGLE_CLIENT_ID",
-                        "google_client_secret": "GOOGLE_CLIENT_SECRET",
-                        "microsoft_client_id": "MICROSOFT_CLIENT_ID",
-                        "microsoft_client_secret": "MICROSOFT_CLIENT_SECRET",
-                        "microsoft_tenant": "MICROSOFT_TENANT",
-                        "generic_client_id": "GENERIC_CLIENT_ID",
-                        "generic_client_secret": "GENERIC_CLIENT_SECRET",
-                        "generic_authorization_endpoint": "GENERIC_AUTHORIZATION_ENDPOINT",
-                        "generic_token_endpoint": "GENERIC_TOKEN_ENDPOINT",
-                        "generic_userinfo_endpoint": "GENERIC_USERINFO_ENDPOINT",
-                    }
-                    for _field, _env_var in _env_map.items():
-                        if _settings.get(_field):
-                            _alchemi_callback_env_backup[_env_var] = os.getenv(_env_var)
-                            os.environ[_env_var] = str(_settings[_field])
+                _settings = _parse_settings_dict(
+                    _acct_sso.sso_settings if _acct_sso else None
+                )
+
+                if not _settings:
+                    _account = await prisma_client.db.alchemi_accounttable.find_first(
+                        where={
+                            "account_id": _alchemi_callback_account_id,
+                            "status": "active",
+                        }
+                    )
+                    _settings = _build_zitadel_generic_settings(_account) if _account else {}
+
+                if _settings:
+                    _apply_account_sso_env(_settings, _alchemi_callback_env_backup)
+
                     # Re-read after override
                     microsoft_client_id = os.getenv("MICROSOFT_CLIENT_ID", None)
                     google_client_id = os.getenv("GOOGLE_CLIENT_ID", None)
@@ -1241,6 +1591,8 @@ async def auth_callback(request: Request, state: Optional[str] = None):  # noqa:
             received_response=received_response,
             generic_client_id=generic_client_id,
             ui_access_mode=ui_access_mode,
+            alchemi_account_id=_alchemi_callback_account_id,
+            alchemi_login_hint=_alchemi_callback_login_hint,
         )
     finally:
         # Alchemi: Restore original env vars after per-account SSO callback
@@ -1725,6 +2077,7 @@ class SSOAuthenticationHandler:
         microsoft_client_id: Optional[str] = None,
         generic_client_id: Optional[str] = None,
         state: Optional[str] = None,
+        login_hint: Optional[str] = None,
     ) -> Optional[RedirectResponse]:
         """
         Step 1. Call Get Login Redirect for the SSO provider. Send the redirect response to `redirect_url`
@@ -1844,6 +2197,7 @@ class SSOAuthenticationHandler:
                 generic_sso=generic_sso,
                 state=state,
                 generic_authorization_endpoint=generic_authorization_endpoint,
+                login_hint=login_hint,
             )
         raise ValueError(
             "Unknown SSO provider. Please setup SSO with the appropriate client IDs (GOOGLE_CLIENT_ID, MICROSOFT_CLIENT_ID, or GENERIC_CLIENT_ID)."
@@ -1854,6 +2208,7 @@ class SSOAuthenticationHandler:
         generic_sso: Any,
         state: Optional[str] = None,
         generic_authorization_endpoint: Optional[str] = None,
+        login_hint: Optional[str] = None,
     ) -> Optional[RedirectResponse]:
         """
         Get the redirect response for Generic SSO
@@ -1873,21 +2228,23 @@ class SSOAuthenticationHandler:
             ) = SSOAuthenticationHandler._get_generic_sso_redirect_params(
                 state=state,
                 generic_authorization_endpoint=generic_authorization_endpoint,
+                login_hint=login_hint,
             )
 
-            # Separate PKCE params from state params (fastapi-sso doesn't accept code_challenge)
-            pkce_params = {}
+            # Separate params not accepted by fastapi-sso from state params.
+            # We'll append these query params to the final redirect URL ourselves.
+            extra_query_params = {}
             state_only_params = {}
             for key, value in redirect_params.items():
-                if key in ("code_challenge", "code_challenge_method"):
-                    pkce_params[key] = value
+                if key in ("code_challenge", "code_challenge_method", "login_hint"):
+                    extra_query_params[key] = value
                 else:
                     state_only_params[key] = value
 
             # Get the redirect response from fastapi-sso with only state param
             redirect_response = await generic_sso.get_login_redirect(**state_only_params)  # type: ignore
 
-            # If PKCE is enabled, add PKCE parameters to the redirect URL
+            # If PKCE is enabled, store verifier for callback exchange.
             if code_verifier and "state" in redirect_params:
                 # Store code_verifier in cache (10 min TTL). Use Redis when available
                 # so callbacks landing on another pod can retrieve it (multi-pod SSO).
@@ -1905,39 +2262,37 @@ class SSOAuthenticationHandler:
                         ttl=600,
                     )
 
-                # Add PKCE parameters to the authorization URL
-                if pkce_params:
-                    parsed_url = urlparse(str(redirect_response.headers["location"]))
-                    query_params = parse_qs(parsed_url.query)
+            # Add extra query parameters (PKCE + login_hint) to the authorization URL.
+            if extra_query_params:
+                parsed_url = urlparse(str(redirect_response.headers["location"]))
+                query_params = parse_qs(parsed_url.query)
 
-                    # Add PKCE parameters
-                    for key, value in pkce_params.items():
-                        query_params[key] = [value]
+                for key, value in extra_query_params.items():
+                    query_params[key] = [value]
 
-                    # Reconstruct the URL with PKCE parameters
-                    new_query = urlencode(query_params, doseq=True)
-                    new_url = urlunparse(
-                        (
-                            parsed_url.scheme,
-                            parsed_url.netloc,
-                            parsed_url.path,
-                            parsed_url.params,
-                            new_query,
-                            parsed_url.fragment,
-                        )
+                new_query = urlencode(query_params, doseq=True)
+                new_url = urlunparse(
+                    (
+                        parsed_url.scheme,
+                        parsed_url.netloc,
+                        parsed_url.path,
+                        parsed_url.params,
+                        new_query,
+                        parsed_url.fragment,
                     )
+                )
 
-                    # Update the redirect response
-                    redirect_response.headers["location"] = new_url
-                    verbose_proxy_logger.debug(
-                        "PKCE parameters added to authorization URL"
-                    )
+                redirect_response.headers["location"] = new_url
+                verbose_proxy_logger.debug(
+                    "SSO extra query parameters added to authorization URL"
+                )
             return redirect_response
 
     @staticmethod
     def _get_generic_sso_redirect_params(
         state: Optional[str] = None,
         generic_authorization_endpoint: Optional[str] = None,
+        login_hint: Optional[str] = None,
     ) -> Tuple[dict, Optional[str]]:
         """
         Get redirect parameters for Generic SSO with proper state priority handling.
@@ -1971,6 +2326,10 @@ class SSOAuthenticationHandler:
                 redirect_params["state"] = generic_client_state
             else:
                 redirect_params["state"] = uuid.uuid4().hex
+
+        # Forward login hint to reduce repeated username prompts at IdP layers.
+        if login_hint:
+            redirect_params["login_hint"] = login_hint
 
         # Handle PKCE (Proof Key for Code Exchange) if enabled
         # Set GENERIC_CLIENT_USE_PKCE=true to enable PKCE for enhanced OAuth security
@@ -2316,6 +2675,8 @@ class SSOAuthenticationHandler:
         received_response: Optional[dict] = None,
         generic_client_id: Optional[str] = None,
         ui_access_mode: Optional[Dict] = None,
+        alchemi_account_id: Optional[str] = None,
+        alchemi_login_hint: Optional[str] = None,
     ) -> RedirectResponse:
         import jwt
 
@@ -2344,6 +2705,8 @@ class SSOAuthenticationHandler:
         user_email = parsed_openid_result.get("user_email")
         user_id = parsed_openid_result.get("user_id")
         user_role = parsed_openid_result.get("user_role")
+        if user_email is None and alchemi_login_hint:
+            user_email = normalize_email(alchemi_login_hint)
         verbose_proxy_logger.info(f"SSO callback result: {result}")
 
         user_info = None
@@ -2368,10 +2731,10 @@ class SSOAuthenticationHandler:
                 user_defined_values = await user_custom_sso(result)  # type: ignore
             else:
                 raise ValueError("user_custom_sso must be a coroutine function")
-        elif user_id is not None:
+        elif user_id is not None or user_email is not None:
             user_defined_values = SSOUserDefinedValues(
                 models=user_id_models,
-                user_id=user_id,
+                user_id=user_id or user_email,
                 user_email=user_email,
                 max_budget=max_internal_user_budget,
                 user_role=user_role,
@@ -2489,11 +2852,59 @@ class SSOAuthenticationHandler:
             is_super_admin=False,
         )
 
-        # Alchemi: Resolve account_id for SSO user
+        # Alchemi: Resolve account/domain/roles context for SSO user
         try:
-            from alchemi.auth.account_resolver import resolve_account_for_user
-            _sso_account_id = await resolve_account_for_user(user_email, prisma_client)
+            _sso_account_id = await _resolve_account_id_for_sso_user(
+                prisma_client=prisma_client,
+                user_email=user_email,
+                state_account_id=alchemi_account_id,
+            )
             returned_ui_token_object["account_id"] = _sso_account_id
+
+            _roles: List[str] = []
+            if _sso_account_id and user_email:
+                _admin = await prisma_client.db.alchemi_accountadmintable.find_first(
+                    where={"account_id": _sso_account_id, "user_email": user_email}
+                )
+                if _admin and getattr(_admin, "role", None):
+                    _roles.append(str(_admin.role))
+                elif _admin:
+                    _roles.append("account_admin")
+            if _sso_account_id and not _roles:
+                _roles.append("end_user")
+            if _roles:
+                returned_ui_token_object["roles"] = _roles
+                returned_ui_token_object["role"] = _roles[0]
+
+            _domains = _extract_product_domains_from_sso_payload(
+                result=result,
+                received_response=received_response,
+            )
+            if _sso_account_id and not _domains:
+                _domains = ["console", "copilot"]
+            if _domains:
+                returned_ui_token_object["product_domains_allowed"] = _domains
+
+            _identity_user_id = getattr(result, "id", None)
+            if isinstance(result, dict):
+                _identity_user_id = result.get("id") or _identity_user_id
+            _display_name = None
+            if isinstance(result, dict):
+                _display_name = result.get("display_name") or result.get("name")
+            else:
+                _display_name = (
+                    getattr(result, "display_name", None)
+                    or getattr(result, "first_name", None)
+                    or getattr(result, "name", None)
+                )
+
+            await _sync_domain_user_from_sso(
+                prisma_client=prisma_client,
+                account_id=_sso_account_id,
+                user_email=user_email,
+                identity_user_id=str(_identity_user_id) if _identity_user_id else None,
+                display_name=str(_display_name) if _display_name else None,
+            )
         except Exception:
             pass
 

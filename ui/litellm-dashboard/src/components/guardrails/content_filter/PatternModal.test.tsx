@@ -10,10 +10,10 @@ describe("PatternModal", () => {
   const mockOnActionChange = vi.fn();
 
   const mockPrebuiltPatterns = [
-    { name: "us_ssn", category: "PII Patterns", description: "US Social Security Number" },
-    { name: "email", category: "PII Patterns", description: "Email addresses" },
-    { name: "visa", category: "Financial Patterns", description: "Visa credit card numbers" },
-    { name: "aws_access_key", category: "Credential Patterns", description: "AWS Access Keys" },
+    { name: "us_ssn", display_name: "us_ssn", category: "PII Patterns", description: "US Social Security Number" },
+    { name: "email", display_name: "email", category: "PII Patterns", description: "Email addresses" },
+    { name: "visa", display_name: "visa", category: "Financial Patterns", description: "Visa credit card numbers" },
+    { name: "aws_access_key", display_name: "aws_access_key", category: "Credential Patterns", description: "AWS Access Keys" },
   ];
 
   const mockCategories = ["PII Patterns", "Financial Patterns", "Credential Patterns"];
@@ -89,4 +89,3 @@ describe("PatternModal", () => {
     expect(callArgs[0]).toBe("us_ssn");
   });
 });
-

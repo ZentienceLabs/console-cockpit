@@ -794,7 +794,7 @@ describe("OldTeams - access_group_ids in team create", () => {
         setTeams={vi.fn()}
         userID="user-123"
         userRole="Admin"
-        organizations={[{ organization_id: "org-1", organization_alias: "Org 1", models: [], members: [] }]}
+        organizations={[{ organization_id: "org-1", organization_alias: "Org 1", models: [], members: [] } as any]}
       />,
     );
 

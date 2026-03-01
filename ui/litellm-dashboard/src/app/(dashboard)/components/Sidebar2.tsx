@@ -30,7 +30,7 @@ import {
 // import UsageIndicator from "./usage_indicator";
 import * as React from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { all_admin_roles, internalUserRoles, isAdminRole, rolesWithWriteAccess } from "@/utils/roles";
+import { all_admin_roles, internalUserRoles, rolesWithWriteAccess, super_admin_roles } from "@/utils/roles";
 
 import { serverRootPath } from "@/components/networking";
 
@@ -103,6 +103,10 @@ const routeFor = (slug: string): string => {
       return "logs";
     case "guardrails":
       return "guardrails";
+    case "copilot-control":
+      return "copilot-control";
+    case "tenant-admin":
+      return "tenant-admin";
     case "policies":
       return "policies";
 
@@ -204,6 +208,37 @@ const menuItems: MenuItemCfg[] = [
     label: "Guardrails",
     icon: <SafetyOutlined style={{ fontSize: 18 }} />,
     roles: all_admin_roles,
+  },
+  {
+    key: "29",
+    page: "copilot",
+    label: "Copilot",
+    icon: <AppstoreOutlined style={{ fontSize: 18 }} />,
+    roles: all_admin_roles,
+    children: [
+      { key: "290", page: "copilot", label: "Home", icon: <AppstoreOutlined style={{ fontSize: 18 }} /> },
+      { key: "291", page: "copilot/global-ops", label: "Global Ops", icon: <AppstoreOutlined style={{ fontSize: 18 }} /> },
+      { key: "292", page: "copilot/directory", label: "Directory", icon: <TeamOutlined style={{ fontSize: 18 }} /> },
+      { key: "293", page: "copilot/credits", label: "Credits", icon: <BankOutlined style={{ fontSize: 18 }} /> },
+      { key: "294", page: "copilot/agents", label: "Agents", icon: <ToolOutlined style={{ fontSize: 18 }} /> },
+      { key: "295", page: "copilot/connections", label: "Connections", icon: <ApiOutlined style={{ fontSize: 18 }} /> },
+      { key: "296", page: "copilot/guardrails", label: "Guardrails", icon: <SafetyOutlined style={{ fontSize: 18 }} /> },
+      { key: "297", page: "copilot/models", label: "Models", icon: <BlockOutlined style={{ fontSize: 18 }} /> },
+      { key: "298", page: "copilot/entitlements", label: "Feature Access", icon: <TagsOutlined style={{ fontSize: 18 }} /> },
+      { key: "299", page: "copilot/marketplace", label: "Marketplace", icon: <AppstoreOutlined style={{ fontSize: 18 }} /> },
+      { key: "2910", page: "copilot/observability", label: "Observability", icon: <LineChartOutlined style={{ fontSize: 18 }} /> },
+      { key: "2911", page: "copilot/audit", label: "Audit Logs", icon: <AuditOutlined style={{ fontSize: 18 }} /> },
+      { key: "2912", page: "copilot/notifications", label: "Notifications", icon: <AuditOutlined style={{ fontSize: 18 }} /> },
+      { key: "2913", page: "copilot/support", label: "Support", icon: <FileTextOutlined style={{ fontSize: 18 }} /> },
+      { key: "2914", page: "copilot-control", label: "Advanced Control", icon: <SettingOutlined style={{ fontSize: 18 }} /> },
+    ],
+  },
+  {
+    key: "30",
+    page: "tenant-admin",
+    label: "Tenant Admin",
+    icon: <SafetyOutlined style={{ fontSize: 18 }} />,
+    roles: super_admin_roles,
   },
   {
     key: "28",
@@ -400,7 +435,7 @@ const Sidebar2: React.FC<SidebarProps> = ({ accessToken, userRole, defaultSelect
           <Menu
             mode="inline"
             selectedKeys={[selectedMenuKey]}
-            defaultOpenKeys={collapsed ? [] : ["llm-tools"]} // kept to preserve original appearance
+            defaultOpenKeys={collapsed ? [] : ["29", "26", "experimental", "settings"]}
             inlineCollapsed={collapsed}
             className="custom-sidebar-menu"
             style={{

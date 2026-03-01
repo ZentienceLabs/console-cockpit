@@ -510,6 +510,8 @@ describe("UsagePage", () => {
       premiumUser: true,
       disabledPersonalKeyCreation: false,
       showSSOBanner: false,
+      accountId: "account-test",
+      isSuperAdmin: false,
     });
     mockUseCurrentUser.mockReturnValue({
       data: {
@@ -814,6 +816,8 @@ describe("UsagePage", () => {
         premiumUser: false,
         disabledPersonalKeyCreation: false,
         showSSOBanner: false,
+        accountId: "account-test",
+        isSuperAdmin: false,
       });
 
       renderWithProviders(<UsagePage {...defaultProps} />);
@@ -842,6 +846,8 @@ describe("UsagePage", () => {
         premiumUser: false,
         disabledPersonalKeyCreation: false,
         showSSOBanner: false,
+        accountId: "account-test",
+        isSuperAdmin: false,
       });
 
       renderWithProviders(<UsagePage {...defaultProps} />);

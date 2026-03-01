@@ -121,6 +121,7 @@ function CreateKeyPageContent() {
 
   const [showSSOBanner, setShowSSOBanner] = useState<boolean>(true);
   const searchParams = useSearchParams()!;
+  const legacyMode = searchParams.get("legacy") === "1";
   const [modelData, setModelData] = useState<any>({ data: [] });
   const [token, setToken] = useState<string | null>(null);
   const [createClicked, setCreateClicked] = useState<boolean>(false);
@@ -175,6 +176,7 @@ function CreateKeyPageContent() {
     setCreateClicked(() => !createClicked);
   };
   const redirectToLogin = authLoading === false && token === null && invitation_id === null;
+  const shouldUseUnifiedCockpit = !legacyMode && invitation_id === null;
 
   useEffect(() => {
     let cancelled = false;
@@ -215,6 +217,18 @@ function CreateKeyPageContent() {
       window.location.replace(dest);
     }
   }, [redirectToLogin]);
+
+  useEffect(() => {
+    if (!shouldUseUnifiedCockpit) return;
+    if (authLoading || redirectToLogin || !token) return;
+
+    // Wait for role resolution before redirecting account admins.
+    if (!isSuperAdmin && !userRole) return;
+
+    const targetPage = isSuperAdmin ? "tenant-admin" : isAdminRole(userRole) ? "copilot" : "virtual-keys";
+    const target = `${proxyBaseUrl || ""}/ui/${targetPage}`;
+    window.location.replace(target);
+  }, [shouldUseUnifiedCockpit, authLoading, redirectToLogin, token, isSuperAdmin, userRole]);
 
   useEffect(() => {
     if (!token) {
@@ -374,6 +388,10 @@ function CreateKeyPageContent() {
   };
 
   if (authLoading || redirectToLogin) {
+    return <LoadingScreen />;
+  }
+
+  if (shouldUseUnifiedCockpit && token) {
     return <LoadingScreen />;
   }
 

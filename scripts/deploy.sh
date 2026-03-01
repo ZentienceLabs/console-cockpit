@@ -34,6 +34,21 @@ log()  { echo -e "${GREEN}[deploy]${NC} $*"; }
 warn() { echo -e "${YELLOW}[deploy]${NC} $*"; }
 err()  { echo -e "${RED}[deploy]${NC} $*" >&2; }
 
+load_env_exports() {
+    local env_file="$1"
+    python3 - "$env_file" <<'PY'
+import shlex
+import sys
+from dotenv import dotenv_values
+
+values = dotenv_values(sys.argv[1])
+for key, value in values.items():
+    if value is None:
+        continue
+    print(f"export {key}={shlex.quote(value)}")
+PY
+}
+
 # ─────────────────────────────────────────────
 # Activate Poetry venv if not already in one
 # ─────────────────────────────────────────────
@@ -48,10 +63,7 @@ fi
 # Load .env file if present and DATABASE_URL not already set
 if [ -z "${DATABASE_URL:-}" ] && [ -f "$PROJECT_ROOT/.env" ]; then
     set +u
-    set -a
-    # shellcheck disable=SC1091
-    source "$PROJECT_ROOT/.env"
-    set +a
+    eval "$(load_env_exports "$PROJECT_ROOT/.env")"
     set -u
 fi
 
@@ -158,6 +170,13 @@ build_ui() {
 # ─────────────────────────────────────────────
 start_server() {
     log "Starting Alchemi Studio Console on port $PORT..."
+    case "${DEBUG:-}" in
+        ""|0|1|true|false|TRUE|FALSE) ;;
+        *)
+            warn "DEBUG='$DEBUG' is not a valid boolean for litellm CLI; forcing DEBUG=false for startup."
+            export DEBUG=false
+            ;;
+    esac
     exec litellm --port "$PORT"
 }
 

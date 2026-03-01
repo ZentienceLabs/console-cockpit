@@ -82,6 +82,8 @@ vi.mock("@/app/(dashboard)/hooks/tags/useTags", () => ({
 }));
 
 const mockAuthorizedUser = (userRole: string, userId: string, premiumUser: boolean) => ({
+  isLoading: false,
+  isAuthorized: true,
   token: "test-token",
   accessToken: "test-access-token",
   userId,
@@ -90,6 +92,8 @@ const mockAuthorizedUser = (userRole: string, userId: string, premiumUser: boole
   premiumUser,
   disabledPersonalKeyCreation: false,
   showSSOBanner: false,
+  accountId: "account-test",
+  isSuperAdmin: false,
 });
 
 const testTeam: Team = {
@@ -104,6 +108,7 @@ const testTeam: Team = {
   created_at: "2024-01-01T00:00:00Z",
   keys: [],
   members_with_roles: [],
+  spend: 0,
 };
 
 const createTestProps = (userRole = "proxy_admin", userId = "user-1", isTeamAdmin = false) => {

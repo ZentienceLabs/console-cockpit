@@ -216,7 +216,7 @@ describe("RequestResponsePanel", () => {
         hasMessages={false}
         hasResponse={false}
         hasError={true}
-        errorInfo={failedLogEntry.metadata.error_information}
+        errorInfo={failedLogEntry.metadata?.error_information ?? null}
         getRawRequest={mockGetRawRequest}
         formattedResponse={mockFormattedResponse}
       />,

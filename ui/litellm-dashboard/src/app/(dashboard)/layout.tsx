@@ -5,7 +5,8 @@ import Navbar from "@/components/navbar";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import Sidebar2 from "@/app/(dashboard)/components/Sidebar2";
 import useAuthorized from "@/app/(dashboard)/hooks/useAuthorized";
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 /** ---- BASE URL HELPERS ---- */
 function normalizeBasePrefix(raw: string | undefined | null): string {
@@ -22,16 +23,14 @@ function withBase(path: string): string {
 }
 /** -------------------------------- */
 
-// Alchemi: Lazy-load Tenant Admin page for super admins
-const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
-
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const { accessToken, userRole, userId, userEmail, premiumUser, isSuperAdmin } = useAuthorized();
   const [sidebarCollapsed, setSidebarCollapsed] = React.useState(false);
   const [page, setPage] = useState(() => {
-    return searchParams.get("page") || "api-keys";
+    return searchParams.get("page") || (isSuperAdmin ? "tenant-admin" : "api-keys");
   });
 
   const updatePage = (newPage: string) => {
@@ -42,39 +41,24 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
-    setPage(searchParams.get("page") || "api-keys");
-  }, [searchParams]);
+    setPage(searchParams.get("page") || (isSuperAdmin ? "tenant-admin" : "api-keys"));
+  }, [searchParams, isSuperAdmin]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+    const normalized = (pathname || "").replace(/\/+$/, "");
+    const base = BASE_PREFIX.replace(/\/+$/, "");
+    if (normalized === base || normalized === `${base}/`) {
+      router.replace(withBase("/tenant-admin"));
+    }
+  }, [isSuperAdmin, pathname, router]);
 
   const toggleSidebar = () => setSidebarCollapsed((v) => !v);
-
-  // Alchemi: Super admin sees only the Tenant Management page
-  if (isSuperAdmin) {
-    return (
-      <ThemeProvider accessToken={""}>
-        <div className="flex flex-col min-h-screen">
-          <Navbar
-            isPublicPage={false}
-            sidebarCollapsed={false}
-            onToggleSidebar={() => {}}
-            userID={userId}
-            userEmail={userEmail}
-            userRole="Super Admin"
-            premiumUser={true}
-            proxySettings={undefined}
-            setProxySettings={() => {}}
-            accessToken={accessToken}
-            isDarkMode={false}
-            toggleDarkMode={() => {}}
-          />
-          <main className="flex-1">
-            <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
-              <TenantAdminPage />
-            </React.Suspense>
-          </main>
-        </div>
-      </ThemeProvider>
-    );
-  }
+  const hideSidebarForSuperAdminTenantAdmin = Boolean(
+    isSuperAdmin &&
+    pathname &&
+    pathname.replace(/\/+$/, "").endsWith("/tenant-admin")
+  );
 
   return (
     <ThemeProvider accessToken={""}>
@@ -85,7 +69,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           onToggleSidebar={toggleSidebar}
           userID={userId}
           userEmail={userEmail}
-          userRole={userRole}
+          userRole={isSuperAdmin ? "Super Admin" : userRole}
           premiumUser={premiumUser}
           proxySettings={undefined}
           setProxySettings={() => { }}
@@ -94,9 +78,11 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
           toggleDarkMode={() => { }}
         />
         <div className="flex flex-1 overflow-auto">
-          <div className="mt-2">
-            <Sidebar2 defaultSelectedKey={page} accessToken={accessToken} userRole={userRole} />
-          </div>
+          {!hideSidebarForSuperAdminTenantAdmin && (
+            <div className="mt-2">
+              <Sidebar2 defaultSelectedKey={page} accessToken={accessToken} userRole={userRole} />
+            </div>
+          )}
           <main className="flex-1">{children}</main>
         </div>
       </div>
@@ -105,9 +91,13 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 }
 
 export default function Layout({ children }: { children: React.ReactNode }) {
+  const [queryClient] = useState(() => new QueryClient());
+
   return (
-    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
-      <LayoutContent>{children}</LayoutContent>
-    </Suspense>
+    <QueryClientProvider client={queryClient}>
+      <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+        <LayoutContent>{children}</LayoutContent>
+      </Suspense>
+    </QueryClientProvider>
   );
 }

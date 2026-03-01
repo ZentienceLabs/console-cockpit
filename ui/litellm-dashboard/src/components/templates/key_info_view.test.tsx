@@ -108,6 +108,8 @@ describe("KeyInfoView", () => {
 
   // Base mock for useAuthorized hook
   const baseUseAuthorizedMock = {
+    isLoading: false,
+    isAuthorized: true,
     accessToken: "test-token",
     userId: "test-user",
     userRole: "admin",
@@ -116,6 +118,8 @@ describe("KeyInfoView", () => {
     userEmail: null,
     disabledPersonalKeyCreation: null,
     showSSOBanner: false,
+    accountId: "account-test",
+    isSuperAdmin: false,
   };
 
   it("should render tags", async () => {

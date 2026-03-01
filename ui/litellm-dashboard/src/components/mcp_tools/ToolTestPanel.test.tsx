@@ -91,10 +91,10 @@ describe("ToolTestPanel defaults", () => {
     expect(screen.getByLabelText("ratio")).toHaveValue(0.4);
     expect(screen.getByDisplayValue("True")).toBeInTheDocument();
 
-    const keywordsTextarea = screen.getByTestId("textarea-keywords");
+    const keywordsTextarea = screen.getByTestId("textarea-keywords") as HTMLTextAreaElement;
     expect(JSON.parse(keywordsTextarea.value)).toEqual([""]);
 
-    const payloadTextarea = screen.getByTestId("textarea-payload");
+    const payloadTextarea = screen.getByTestId("textarea-payload") as HTMLTextAreaElement;
     expect(JSON.parse(payloadTextarea.value)).toEqual({
       user: {
         id: "",
@@ -138,7 +138,7 @@ describe("ToolTestPanel defaults", () => {
     renderPanel(schema);
 
     expect(screen.getByLabelText("query")).toBeInTheDocument();
-    const filtersTextarea = screen.getByTestId("textarea-filters");
+    const filtersTextarea = screen.getByTestId("textarea-filters") as HTMLTextAreaElement;
     expect(JSON.parse(filtersTextarea.value)).toEqual({
       tag: "",
       metadata: { source: "" },

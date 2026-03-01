@@ -76,7 +76,7 @@ describe("CloudZeroIntegrationSettings", () => {
       </QueryClientProvider>,
     );
 
-    expect(screen.getByText(mockSettings.api_key_masked)).toBeInTheDocument();
-    expect(screen.getByText(mockSettings.connection_id)).toBeInTheDocument();
+    expect(screen.getByText(mockSettings.api_key_masked ?? "")).toBeInTheDocument();
+    expect(screen.getByText(mockSettings.connection_id ?? "")).toBeInTheDocument();
   });
 });

@@ -432,6 +432,15 @@ export const reloadModelCostMap = async (accessToken: string) => {
 };
 
 export const scheduleModelCostMapReload = async (accessToken: string, hours: number) => {
+  // This endpoint only accepts LiteLLM virtual/master keys (sk-*).
+  // When the UI is authenticated with JWT/OIDC token, skip to avoid noisy 401 logs.
+  if (!accessToken?.startsWith("sk-")) {
+    return {
+      scheduled: false,
+      skipped: true,
+      reason: "non_litellm_key_token",
+    };
+  }
   try {
     const url = proxyBaseUrl
       ? `${proxyBaseUrl}/schedule/model_cost_map_reload?hours=${hours}`
@@ -453,6 +462,13 @@ export const scheduleModelCostMapReload = async (accessToken: string, hours: num
 };
 
 export const cancelModelCostMapReload = async (accessToken: string) => {
+  if (!accessToken?.startsWith("sk-")) {
+    return {
+      scheduled: false,
+      skipped: true,
+      reason: "non_litellm_key_token",
+    };
+  }
   try {
     const url = proxyBaseUrl ? `${proxyBaseUrl}/schedule/model_cost_map_reload` : `/schedule/model_cost_map_reload`;
     const response = await fetch(url, {
@@ -472,6 +488,16 @@ export const cancelModelCostMapReload = async (accessToken: string) => {
 };
 
 export const getModelCostMapReloadStatus = async (accessToken: string) => {
+  if (!accessToken?.startsWith("sk-")) {
+    return {
+      scheduled: false,
+      interval_hours: null,
+      last_run: null,
+      next_run: null,
+      skipped: true,
+      reason: "non_litellm_key_token",
+    };
+  }
   try {
     const url = proxyBaseUrl
       ? `${proxyBaseUrl}/schedule/model_cost_map_reload/status`

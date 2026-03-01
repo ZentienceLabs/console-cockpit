@@ -584,6 +584,7 @@ try:
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
     from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
+    from alchemi.endpoints.control_plane_v1 import router as alchemi_control_plane_v1_router
 except ImportError:
     pass
 
@@ -10504,10 +10505,16 @@ async def login_resolve(request: Request):
         sso_result = await resolve_sso_for_email(email, prisma_client)
 
         if sso_result and sso_result.get("sso_enabled"):
+            sso_url = sso_result.get("sso_url")
+            if isinstance(sso_url, str) and email:
+                from urllib.parse import quote_plus
+
+                joiner = "&" if "?" in sso_url else "?"
+                sso_url = f"{sso_url}{joiner}login_hint={quote_plus(email)}"
             return JSONResponse(
                 content={
                     "method": "sso",
-                    "sso_url": sso_result.get("sso_url"),
+                    "sso_url": sso_url,
                     "account_id": sso_result.get("account_id"),
                 },
                 status_code=status.HTTP_200_OK,
@@ -12592,6 +12599,7 @@ try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
     app.include_router(alchemi_email_event_router)
+    app.include_router(alchemi_control_plane_v1_router)
 except NameError:
     pass
 ########################################################

@@ -25,7 +25,7 @@ const expandPanel = async () => {
 };
 
 const renderWithForm = (props = {}) => {
-  const Wrapper: React.FC = ({ children }) => {
+  const Wrapper = ({ children }: { children: React.ReactNode }) => {
     const [form] = Form.useForm();
     return (
       <Form form={form} initialValues={{ allow_all_keys: false }}>

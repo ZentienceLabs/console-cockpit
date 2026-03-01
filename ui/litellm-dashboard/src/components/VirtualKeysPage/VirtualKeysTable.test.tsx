@@ -97,7 +97,6 @@ const mockKey: KeyResponse = {
   litellm_budget_table: {},
   organization_id: "org-1",
   created_at: "2024-11-01T10:00:00Z",
-  created_by: "user-1",
   updated_at: "2024-11-15T10:00:00Z",
   team_spend: 5.5,
   team_alias: "Test Team",
@@ -140,6 +139,7 @@ const mockTeam: Team = {
   created_at: "2024-10-01T10:00:00Z",
   keys: [],
   members_with_roles: [],
+  spend: 0,
 };
 
 const mockOrganization: Organization = {

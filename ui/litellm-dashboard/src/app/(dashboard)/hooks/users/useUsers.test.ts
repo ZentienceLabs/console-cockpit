@@ -52,6 +52,7 @@ const buildUserListResponse = (
     user_role: "Internal User",
     spend: 0,
     max_budget: null,
+    models: [],
     key_count: 0,
     created_at: "2024-01-01T00:00:00Z",
     updated_at: "2024-01-01T00:00:00Z",

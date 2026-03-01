@@ -177,6 +177,24 @@ async def create_account(
                 data=update_data,
             )
 
+    # Bootstrap default Copilot global org for unified control-plane.
+    # Kept best-effort so account creation never fails if control-plane tables are not migrated yet.
+    try:
+        await prisma_client.db.query_raw(
+            'INSERT INTO \"Alchemi_CopilotOrgTable\" (id, account_id, name, description, is_default_global, created_by) '
+            'SELECT $1, $2, $3, $4, TRUE, $5 '
+            'WHERE NOT EXISTS ('
+            '  SELECT 1 FROM \"Alchemi_CopilotOrgTable\" WHERE account_id = $2 AND is_default_global = TRUE'
+            ')',
+            str(uuid.uuid4()),
+            account.account_id,
+            "global",
+            "Default global organization",
+            "super_admin",
+        )
+    except Exception:
+        pass
+
     return {
         "account_id": account.account_id,
         "account_name": account.account_name,

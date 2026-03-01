@@ -360,6 +360,17 @@ class ProxyExtrasDBManager:
                     )
 
     @staticmethod
+    def _skip_post_migration_sanity_check() -> bool:
+        """
+        Allow disabling Prisma diff+execute sanity check at startup.
+
+        This is useful when the deployed runtime uses extension tables managed
+        outside the current Prisma datamodel snapshot.
+        """
+        flag = os.getenv("LITELLM_SKIP_POST_MIGRATION_SANITY_CHECK", "false").strip().lower()
+        return flag in {"1", "true", "yes", "on"}
+
+    @staticmethod
     def setup_database(use_migrate: bool = False) -> bool:
         """
         Set up the database using either prisma migrate or prisma db push
@@ -395,12 +406,20 @@ class ProxyExtrasDBManager:
 
                         logger.info("prisma migrate deploy completed")
 
-                        # Run sanity check to ensure DB matches schema
-                        logger.info("Running post-migration sanity check...")
-                        ProxyExtrasDBManager._resolve_all_migrations(
-                            migrations_dir, schema_path, mark_all_applied=False
-                        )
-                        logger.info("✅ Post-migration sanity check completed")
+                        # Run sanity check to ensure DB matches schema (optional).
+                        # This can be disabled to avoid destructive drift operations
+                        # when extension/control-plane tables are managed separately.
+                        if ProxyExtrasDBManager._skip_post_migration_sanity_check():
+                            logger.info(
+                                "Skipping post-migration sanity check "
+                                "(LITELLM_SKIP_POST_MIGRATION_SANITY_CHECK=true)"
+                            )
+                        else:
+                            logger.info("Running post-migration sanity check...")
+                            ProxyExtrasDBManager._resolve_all_migrations(
+                                migrations_dir, schema_path, mark_all_applied=False
+                            )
+                            logger.info("✅ Post-migration sanity check completed")
                         return True
                     except subprocess.CalledProcessError as e:
                         logger.info(f"prisma db error: {e.stderr}, e: {e.stdout}")

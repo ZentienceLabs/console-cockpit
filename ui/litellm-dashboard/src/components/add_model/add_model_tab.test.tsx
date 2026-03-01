@@ -111,6 +111,7 @@ const createTestProps = () => {
       created_at: "2024-01-01T00:00:00Z",
       keys: [],
       members_with_roles: [],
+      spend: 0,
     },
   ];
 

@@ -35,6 +35,8 @@ describe("TopKeyView", () => {
   const mockTransformKeyInfo = vi.mocked(transformKeyInfo.transformKeyInfo);
 
   const mockAuth = {
+    isLoading: false,
+    isAuthorized: true,
     token: "mock-token",
     accessToken: "test-token",
     userId: "user-1",
@@ -43,6 +45,8 @@ describe("TopKeyView", () => {
     premiumUser: true,
     disabledPersonalKeyCreation: false,
     showSSOBanner: false,
+    accountId: "account-test",
+    isSuperAdmin: false,
   };
 
   const mockSetTopKeysLimit = vi.fn();

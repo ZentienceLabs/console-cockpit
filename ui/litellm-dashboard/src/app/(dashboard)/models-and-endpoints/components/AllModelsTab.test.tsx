@@ -85,6 +85,8 @@ describe("AllModelsTab", () => {
   };
 
   const mockUseAuthorized = {
+    isLoading: false,
+    isAuthorized: true,
     token: "mock-token",
     accessToken: "mock-access-token",
     userId: "user-123",
@@ -93,6 +95,8 @@ describe("AllModelsTab", () => {
     premiumUser: true,
     disabledPersonalKeyCreation: false,
     showSSOBanner: false,
+    accountId: "account-test",
+    isSuperAdmin: false,
   };
 
   beforeEach(() => {

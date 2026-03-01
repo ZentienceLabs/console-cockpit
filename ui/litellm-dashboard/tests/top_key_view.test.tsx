@@ -28,6 +28,8 @@ describe("TopKeyView", () => {
     teams: null,
     premiumUser: true,
     showTags: false,
+    topKeysLimit: 5,
+    setTopKeysLimit: vi.fn(),
   };
 
   const mockKeysWithTags = [
@@ -65,6 +67,8 @@ describe("TopKeyView", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUseAuthorized.mockReturnValue({
+      isLoading: false,
+      isAuthorized: true,
       token: "mock-token",
       accessToken: mockProps.accessToken,
       userId: mockProps.userID,
@@ -73,6 +77,8 @@ describe("TopKeyView", () => {
       premiumUser: mockProps.premiumUser,
       disabledPersonalKeyCreation: false,
       showSSOBanner: false,
+      accountId: "account-test",
+      isSuperAdmin: false,
     });
   });
 

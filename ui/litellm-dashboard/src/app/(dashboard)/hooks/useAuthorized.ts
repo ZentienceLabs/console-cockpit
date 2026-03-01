@@ -18,6 +18,8 @@ function formatUserRole(userRole: string) {
       return "App Owner";
     case "app_admin":
       return "Admin";
+    case "super_admin":
+      return "Super Admin";
     case "proxy_admin":
       return "Admin";
     case "proxy_admin_viewer":

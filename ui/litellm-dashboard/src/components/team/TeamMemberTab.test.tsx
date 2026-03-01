@@ -108,6 +108,8 @@ describe("TeamMembersComponent", () => {
       premiumUser: false,
       disabledPersonalKeyCreation: null,
       showSSOBanner: false,
+      accountId: "account-test",
+      isSuperAdmin: false,
     });
   });
 
