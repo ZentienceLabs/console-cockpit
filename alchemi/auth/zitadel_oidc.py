@@ -277,6 +277,7 @@ async def zitadel_callback(
     is_admin = _is_super_admin_email(email)
 
     account_id = None
+    prisma_client = None
     user_role = "proxy_admin" if is_admin else "internal_user"
 
     if not is_admin:
@@ -294,6 +295,60 @@ async def zitadel_callback(
             )
         except Exception:
             account_id = None
+    else:
+        from litellm.proxy.proxy_server import prisma_client
+
+    # Best-effort: keep LiteLLM_UserTable linked to account for directory visibility.
+    if prisma_client is not None:
+        try:
+            existing_user = await prisma_client.db.litellm_usertable.find_first(
+                where={
+                    "OR": [
+                        {"user_email": email},
+                        {"sso_user_id": zitadel_sub},
+                    ]
+                }
+            )
+            role_to_store = "proxy_admin" if is_admin else "internal_user"
+            if existing_user:
+                update_data: Dict[str, Any] = {
+                    "user_email": email,
+                    "user_role": role_to_store,
+                }
+                if zitadel_sub:
+                    update_data["sso_user_id"] = zitadel_sub
+                if account_id and not getattr(existing_user, "account_id", None):
+                    update_data["account_id"] = account_id
+                await prisma_client.db.litellm_usertable.update(
+                    where={"user_id": existing_user.user_id},
+                    data=update_data,
+                )
+            else:
+                await prisma_client.db.litellm_usertable.create(
+                    data={
+                        "user_id": email,
+                        "user_email": email,
+                        "user_alias": str(id_claims.get("name") or email),
+                        "user_role": role_to_store,
+                        "sso_user_id": zitadel_sub,
+                        "account_id": account_id,
+                        "spend": 0.0,
+                        "models": [],
+                        "teams": [],
+                    }
+                )
+
+            if account_id:
+                from alchemi.auth.account_resolver import reconcile_identity_account_links
+
+                await reconcile_identity_account_links(
+                    account_id=account_id,
+                    prisma_client=prisma_client,
+                    max_scan=2000,
+                )
+        except Exception:
+            # Login should not fail due to reconciliation drift.
+            pass
 
     # Generate an API key for the session (reuse existing helper)
     user_id = email if not is_admin else os.getenv("UI_USERNAME", email)

@@ -39,6 +39,7 @@ import {
   SettingOutlined,
 } from "@ant-design/icons";
 import PriceDataReload from "@/components/price_data_reload";
+import { getProxyBaseUrl } from "@/components/networking";
 
 const BillingOverview = React.lazy(() => import("@/components/tenant-admin/BillingOverview"));
 const ModelRegistry = React.lazy(() => import("@/components/tenant-admin/ModelRegistry"));
@@ -91,6 +92,11 @@ function getCookie(name: string): string | null {
   return null;
 }
 
+function getApiUrl(path: string): string {
+  const proxyBaseUrl = getProxyBaseUrl();
+  return proxyBaseUrl ? `${proxyBaseUrl}${path}` : path;
+}
+
 function normalizeAuthOrgId(value: unknown): string | undefined {
   const normalized = String(value ?? "").trim();
   return normalized.length > 0 ? normalized : undefined;
@@ -139,7 +145,8 @@ export default function TenantAdminPage() {
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/account/list", {
+      const url = getApiUrl("/account/list");
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (response.ok) {
@@ -166,7 +173,8 @@ export default function TenantAdminPage() {
         ...rest,
         metadata: mergeAccountMetadata(values?.metadata, auth_org_id),
       };
-      const response = await fetch("/account/new", {
+      const url = getApiUrl("/account/new");
+      const response = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -196,7 +204,8 @@ export default function TenantAdminPage() {
         ...rest,
         metadata: mergeAccountMetadata(selectedAccount.metadata, auth_org_id),
       };
-      const response = await fetch(`/account/${selectedAccount.account_id}`, {
+      const url = getApiUrl(`/account/${selectedAccount.account_id}`);
+      const response = await fetch(url, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -222,7 +231,8 @@ export default function TenantAdminPage() {
     const newStatus = account.status === "active" ? "suspended" : "active";
     try {
       if (newStatus === "suspended") {
-        const response = await fetch(`/account/${account.account_id}`, {
+        const url = getApiUrl(`/account/${account.account_id}`);
+        const response = await fetch(url, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${accessToken}` },
         });
@@ -231,7 +241,8 @@ export default function TenantAdminPage() {
           fetchAccounts();
         }
       } else {
-        const response = await fetch(`/account/${account.account_id}`, {
+        const url = getApiUrl(`/account/${account.account_id}`);
+        const response = await fetch(url, {
           method: "PUT",
           headers: {
             "Content-Type": "application/json",
@@ -252,8 +263,11 @@ export default function TenantAdminPage() {
   const handleAddAdmin = async (values: { user_email: string; password?: string }) => {
     if (!selectedAccount) return;
     try {
+      const url = getApiUrl(
+        `/account/${selectedAccount.account_id}/admin`
+      );
       const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin`,
+        url,
         {
           method: "POST",
           headers: {
@@ -279,8 +293,11 @@ export default function TenantAdminPage() {
   const handleRemoveAdmin = async (email: string) => {
     if (!selectedAccount) return;
     try {
+      const url = getApiUrl(
+        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(email)}`
+      );
       const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(email)}`,
+        url,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${accessToken}` },
@@ -311,8 +328,11 @@ export default function TenantAdminPage() {
       return;
     }
     try {
+      const url = getApiUrl(
+        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(selectedAdminEmail)}`
+      );
       const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(selectedAdminEmail)}`,
+        url,
         {
           method: "PUT",
           headers: {
@@ -344,8 +364,11 @@ export default function TenantAdminPage() {
       return;
     }
     try {
+      const url = getApiUrl(
+        `/account/${accountToDelete.account_id}/delete`
+      );
       const response = await fetch(
-        `/account/${accountToDelete.account_id}/delete`,
+        url,
         {
           method: "POST",
           headers: {
@@ -374,7 +397,8 @@ export default function TenantAdminPage() {
   const fetchSSOConfig = async (accountId: string) => {
     setSsoLoading(true);
     try {
-      const response = await fetch(`/account/${accountId}/sso`, {
+      const url = getApiUrl(`/account/${accountId}/sso`);
+      const response = await fetch(url, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
       if (response.ok) {
@@ -419,8 +443,11 @@ export default function TenantAdminPage() {
     }
 
     try {
+      const url = getApiUrl(
+        `/account/${selectedAccount.account_id}/sso`
+      );
       const response = await fetch(
-        `/account/${selectedAccount.account_id}/sso`,
+        url,
         {
           method: "PUT",
           headers: {
@@ -449,8 +476,11 @@ export default function TenantAdminPage() {
   const handleDeleteSSOConfig = async () => {
     if (!selectedAccount) return;
     try {
+      const url = getApiUrl(
+        `/account/${selectedAccount.account_id}/sso`
+      );
       const response = await fetch(
-        `/account/${selectedAccount.account_id}/sso`,
+        url,
         {
           method: "DELETE",
           headers: { Authorization: `Bearer ${accessToken}` },

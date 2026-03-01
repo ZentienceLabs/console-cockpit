@@ -1062,7 +1062,153 @@ class TestCopilotModelSelection:
 
 
 # ============================================================
-# 12. Copilot Global Ops Endpoints
+# 12. Copilot Scoped Policy Endpoints
+# ============================================================
+
+
+class TestCopilotScopedPolicies:
+    def test_model_policy_crud_and_resolve(
+        self, sa_client: httpx.Client, account_id: str
+    ):
+        selection_resp = sa_client.get(
+            "/copilot/models/selection", params={"account_id": account_id}
+        )
+        assert selection_resp.status_code == 200, f"Failed: {selection_resp.text}"
+        catalog = selection_resp.json().get("catalog_models", [])
+        if len(catalog) == 0:
+            pytest.skip("No copilot model catalog configured for scoped policy test")
+
+        selected = [catalog[0]]
+        upsert_resp = sa_client.put(
+            "/copilot/models/policies",
+            json={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "mode": "allowlist",
+                "selected_models": selected,
+            },
+        )
+        assert upsert_resp.status_code == 200, f"Failed: {upsert_resp.text}"
+
+        list_resp = sa_client.get(
+            "/copilot/models/policies",
+            params={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert list_resp.status_code == 200, f"Failed: {list_resp.text}"
+        rows = list_resp.json().get("data", [])
+        assert any(str(r.get("scope_id")) == account_id for r in rows)
+
+        resolve_resp = sa_client.get(
+            "/copilot/models/policies/resolve",
+            params={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert resolve_resp.status_code == 200, f"Failed: {resolve_resp.text}"
+        effective = resolve_resp.json().get("effective_models", [])
+        assert all(m in selected for m in effective), "effective models should respect account allowlist"
+
+        delete_resp = sa_client.request(
+            "DELETE",
+            "/copilot/models/policies",
+            json={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert delete_resp.status_code == 200, f"Failed: {delete_resp.text}"
+
+    def test_feature_policy_crud_and_resolve(
+        self, sa_client: httpx.Client, account_id: str
+    ):
+        upsert_resp = sa_client.put(
+            "/copilot/entitlements/features/policies",
+            json={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "flags": {"can_create_agents": False, "can_generate_images": True},
+            },
+        )
+        assert upsert_resp.status_code == 200, f"Failed: {upsert_resp.text}"
+
+        list_resp = sa_client.get(
+            "/copilot/entitlements/features/policies",
+            params={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert list_resp.status_code == 200, f"Failed: {list_resp.text}"
+        rows = list_resp.json().get("data", [])
+        assert any(str(r.get("scope_id")) == account_id for r in rows)
+
+        resolve_resp = sa_client.get(
+            "/copilot/entitlements/features/resolve",
+            params={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert resolve_resp.status_code == 200, f"Failed: {resolve_resp.text}"
+        effective = resolve_resp.json().get("effective_features", {})
+        assert effective.get("can_create_agents") is False
+
+        delete_resp = sa_client.request(
+            "DELETE",
+            "/copilot/entitlements/features/policies",
+            json={"account_id": account_id, "scope_type": "account", "scope_id": account_id},
+        )
+        assert delete_resp.status_code == 200, f"Failed: {delete_resp.text}"
+
+    def test_connection_permission_mode_crud_and_resolve(
+        self, sa_client: httpx.Client, account_id: str
+    ):
+        upsert_resp = sa_client.put(
+            "/copilot/connections/permission-modes",
+            json={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "connection_type": "mcp",
+                "permission_mode": "self_managed_allowed",
+                "allow_use_admin_connections": False,
+            },
+        )
+        assert upsert_resp.status_code == 200, f"Failed: {upsert_resp.text}"
+
+        list_resp = sa_client.get(
+            "/copilot/connections/permission-modes",
+            params={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "connection_type": "mcp",
+            },
+        )
+        assert list_resp.status_code == 200, f"Failed: {list_resp.text}"
+        rows = list_resp.json().get("data", [])
+        assert any(str(r.get("scope_id")) == account_id for r in rows)
+
+        resolve_resp = sa_client.get(
+            "/copilot/connections/permission-modes/resolve",
+            params={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "connection_type": "mcp",
+            },
+        )
+        assert resolve_resp.status_code == 200, f"Failed: {resolve_resp.text}"
+        data = resolve_resp.json()
+        assert data.get("permission_mode") == "self_managed_allowed"
+        assert data.get("allow_use_admin_connections") is False
+
+        delete_resp = sa_client.request(
+            "DELETE",
+            "/copilot/connections/permission-modes",
+            json={
+                "account_id": account_id,
+                "scope_type": "account",
+                "scope_id": account_id,
+                "connection_type": "mcp",
+            },
+        )
+        assert delete_resp.status_code == 200, f"Failed: {delete_resp.text}"
+
+
+# ============================================================
+# 13. Copilot Global Ops Endpoints
 # ============================================================
 
 

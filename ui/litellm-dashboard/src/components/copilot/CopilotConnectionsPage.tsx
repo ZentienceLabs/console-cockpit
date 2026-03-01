@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Button,
+  Card,
   Drawer,
   Form,
   Input,
@@ -28,18 +29,27 @@ import {
 import {
   useCopilotConnections,
   useCopilotEnabledIntegrations,
+  useCopilotFeaturePolicies,
   useCopilotIntegrationCatalog,
+  useCopilotConnectionPermissionModes,
   useCreateCopilotConnection,
   useCreateCopilotIntegrationCatalogEntry,
+  useDeleteCopilotConnectionPermissionMode,
+  useDeleteCopilotFeaturePolicy,
   useDeleteCopilotConnection,
   useDeleteCopilotIntegrationCatalogEntry,
+  useResolveCopilotConnectionPermissionMode,
+  useResolveCopilotFeaturePolicy,
   useTestCopilotConnection,
+  useUpsertCopilotConnectionPermissionMode,
+  useUpsertCopilotFeaturePolicy,
   useUpdateCopilotConnection,
   useUpdateCopilotEnabledIntegrations,
   useUpdateCopilotIntegrationCatalogEntry,
 } from "@/app/(dashboard)/hooks/copilot/useCopilotConnections";
 import useAuthorized from "@/app/(dashboard)/hooks/useAuthorized";
 import { useCopilotAccounts } from "@/app/(dashboard)/hooks/copilot/useCopilotAccounts";
+import { useCopilotDirectoryGroups, useCopilotDirectoryTeams, useCopilotUsers } from "@/app/(dashboard)/hooks/copilot/useCopilotDirectory";
 
 const { TabPane } = Tabs;
 const { TextArea } = Input;
@@ -66,6 +76,15 @@ const openApiSecretLocationOptions = [
   { label: "Query", value: "query" },
   { label: "URL Path", value: "url" },
   { label: "Body", value: "body" },
+];
+
+const featureFlagFields = [
+  { key: "can_create_connections_openapi", label: "Create OpenAPI Connections" },
+  { key: "can_create_connections_mcp", label: "Create MCP Connections" },
+  { key: "can_create_connections_composio", label: "Create Composio Connections" },
+  { key: "can_create_agents", label: "Create Agents" },
+  { key: "can_generate_images", label: "Image Generation" },
+  { key: "can_access_models", label: "Model Access" },
 ];
 
 function parseJsonField(raw: string | undefined, fieldLabel: string, fallback: any) {
@@ -171,14 +190,25 @@ const CopilotConnectionsPage: React.FC = () => {
 
   const [integrationModalOpen, setIntegrationModalOpen] = useState(false);
   const [editingIntegrationCatalogItem, setEditingIntegrationCatalogItem] = useState<any>(null);
+  const [permissionModalOpen, setPermissionModalOpen] = useState(false);
+  const [featurePolicyModalOpen, setFeaturePolicyModalOpen] = useState(false);
+  const [editingPermissionPolicy, setEditingPermissionPolicy] = useState<any>(null);
+  const [editingFeaturePolicy, setEditingFeaturePolicy] = useState<any>(null);
+  const [resolveScopeType, setResolveScopeType] = useState<string>("account");
+  const [resolveScopeId, setResolveScopeId] = useState<string>("");
+  const [resolveConnectionType, setResolveConnectionType] = useState<string>("mcp");
 
   const [form] = Form.useForm();
   const [catalogForm] = Form.useForm();
+  const [permissionForm] = Form.useForm();
+  const [featurePolicyForm] = Form.useForm();
 
   const connectionType = Form.useWatch("connection_type", form) || (activeTab === "openapi" ? "openapi" : "mcp");
   const mcpMode = Form.useWatch("mcp_mode", form) || "streamable-http";
   const openApiAuthType = Form.useWatch("openapi_auth_type", form) || "none";
   const openApiSpecMode = Form.useWatch("openapi_spec_mode", form) || "url";
+  const permissionScopeType = Form.useWatch("scope_type", permissionForm) || "account";
+  const featurePolicyScopeType = Form.useWatch("scope_type", featurePolicyForm) || "account";
 
   const accountFilter = isSuperAdmin ? selectedAccountId : undefined;
   const { data: accountData, isLoading: accountLoading } = useCopilotAccounts();
@@ -189,6 +219,16 @@ const CopilotConnectionsPage: React.FC = () => {
       setSelectedAccountId(accounts[0].account_id);
     }
   }, [isSuperAdmin, selectedAccountId, accounts]);
+
+  useEffect(() => {
+    const accountScopeId = String(accountFilter || accountId || "").trim();
+    if (!accountScopeId) return;
+    if (resolveScopeType === "account") {
+      setResolveScopeId(accountScopeId);
+    } else if (!resolveScopeId) {
+      setResolveScopeId(accountScopeId);
+    }
+  }, [accountFilter, accountId, resolveScopeType, resolveScopeId]);
 
   const { data: connectionsData, isLoading: connectionsLoading, refetch: refetchConnections } = useCopilotConnections({
     account_id: accountFilter,
@@ -203,6 +243,27 @@ const CopilotConnectionsPage: React.FC = () => {
     { account_id: accountFilter },
     !isSuperAdmin || Boolean(accountFilter),
   );
+  const accountScopedParams = isSuperAdmin ? { account_id: accountFilter } : undefined;
+  const governanceEnabled = !isSuperAdmin || Boolean(accountFilter);
+
+  const { data: permissionModeData, isLoading: permissionModeLoading, refetch: refetchPermissionModes } =
+    useCopilotConnectionPermissionModes(
+      governanceEnabled ? accountScopedParams : undefined,
+    );
+  const { data: featurePolicyData, isLoading: featurePolicyLoading, refetch: refetchFeaturePolicies } =
+    useCopilotFeaturePolicies(
+      governanceEnabled ? accountScopedParams : undefined,
+    );
+
+  const { data: directoryGroupsData } = useCopilotDirectoryGroups(
+    governanceEnabled ? { ...(accountScopedParams || {}), limit: 500, offset: 0 } : undefined,
+  );
+  const { data: directoryTeamsData } = useCopilotDirectoryTeams(
+    governanceEnabled ? { ...(accountScopedParams || {}), include_group: true, limit: 500, offset: 0 } : undefined,
+  );
+  const { data: directoryUsersData } = useCopilotUsers(
+    governanceEnabled ? { ...(accountScopedParams || {}), include_memberships: false, limit: 500, offset: 0 } : undefined,
+  );
 
   const createConnection = useCreateCopilotConnection();
   const updateConnection = useUpdateCopilotConnection();
@@ -213,12 +274,46 @@ const CopilotConnectionsPage: React.FC = () => {
   const updateCatalogEntry = useUpdateCopilotIntegrationCatalogEntry();
   const deleteCatalogEntry = useDeleteCopilotIntegrationCatalogEntry();
   const updateEnabledIntegrations = useUpdateCopilotEnabledIntegrations();
+  const upsertPermissionMode = useUpsertCopilotConnectionPermissionMode();
+  const deletePermissionMode = useDeleteCopilotConnectionPermissionMode();
+  const upsertFeaturePolicy = useUpsertCopilotFeaturePolicy();
+  const deleteFeaturePolicy = useDeleteCopilotFeaturePolicy();
+
+  const resolveEnabled = Boolean(governanceEnabled && resolveScopeType && resolveScopeId);
+  const { data: resolvedPermissionData, refetch: refetchResolvedPermission, isFetching: resolvingPermission } =
+    useResolveCopilotConnectionPermissionMode(
+      resolveEnabled
+        ? {
+            ...(accountScopedParams || {}),
+            connection_type: resolveConnectionType,
+            scope_type: resolveScopeType,
+            scope_id: resolveScopeId,
+          }
+        : undefined,
+      resolveEnabled,
+    );
+  const { data: resolvedFeatureData, refetch: refetchResolvedFeature, isFetching: resolvingFeature } =
+    useResolveCopilotFeaturePolicy(
+      resolveEnabled
+        ? {
+            ...(accountScopedParams || {}),
+            scope_type: resolveScopeType,
+            scope_id: resolveScopeId,
+          }
+        : undefined,
+      resolveEnabled,
+    );
 
   const rawConnections = connectionsData?.data ?? [];
   const connections = rawConnections.filter((row: any) => row.connection_type === "mcp" || row.connection_type === "openapi");
 
   const integrationCatalog = catalogData?.data ?? [];
   const enabledIntegrationIds: string[] = enabledData?.data?.enabled_integration_ids ?? [];
+  const permissionPolicies = permissionModeData?.data ?? [];
+  const featurePolicies = featurePolicyData?.data ?? [];
+  const directoryGroups = directoryGroupsData?.data ?? [];
+  const directoryTeams = directoryTeamsData?.data ?? [];
+  const directoryUsers = directoryUsersData?.data?.users ?? [];
 
   const canWriteAccountScoped = useMemo(() => {
     if (!isSuperAdmin) return true;
@@ -231,6 +326,144 @@ const CopilotConnectionsPage: React.FC = () => {
       return false;
     }
     return true;
+  };
+
+  const accountScopeId = String(accountFilter || accountId || "").trim();
+  const scopeOptionsByType = useMemo(() => {
+    return {
+      account: accountScopeId ? [{ label: accountScopeId, value: accountScopeId }] : [],
+      group: directoryGroups.map((g: any) => ({ label: g.name || g.id, value: g.id })),
+      team: directoryTeams.map((t: any) => ({ label: t.name || t.id, value: t.id })),
+      user: directoryUsers.map((u: any) => ({ label: u.email || u.name || u.id, value: u.id })),
+    };
+  }, [accountScopeId, directoryGroups, directoryTeams, directoryUsers]);
+
+  const permissionScopeOptions = scopeOptionsByType[permissionScopeType as keyof typeof scopeOptionsByType] || [];
+  const featureScopeOptions = scopeOptionsByType[featurePolicyScopeType as keyof typeof scopeOptionsByType] || [];
+  const resolveScopeOptions = scopeOptionsByType[resolveScopeType as keyof typeof scopeOptionsByType] || [];
+
+  const openCreatePermissionModal = () => {
+    setEditingPermissionPolicy(null);
+    permissionForm.resetFields();
+    permissionForm.setFieldsValue({
+      scope_type: "account",
+      scope_id: accountScopeId || undefined,
+      connection_type: "all",
+      permission_mode: "admin_managed_use_only",
+      allow_use_admin_connections: true,
+    });
+    setPermissionModalOpen(true);
+  };
+
+  const openEditPermissionModal = (row: any) => {
+    setEditingPermissionPolicy(row);
+    permissionForm.setFieldsValue({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      connection_type: row.connection_type,
+      permission_mode: row.permission_mode,
+      allow_use_admin_connections: row.allow_use_admin_connections,
+      notes: row.notes,
+    });
+    setPermissionModalOpen(true);
+  };
+
+  const savePermissionPolicy = async () => {
+    if (!ensureAccountForSuperAdminWrite()) return;
+    try {
+      const values = await permissionForm.validateFields();
+      await upsertPermissionMode.mutateAsync({
+        ...values,
+        account_id: isSuperAdmin ? accountFilter : undefined,
+      });
+      message.success("Connection permission mode saved.");
+      setPermissionModalOpen(false);
+      setEditingPermissionPolicy(null);
+      permissionForm.resetFields();
+      refetchPermissionModes();
+      refetchResolvedPermission();
+      refetchConnections();
+    } catch (e: any) {
+      if (e?.message) message.error(e.message);
+    }
+  };
+
+  const handleDeletePermissionPolicy = async (row: any) => {
+    if (!ensureAccountForSuperAdminWrite()) return;
+    await deletePermissionMode.mutateAsync({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      connection_type: row.connection_type,
+      account_id: isSuperAdmin ? accountFilter : undefined,
+    });
+    message.success("Connection permission mode deleted.");
+    refetchPermissionModes();
+    refetchResolvedPermission();
+    refetchConnections();
+  };
+
+  const openCreateFeaturePolicyModal = () => {
+    setEditingFeaturePolicy(null);
+    featurePolicyForm.resetFields();
+    featurePolicyForm.setFieldsValue({
+      scope_type: "account",
+      scope_id: accountScopeId || undefined,
+      notes: "",
+      ...Object.fromEntries(featureFlagFields.map((f) => [f.key, undefined])),
+    });
+    setFeaturePolicyModalOpen(true);
+  };
+
+  const openEditFeaturePolicyModal = (row: any) => {
+    const flags = row.flags || {};
+    setEditingFeaturePolicy(row);
+    featurePolicyForm.setFieldsValue({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      notes: row.notes,
+      ...Object.fromEntries(featureFlagFields.map((f) => [f.key, flags[f.key]])),
+    });
+    setFeaturePolicyModalOpen(true);
+  };
+
+  const saveFeaturePolicy = async () => {
+    if (!ensureAccountForSuperAdminWrite()) return;
+    try {
+      const values = await featurePolicyForm.validateFields();
+      const flags: Record<string, boolean> = {};
+      featureFlagFields.forEach((f) => {
+        if (typeof values[f.key] === "boolean") {
+          flags[f.key] = values[f.key];
+        }
+      });
+      await upsertFeaturePolicy.mutateAsync({
+        scope_type: values.scope_type,
+        scope_id: values.scope_id,
+        notes: values.notes,
+        flags,
+        account_id: isSuperAdmin ? accountFilter : undefined,
+      });
+      message.success("Feature policy saved.");
+      setFeaturePolicyModalOpen(false);
+      setEditingFeaturePolicy(null);
+      featurePolicyForm.resetFields();
+      refetchFeaturePolicies();
+      refetchResolvedFeature();
+    } catch (e: any) {
+      if (e?.message) message.error(e.message);
+    }
+  };
+
+  const handleDeleteFeaturePolicy = async (row: any) => {
+    if (!ensureAccountForSuperAdminWrite()) return;
+    await deleteFeaturePolicy.mutateAsync({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      account_id: isSuperAdmin ? accountFilter : undefined,
+    });
+    message.success("Feature policy deleted.");
+    refetchFeaturePolicies();
+    refetchResolvedFeature();
   };
 
   const toggleEnabledIntegration = async (integrationId: string, enabled: boolean) => {
@@ -740,6 +973,187 @@ const CopilotConnectionsPage: React.FC = () => {
             />
           </Space>
         </TabPane>
+
+        <TabPane tab="Governance" key="governance">
+          <Space direction="vertical" style={{ width: "100%" }} size={12}>
+            {!canWriteAccountScoped && (
+              <Alert
+                type="warning"
+                showIcon
+                message="Select an account"
+                description="Choose an account to manage scoped connection permissions and feature policies."
+              />
+            )}
+
+            <Card
+              title="Connection Permission Modes"
+              extra={
+                <Space>
+                  <Button onClick={() => refetchPermissionModes()}>Refresh</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openCreatePermissionModal} disabled={!canWriteAccountScoped}>
+                    Add Mode Policy
+                  </Button>
+                </Space>
+              }
+            >
+              <Table
+                rowKey={(r: any) => `${r.scope_type}:${r.scope_id}:${r.connection_type}`}
+                loading={permissionModeLoading}
+                dataSource={permissionPolicies}
+                pagination={{ pageSize: 8 }}
+                columns={[
+                  { title: "Scope Type", dataIndex: "scope_type", key: "scope_type" },
+                  { title: "Scope ID", dataIndex: "scope_id", key: "scope_id" },
+                  { title: "Connection Type", dataIndex: "connection_type", key: "connection_type" },
+                  { title: "Mode", dataIndex: "permission_mode", key: "permission_mode", render: (v: string) => <Tag color="blue">{v}</Tag> },
+                  {
+                    title: "Use Admin Connections",
+                    dataIndex: "allow_use_admin_connections",
+                    key: "allow_use_admin_connections",
+                    render: (v: boolean) => <Tag color={v ? "green" : "orange"}>{v ? "allowed" : "blocked"}</Tag>,
+                  },
+                  {
+                    title: "Actions",
+                    key: "actions",
+                    render: (_: any, row: any) => (
+                      <Space>
+                        <Button size="small" onClick={() => openEditPermissionModal(row)}>Edit</Button>
+                        <Popconfirm
+                          title="Delete permission mode"
+                          description={`Delete policy ${row.scope_type}:${row.scope_id}:${row.connection_type}?`}
+                          onConfirm={() => handleDeletePermissionPolicy(row)}
+                        >
+                          <Button size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+
+            <Card
+              title="Scoped Feature Flags"
+              extra={
+                <Space>
+                  <Button onClick={() => refetchFeaturePolicies()}>Refresh</Button>
+                  <Button type="primary" icon={<PlusOutlined />} onClick={openCreateFeaturePolicyModal} disabled={!canWriteAccountScoped}>
+                    Add Feature Policy
+                  </Button>
+                </Space>
+              }
+            >
+              <Table
+                rowKey={(r: any) => `${r.scope_type}:${r.scope_id}`}
+                loading={featurePolicyLoading}
+                dataSource={featurePolicies}
+                pagination={{ pageSize: 8 }}
+                columns={[
+                  { title: "Scope Type", dataIndex: "scope_type", key: "scope_type" },
+                  { title: "Scope ID", dataIndex: "scope_id", key: "scope_id" },
+                  {
+                    title: "Flags",
+                    dataIndex: "flags",
+                    key: "flags",
+                    render: (flags: Record<string, boolean>) =>
+                      Object.entries(flags || {})
+                        .map(([k, v]) => `${k}=${String(v)}`)
+                        .join(", ") || "-",
+                  },
+                  {
+                    title: "Actions",
+                    key: "actions",
+                    render: (_: any, row: any) => (
+                      <Space>
+                        <Button size="small" onClick={() => openEditFeaturePolicyModal(row)}>Edit</Button>
+                        <Popconfirm
+                          title="Delete feature policy"
+                          description={`Delete feature policy ${row.scope_type}:${row.scope_id}?`}
+                          onConfirm={() => handleDeleteFeaturePolicy(row)}
+                        >
+                          <Button size="small" danger icon={<DeleteOutlined />} />
+                        </Popconfirm>
+                      </Space>
+                    ),
+                  },
+                ]}
+              />
+            </Card>
+
+            <Card title="Resolve Effective Policies">
+              <Space wrap style={{ width: "100%" }}>
+                <Select
+                  style={{ width: 160 }}
+                  value={resolveScopeType}
+                  onChange={(value) => {
+                    setResolveScopeType(value);
+                    const fallback = value === "account" ? accountScopeId : "";
+                    setResolveScopeId(fallback || "");
+                  }}
+                  options={[
+                    { label: "Account", value: "account" },
+                    { label: "Group", value: "group" },
+                    { label: "Team", value: "team" },
+                    { label: "User", value: "user" },
+                  ]}
+                />
+                <Select
+                  showSearch
+                  optionFilterProp="label"
+                  style={{ minWidth: 360 }}
+                  value={resolveScopeId || undefined}
+                  onChange={(value) => setResolveScopeId(value)}
+                  options={resolveScopeOptions}
+                  placeholder="Select scope entity"
+                />
+                <Select
+                  style={{ width: 160 }}
+                  value={resolveConnectionType}
+                  onChange={setResolveConnectionType}
+                  options={[
+                    { label: "MCP", value: "mcp" },
+                    { label: "OpenAPI", value: "openapi" },
+                    { label: "Composio", value: "integration" },
+                  ]}
+                />
+                <Button
+                  onClick={() => {
+                    refetchResolvedPermission();
+                    refetchResolvedFeature();
+                  }}
+                  loading={resolvingPermission || resolvingFeature}
+                  disabled={!resolveEnabled}
+                >
+                  Resolve
+                </Button>
+              </Space>
+
+              <div style={{ marginTop: 12 }}>
+                <Tag color="blue">
+                  Permission Mode: {resolvedPermissionData?.permission_mode || "-"}
+                </Tag>
+                <Tag color={resolvedPermissionData?.allow_use_admin_connections ? "green" : "orange"}>
+                  Admin-Managed Use: {resolvedPermissionData?.allow_use_admin_connections ? "allowed" : "blocked"}
+                </Tag>
+                <Tag color="default">
+                  Permission From: {resolvedPermissionData?.resolved_from || "-"}
+                </Tag>
+              </div>
+
+              <div style={{ marginTop: 8 }}>
+                <Tag color="purple">
+                  can_create_connections_openapi={String(resolvedFeatureData?.effective_features?.can_create_connections_openapi)}
+                </Tag>
+                <Tag color="purple">
+                  can_create_connections_mcp={String(resolvedFeatureData?.effective_features?.can_create_connections_mcp)}
+                </Tag>
+                <Tag color="purple">
+                  can_create_connections_composio={String(resolvedFeatureData?.effective_features?.can_create_connections_composio)}
+                </Tag>
+              </div>
+            </Card>
+          </Space>
+        </TabPane>
       </Tabs>
 
       <Drawer
@@ -1056,6 +1470,119 @@ const CopilotConnectionsPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="is_active" label="Active" valuePropName="checked">
             <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingPermissionPolicy ? "Edit Connection Permission Mode" : "Add Connection Permission Mode"}
+        open={permissionModalOpen}
+        onCancel={() => {
+          setPermissionModalOpen(false);
+          setEditingPermissionPolicy(null);
+        }}
+        onOk={savePermissionPolicy}
+        okText={editingPermissionPolicy ? "Update" : "Create"}
+        confirmLoading={upsertPermissionMode.isPending}
+      >
+        <Form form={permissionForm} layout="vertical">
+          <Form.Item name="scope_type" label="Scope Type" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "Account", value: "account" },
+                { label: "Group", value: "group" },
+                { label: "Team", value: "team" },
+                { label: "User", value: "user" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item name="scope_id" label="Scope Entity" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={permissionScopeOptions}
+              placeholder="Select scope entity"
+            />
+          </Form.Item>
+
+          <Form.Item name="connection_type" label="Connection Type" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "All", value: "all" },
+                { label: "MCP", value: "mcp" },
+                { label: "OpenAPI", value: "openapi" },
+                { label: "Composio Integration", value: "integration" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item name="permission_mode" label="Permission Mode" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "Admin-managed (use only)", value: "admin_managed_use_only" },
+                { label: "Self-managed allowed", value: "self_managed_allowed" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item name="allow_use_admin_connections" label="Allow using admin-managed connections" valuePropName="checked">
+            <Switch />
+          </Form.Item>
+
+          <Form.Item name="notes" label="Notes">
+            <TextArea rows={3} />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingFeaturePolicy ? "Edit Scoped Feature Policy" : "Add Scoped Feature Policy"}
+        open={featurePolicyModalOpen}
+        onCancel={() => {
+          setFeaturePolicyModalOpen(false);
+          setEditingFeaturePolicy(null);
+        }}
+        onOk={saveFeaturePolicy}
+        okText={editingFeaturePolicy ? "Update" : "Create"}
+        confirmLoading={upsertFeaturePolicy.isPending}
+      >
+        <Form form={featurePolicyForm} layout="vertical">
+          <Form.Item name="scope_type" label="Scope Type" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "Account", value: "account" },
+                { label: "Group", value: "group" },
+                { label: "Team", value: "team" },
+                { label: "User", value: "user" },
+              ]}
+            />
+          </Form.Item>
+
+          <Form.Item name="scope_id" label="Scope Entity" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={featureScopeOptions}
+              placeholder="Select scope entity"
+            />
+          </Form.Item>
+
+          {featureFlagFields.map((field) => (
+            <Form.Item key={field.key} name={field.key} label={field.label}>
+              <Select
+                allowClear
+                placeholder="Inherit"
+                options={[
+                  { label: "Enabled", value: true },
+                  { label: "Disabled", value: false },
+                ]}
+              />
+            </Form.Item>
+          ))}
+
+          <Form.Item name="notes" label="Notes">
+            <TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>

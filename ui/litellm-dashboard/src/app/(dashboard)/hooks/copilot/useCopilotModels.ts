@@ -6,6 +6,10 @@ import {
   copilotModelCatalogDeleteCall,
   copilotModelCatalogImportFromRouterCall,
   copilotModelCatalogListCall,
+  copilotModelPolicyDeleteCall,
+  copilotModelPolicyListCall,
+  copilotModelPolicyResolveCall,
+  copilotModelPolicyUpsertCall,
   copilotModelCatalogUpdateCall,
   copilotModelSelectionAccountsCall,
   copilotModelSelectionBulkUpdateCall,
@@ -15,6 +19,7 @@ import {
 
 export const copilotModelSelectionKeys = createQueryKeys("copilotModelSelection");
 export const copilotModelCatalogKeys = createQueryKeys("copilotModelCatalog");
+export const copilotModelPolicyKeys = createQueryKeys("copilotModelPolicy");
 
 export const useCopilotModelSelection = (params?: { account_id?: string }) => {
   const { accessToken } = useAuthorized();
@@ -131,5 +136,53 @@ export const useImportCopilotModelCatalogFromRouter = () => {
       queryClient.invalidateQueries({ queryKey: copilotModelCatalogKeys.all });
       queryClient.invalidateQueries({ queryKey: copilotModelSelectionKeys.all });
     },
+  });
+};
+
+export const useCopilotModelPolicies = (params?: { account_id?: string; scope_type?: string; scope_id?: string }) => {
+  const { accessToken } = useAuthorized();
+  return useQuery({
+    queryKey: copilotModelPolicyKeys.list({ filters: params }),
+    queryFn: () => copilotModelPolicyListCall(accessToken!, params),
+    enabled: Boolean(accessToken),
+  });
+};
+
+export const useUpsertCopilotModelPolicy = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Record<string, any>) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotModelPolicyUpsertCall(accessToken, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotModelPolicyKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotModelSelectionKeys.all });
+    },
+  });
+};
+
+export const useDeleteCopilotModelPolicy = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: { scope_type: string; scope_id: string; account_id?: string }) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotModelPolicyDeleteCall(accessToken, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotModelPolicyKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotModelSelectionKeys.all });
+    },
+  });
+};
+
+export const useResolveCopilotModelPolicy = (params?: { account_id?: string; scope_type?: string; scope_id?: string }, enabled: boolean = true) => {
+  const { accessToken } = useAuthorized();
+  return useQuery({
+    queryKey: [...copilotModelPolicyKeys.all, "resolve", params] as const,
+    queryFn: () => copilotModelPolicyResolveCall(accessToken!, params),
+    enabled: Boolean(accessToken) && enabled,
   });
 };

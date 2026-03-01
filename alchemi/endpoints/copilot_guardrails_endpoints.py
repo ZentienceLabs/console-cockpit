@@ -3,7 +3,7 @@ Guardrails configuration and custom pattern management endpoints.
 Supports per-guard-type config, custom detection patterns, and immutable audit logging.
 """
 from datetime import datetime
-from typing import Optional
+from typing import Any, Dict, List, Optional, Set
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -11,10 +11,13 @@ from alchemi.db import copilot_db
 from alchemi.endpoints.copilot_auth import require_copilot_admin_access
 from alchemi.endpoints.copilot_types import (
     ActionOnFail,
+    BudgetScopeType,
     GuardType,
     GuardrailsConfigUpsert,
     GuardrailsPatternCreate,
     GuardrailsPatternUpdate,
+    GuardrailsScopePolicyDelete,
+    GuardrailsScopePolicyUpsert,
 )
 
 router = APIRouter(prefix="/copilot/guardrails", tags=["Copilot - Guardrails"])
@@ -55,6 +58,124 @@ def _resolve_account_scope(
     if not current:
         raise HTTPException(status_code=403, detail="Tenant account context not found.")
     return current
+
+
+_ALL_GUARD_TYPES = [guard.value for guard in GuardType]
+
+
+def _normalize_guard_config_payload(value: Any) -> Dict[str, Any]:
+    if isinstance(value, dict):
+        return dict(value)
+    return {}
+
+
+def _scope_policy_key(scope_type: str, scope_id: str) -> str:
+    return f"{scope_type}:{scope_id}"
+
+
+def _extract_scope_policies(config_payload: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    raw = config_payload.get("scope_policies")
+    if not isinstance(raw, dict):
+        return {}
+    output: Dict[str, Dict[str, Any]] = {}
+    for key, value in raw.items():
+        if not isinstance(key, str) or not isinstance(value, dict):
+            continue
+        output[key] = dict(value)
+    return output
+
+
+async def _find_or_create_guard_config(
+    account_id: str,
+    guard_type: str,
+    created_by: Optional[str],
+) -> Dict[str, Any]:
+    rows = await copilot_db.guardrails_config.find_many(
+        where={"account_id": account_id, "guard_type": guard_type},
+        limit=1,
+    )
+    if rows:
+        return rows[0]
+
+    return await copilot_db.guardrails_config.create(
+        data={
+            "account_id": account_id,
+            "guard_type": guard_type,
+            "enabled": False,
+            "execution_order": 1,
+            "action_on_fail": ActionOnFail.LOG_ONLY.value,
+            "config": {},
+            "created_by": created_by,
+            "updated_by": created_by,
+        }
+    )
+
+
+async def _list_scope_policies_for_account(account_id: str) -> List[Dict[str, Any]]:
+    configs = await copilot_db.guardrails_config.find_many(
+        where={"account_id": account_id},
+        order_by="execution_order ASC",
+    )
+
+    by_scope_key: Dict[str, Dict[str, Any]] = {}
+    for config in configs:
+        guard_type = str(config.get("guard_type") or "").strip().lower()
+        if guard_type not in _ALL_GUARD_TYPES:
+            continue
+        cfg = _normalize_guard_config_payload(config.get("config"))
+        scope_policies = _extract_scope_policies(cfg)
+        for key, value in scope_policies.items():
+            scope_type = str(value.get("scope_type") or "").strip().lower()
+            scope_id = str(value.get("scope_id") or "").strip()
+            if not scope_type or not scope_id:
+                continue
+            row = by_scope_key.setdefault(
+                key,
+                {
+                    "scope_type": scope_type,
+                    "scope_id": scope_id,
+                    "mode": value.get("mode") or "enforce",
+                    "notes": value.get("notes"),
+                    "is_enabled": bool(value.get("is_enabled", True)),
+                    "required_guard_types": set(),
+                    "updated_at": value.get("updated_at"),
+                    "updated_by": value.get("updated_by"),
+                },
+            )
+            if bool(value.get("is_enabled", True)):
+                casted = row.get("required_guard_types")
+                if isinstance(casted, set):
+                    casted.add(guard_type)
+
+            # Preserve latest metadata for mode/notes.
+            if value.get("updated_at"):
+                row["updated_at"] = value.get("updated_at")
+            if value.get("updated_by"):
+                row["updated_by"] = value.get("updated_by")
+            if value.get("mode"):
+                row["mode"] = value.get("mode")
+            if "notes" in value:
+                row["notes"] = value.get("notes")
+
+    output: List[Dict[str, Any]] = []
+    for row in by_scope_key.values():
+        required_guard_types = row.get("required_guard_types")
+        guards_list = sorted(list(required_guard_types)) if isinstance(required_guard_types, set) else []
+        output.append(
+            {
+                "scope_type": row.get("scope_type"),
+                "scope_id": row.get("scope_id"),
+                "mode": row.get("mode") or "enforce",
+                "notes": row.get("notes"),
+                "is_enabled": bool(row.get("is_enabled", True)),
+                "required_guard_types": guards_list,
+                "updated_at": row.get("updated_at"),
+                "updated_by": row.get("updated_by"),
+            }
+        )
+
+    output.sort(key=lambda r: (str(r.get("scope_type") or ""), str(r.get("scope_id") or "")))
+    return output
 
 
 # ============================================
@@ -227,6 +348,171 @@ async def toggle_guardrails_config(
         old["id"], {"enabled": new_enabled}
     )
     return {"data": config}
+
+
+@router.get("/policies")
+async def list_scope_policies(
+    request: Request,
+    account_id: Optional[str] = None,
+    scope_type: Optional[BudgetScopeType] = None,
+    scope_id: Optional[str] = None,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    List scope-level guardrail policy assignments (account/group/team/user).
+
+    Policies are persisted in guardrails_config.config.scope_policies, aggregated across guard types.
+    """
+    resolved_account_id = _resolve_account_scope(account_id, require_for_super_admin=True)
+    policies = await _list_scope_policies_for_account(resolved_account_id)
+
+    filtered = []
+    for policy in policies:
+        if scope_type and str(policy.get("scope_type")) != scope_type.value:
+            continue
+        if scope_id and str(policy.get("scope_id")) != str(scope_id):
+            continue
+        filtered.append(policy)
+    return {"data": filtered}
+
+
+@router.put("/policies")
+async def upsert_scope_policy(
+    data: GuardrailsScopePolicyUpsert,
+    request: Request,
+    account_id: Optional[str] = None,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    Upsert required guardrails for a scope (org/team/user/account).
+    """
+    user_id = _get_user_id(request)
+    resolved_account_id = _resolve_account_scope(account_id, require_for_super_admin=True)
+
+    if data.scope_type == BudgetScopeType.ACCOUNT and str(data.scope_id) != str(resolved_account_id):
+        raise HTTPException(status_code=400, detail="Account scope_id must match current account_id.")
+
+    scope_key = _scope_policy_key(data.scope_type.value, str(data.scope_id))
+    requested_types: Set[str] = {g.value for g in data.required_guard_types}
+    invalid = requested_types.difference(set(_ALL_GUARD_TYPES))
+    if invalid:
+        raise HTTPException(status_code=400, detail=f"Invalid guard types: {sorted(list(invalid))}")
+
+    now_iso = datetime.utcnow().isoformat()
+    for guard_type in _ALL_GUARD_TYPES:
+        row = await _find_or_create_guard_config(
+            account_id=resolved_account_id,
+            guard_type=guard_type,
+            created_by=user_id,
+        )
+        config_payload = _normalize_guard_config_payload(row.get("config"))
+        scope_policies = _extract_scope_policies(config_payload)
+
+        if data.is_enabled and guard_type in requested_types:
+            scope_policies[scope_key] = {
+                "scope_type": data.scope_type.value,
+                "scope_id": str(data.scope_id),
+                "mode": str(data.mode or "enforce"),
+                "notes": data.notes,
+                "is_enabled": True,
+                "updated_at": now_iso,
+                "updated_by": user_id,
+            }
+        else:
+            scope_policies.pop(scope_key, None)
+
+        config_payload["scope_policies"] = scope_policies
+        await copilot_db.guardrails_config.update(
+            str(row["id"]),
+            {
+                "config": config_payload,
+                "updated_by": user_id,
+            },
+        )
+
+    await copilot_db.guardrails_audit_log.create(
+        data={
+            "account_id": resolved_account_id,
+            "guard_type": "policy",
+            "action": "update",
+            "old_config": None,
+            "new_config": {
+                "scope_type": data.scope_type.value,
+                "scope_id": str(data.scope_id),
+                "required_guard_types": sorted(list(requested_types)),
+                "mode": data.mode,
+                "is_enabled": data.is_enabled,
+            },
+            "changed_by": user_id,
+        }
+    )
+
+    policies = await _list_scope_policies_for_account(resolved_account_id)
+    updated = next(
+        (
+            p
+            for p in policies
+            if str(p.get("scope_type")) == data.scope_type.value
+            and str(p.get("scope_id")) == str(data.scope_id)
+        ),
+        {
+            "scope_type": data.scope_type.value,
+            "scope_id": str(data.scope_id),
+            "required_guard_types": [],
+            "mode": data.mode,
+            "is_enabled": False,
+            "notes": data.notes,
+        },
+    )
+    return {"data": updated}
+
+
+@router.delete("/policies")
+async def delete_scope_policy(
+    data: GuardrailsScopePolicyDelete,
+    request: Request,
+    account_id: Optional[str] = None,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    Remove scope policy across all guard types for the given scope.
+    """
+    user_id = _get_user_id(request)
+    resolved_account_id = _resolve_account_scope(account_id, require_for_super_admin=True)
+    if data.scope_type == BudgetScopeType.ACCOUNT and str(data.scope_id) != str(resolved_account_id):
+        raise HTTPException(status_code=400, detail="Account scope_id must match current account_id.")
+    scope_key = _scope_policy_key(data.scope_type.value, str(data.scope_id))
+
+    rows = await copilot_db.guardrails_config.find_many(
+        where={"account_id": resolved_account_id},
+        limit=50,
+    )
+    for row in rows:
+        config_payload = _normalize_guard_config_payload(row.get("config"))
+        scope_policies = _extract_scope_policies(config_payload)
+        if scope_key not in scope_policies:
+            continue
+        scope_policies.pop(scope_key, None)
+        config_payload["scope_policies"] = scope_policies
+        await copilot_db.guardrails_config.update(
+            str(row["id"]),
+            {"config": config_payload, "updated_by": user_id},
+        )
+
+    await copilot_db.guardrails_audit_log.create(
+        data={
+            "account_id": resolved_account_id,
+            "guard_type": "policy",
+            "action": "delete",
+            "old_config": {
+                "scope_type": data.scope_type.value,
+                "scope_id": str(data.scope_id),
+            },
+            "new_config": None,
+            "changed_by": user_id,
+        }
+    )
+    return {"status": "ok"}
 
 
 # ============================================

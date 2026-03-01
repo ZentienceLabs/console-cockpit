@@ -10,12 +10,16 @@ import {
   copilotGuardrailsPatternCreateCall,
   copilotGuardrailsPatternUpdateCall,
   copilotGuardrailsPatternDeleteCall,
+  copilotGuardrailsPolicyDeleteCall,
+  copilotGuardrailsPolicyListCall,
+  copilotGuardrailsPolicyUpsertCall,
   copilotGuardrailsAuditListCall,
 } from "@/components/networking";
 
 export const copilotGuardrailsConfigKeys = createQueryKeys("copilotGuardrailsConfig");
 export const copilotGuardrailsPatternKeys = createQueryKeys("copilotGuardrailsPatterns");
 export const copilotGuardrailsAuditKeys = createQueryKeys("copilotGuardrailsAudit");
+export const copilotGuardrailsPolicyKeys = createQueryKeys("copilotGuardrailsPolicies");
 
 // Guard Configs
 export const useCopilotGuardrailsConfig = (params?: { account_id?: string }) => {
@@ -64,6 +68,47 @@ export const useToggleCopilotGuardrailsConfig = () => {
       queryClient.invalidateQueries({ queryKey: copilotGuardrailsConfigKeys.all });
       queryClient.invalidateQueries({ queryKey: copilotGuardrailsConfigKeys.detail(guardType) });
       queryClient.invalidateQueries({ queryKey: copilotGuardrailsAuditKeys.all });
+    },
+  });
+};
+
+export const useCopilotGuardrailsPolicies = (params?: { account_id?: string; scope_type?: string; scope_id?: string }) => {
+  const { accessToken } = useAuthorized();
+  return useQuery({
+    queryKey: copilotGuardrailsPolicyKeys.list({ filters: params }),
+    queryFn: () => copilotGuardrailsPolicyListCall(accessToken!, params),
+    enabled: Boolean(accessToken),
+  });
+};
+
+export const useUpsertCopilotGuardrailsPolicy = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ data, account_id }: { data: Record<string, any>; account_id?: string }) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotGuardrailsPolicyUpsertCall(accessToken, data, { account_id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsPolicyKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsAuditKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsConfigKeys.all });
+    },
+  });
+};
+
+export const useDeleteCopilotGuardrailsPolicy = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ data, account_id }: { data: { scope_type: string; scope_id: string }; account_id?: string }) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotGuardrailsPolicyDeleteCall(accessToken, data, { account_id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsPolicyKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsAuditKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotGuardrailsConfigKeys.all });
     },
   });
 };

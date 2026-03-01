@@ -26,6 +26,7 @@ import {
   DeleteOutlined,
   EditOutlined,
   PlusOutlined,
+  SyncOutlined,
 } from "@ant-design/icons";
 import {
   useAcceptCopilotInvite,
@@ -40,6 +41,7 @@ import {
   useDeleteCopilotDirectoryGroup,
   useDeleteCopilotDirectoryTeam,
   useRejectCopilotInvite,
+  useReconcileCopilotIdentityUsers,
   useUpdateCopilotDirectoryGroup,
   useUpdateCopilotDirectoryTeam,
   useUpdateCopilotMembership,
@@ -139,6 +141,7 @@ const CopilotDirectoryPage: React.FC = () => {
   const createInvite = useCreateCopilotInvite();
   const acceptInvite = useAcceptCopilotInvite();
   const rejectInvite = useRejectCopilotInvite();
+  const reconcileIdentityUsers = useReconcileCopilotIdentityUsers();
 
   const users = usersQuery.data?.data?.users ?? [];
   const groups = groupsQuery.data?.data ?? [];
@@ -543,6 +546,24 @@ const CopilotDirectoryPage: React.FC = () => {
             ]}
           />
         </Space>
+        {directorySource === "identity" && (
+          <Button
+            icon={<SyncOutlined />}
+            loading={reconcileIdentityUsers.isPending}
+            onClick={async () => {
+              try {
+                const response = await reconcileIdentityUsers.mutateAsync({ account_id: accountFilter });
+                const updatedCount = response?.data?.updated_count ?? 0;
+                message.success(`Identity reconciliation complete. Updated ${updatedCount} user(s).`);
+                await Promise.all([usersQuery.refetch(), groupsQuery.refetch(), teamsQuery.refetch()]);
+              } catch (e: any) {
+                message.error(e?.message || "Failed to reconcile identity users");
+              }
+            }}
+          >
+            Reconcile Identity Users
+          </Button>
+        )}
       </div>
 
       {directorySource === "identity" && (

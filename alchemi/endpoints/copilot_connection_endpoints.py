@@ -5,6 +5,7 @@ Also exposes Composio integration visibility catalog + account enablement contro
 """
 
 import copy
+import json
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -12,7 +13,15 @@ from pydantic import BaseModel, Field
 
 from alchemi.db import copilot_db
 from alchemi.endpoints.copilot_audit_helpers import log_copilot_audit_event
-from alchemi.endpoints.copilot_auth import require_copilot_admin_access
+from alchemi.endpoints.copilot_auth import (
+    require_copilot_admin_access,
+    require_copilot_user_access,
+)
+from alchemi.endpoints.copilot_policy_utils import (
+    is_admin_claims,
+    normalize_scope_type,
+    resolve_scope_chain,
+)
 from alchemi.endpoints.copilot_types import (
     ConnectionCreate,
     ConnectionType,
@@ -27,6 +36,8 @@ _SECRET_FIELDS = {
     "api_key", "bearer_token", "password", "client_secret",
     "token", "secret", "credentials", "api_key_value",
 }
+_CONNECTION_POLICY_TYPES = {"all", "mcp", "openapi", "integration"}
+_CONNECTION_PERMISSION_MODES = {"admin_managed_use_only", "self_managed_allowed"}
 
 
 class IntegrationCatalogCreate(BaseModel):
@@ -57,6 +68,23 @@ class IntegrationCatalogUpdate(BaseModel):
 
 class IntegrationEnabledUpdate(BaseModel):
     integration_ids: List[str] = Field(default_factory=list)
+    account_id: Optional[str] = None
+
+
+class ConnectionPermissionPolicyUpsert(BaseModel):
+    scope_type: str
+    scope_id: str
+    connection_type: str = "all"
+    permission_mode: str = "admin_managed_use_only"
+    allow_use_admin_connections: bool = True
+    notes: Optional[str] = None
+    account_id: Optional[str] = None
+
+
+class ConnectionPermissionPolicyDelete(BaseModel):
+    scope_type: str
+    scope_id: str
+    connection_type: str = "all"
     account_id: Optional[str] = None
 
 
@@ -208,6 +236,389 @@ def _merge_connection_data(existing, incoming) -> dict:
             incoming = {}
 
     return _deep_merge_preserving_masked(existing, incoming)
+
+
+def _normalize_connection_policy_type(value: str) -> str:
+    parsed = str(value or "all").strip().lower()
+    if parsed not in _CONNECTION_POLICY_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="connection_type must be one of: all, mcp, openapi, integration.",
+        )
+    return parsed
+
+
+def _normalize_connection_permission_mode(value: str) -> str:
+    parsed = str(value or "admin_managed_use_only").strip().lower()
+    if parsed not in _CONNECTION_PERMISSION_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail="permission_mode must be one of: admin_managed_use_only, self_managed_allowed.",
+        )
+    return parsed
+
+
+def _connection_owner_user_id(connection: Dict[str, Any]) -> Optional[str]:
+    metadata = connection.get("metadata")
+    owner_from_meta = None
+    if isinstance(metadata, dict):
+        owner_from_meta = metadata.get("owner_user_id")
+    owner = str(owner_from_meta or connection.get("created_by") or "").strip()
+    return owner or None
+
+
+def _connection_management_mode(connection: Dict[str, Any]) -> str:
+    metadata = connection.get("metadata")
+    mode = None
+    if isinstance(metadata, dict):
+        mode = metadata.get("management_mode")
+    parsed = str(mode or "").strip().lower()
+    if parsed in {"self_managed", "admin_managed"}:
+        return parsed
+    owner = _connection_owner_user_id(connection)
+    return "self_managed" if owner else "admin_managed"
+
+
+def _normalize_feature_flags(raw: Any) -> Dict[str, bool]:
+    if isinstance(raw, str) and raw.strip():
+        try:
+            parsed = json.loads(raw)
+            raw = parsed if isinstance(parsed, dict) else {}
+        except Exception:
+            raw = {}
+    if not isinstance(raw, dict):
+        return {}
+    output: Dict[str, bool] = {}
+    for key, value in raw.items():
+        k = str(key or "").strip()
+        if not k:
+            continue
+        if isinstance(value, bool):
+            output[k] = value
+        elif isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"true", "1", "yes", "enabled", "on"}:
+                output[k] = True
+            elif lowered in {"false", "0", "no", "disabled", "off"}:
+                output[k] = False
+    return output
+
+
+def _base_connection_feature_flags(account_metadata: Any) -> Dict[str, bool]:
+    defaults = {
+        "can_create_connections_openapi": True,
+        "can_create_connections_mcp": True,
+        "can_create_connections_composio": True,
+    }
+    parsed = account_metadata if isinstance(account_metadata, dict) else {}
+    entitlements = parsed.get("entitlements", {})
+    if not isinstance(entitlements, dict):
+        return defaults
+    features = _normalize_feature_flags(entitlements.get("features"))
+    defaults.update({k: v for k, v in features.items() if k in defaults})
+    if "copilot_connections" in features:
+        allowed = bool(features.get("copilot_connections"))
+        defaults["can_create_connections_openapi"] = allowed
+        defaults["can_create_connections_mcp"] = allowed
+        defaults["can_create_connections_composio"] = allowed
+    return defaults
+
+
+async def _resolve_connection_permission(
+    account_id: str,
+    connection_type: str,
+    actor_claims: Optional[Dict[str, Any]],
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
+) -> Dict[str, Any]:
+    resolved_scope_type = normalize_scope_type(scope_type) if scope_type else None
+    resolved_scope_id = str(scope_id or "").strip() if scope_id else None
+    if resolved_scope_type and not resolved_scope_id:
+        raise HTTPException(status_code=400, detail="scope_id is required when scope_type is provided.")
+
+    if not resolved_scope_type:
+        actor_user_id = str((actor_claims or {}).get("user_id") or "").strip()
+        if actor_user_id:
+            resolved_scope_type = "user"
+            resolved_scope_id = actor_user_id
+        else:
+            resolved_scope_type = "account"
+            resolved_scope_id = str(account_id)
+
+    chain = await resolve_scope_chain(
+        account_id=account_id,
+        scope_type=resolved_scope_type,
+        scope_id=str(resolved_scope_id),
+        claims=actor_claims,
+    )
+
+    rows = await copilot_db.connection_permission_policies.find_many(
+        where={"account_id": account_id},
+        order_by="updated_at DESC",
+        limit=5000,
+    )
+    by_scope_and_type: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = f"{str(row.get('scope_type') or '')}:{str(row.get('scope_id') or '')}:{str(row.get('connection_type') or '')}"
+        if key not in by_scope_and_type:
+            by_scope_and_type[key] = row
+
+    mode = "admin_managed_use_only"
+    allow_use_admin_connections = True
+    resolved_from = "default"
+
+    for scope_item in reversed(chain):  # account -> ... -> specific
+        for ctype in ("all", connection_type):
+            key = f"{scope_item['scope_type']}:{scope_item['scope_id']}:{ctype}"
+            row = by_scope_and_type.get(key)
+            if not row:
+                continue
+            mode = _normalize_connection_permission_mode(str(row.get("permission_mode") or mode))
+            allow_use_admin_connections = bool(row.get("allow_use_admin_connections", allow_use_admin_connections))
+            resolved_from = f"{scope_item['scope_type']}:{scope_item['scope_id']}:{ctype}"
+
+    return {
+        "resolved_scope": {"scope_type": resolved_scope_type, "scope_id": str(resolved_scope_id)},
+        "scope_chain": chain,
+        "permission_mode": mode,
+        "allow_use_admin_connections": allow_use_admin_connections,
+        "resolved_from": resolved_from,
+    }
+
+
+async def _resolve_connection_create_feature_gate(
+    account_id: str,
+    account_metadata: Any,
+    connection_type: str,
+    actor_claims: Optional[Dict[str, Any]],
+) -> Dict[str, Any]:
+    key_map = {
+        "mcp": "can_create_connections_mcp",
+        "openapi": "can_create_connections_openapi",
+        "integration": "can_create_connections_composio",
+    }
+    feature_key = key_map.get(connection_type, "can_create_connections_openapi")
+    features = _base_connection_feature_flags(account_metadata)
+
+    actor_user_id = str((actor_claims or {}).get("user_id") or "").strip()
+    if actor_user_id:
+        scope_type = "user"
+        scope_id = actor_user_id
+    else:
+        scope_type = "account"
+        scope_id = str(account_id)
+
+    chain = await resolve_scope_chain(
+        account_id=account_id,
+        scope_type=scope_type,
+        scope_id=scope_id,
+        claims=actor_claims,
+    )
+    rows = await copilot_db.feature_flag_policies.find_many(
+        where={"account_id": account_id},
+        order_by="updated_at DESC",
+        limit=5000,
+    )
+    by_scope: Dict[str, Dict[str, Any]] = {}
+    for row in rows:
+        key = f"{str(row.get('scope_type') or '')}:{str(row.get('scope_id') or '')}"
+        if key not in by_scope:
+            by_scope[key] = row
+
+    resolved_from = "account_entitlements_default"
+    for scope_item in reversed(chain):
+        row = by_scope.get(f"{scope_item['scope_type']}:{scope_item['scope_id']}")
+        if not row:
+            continue
+        flags = _normalize_feature_flags(row.get("flags"))
+        if feature_key in flags:
+            features[feature_key] = bool(flags[feature_key])
+            resolved_from = f"{scope_item['scope_type']}:{scope_item['scope_id']}"
+
+    return {
+        "feature_key": feature_key,
+        "enabled": bool(features.get(feature_key, True)),
+        "resolved_from": resolved_from,
+    }
+
+
+@router.get("/permission-modes")
+async def list_connection_permission_modes(
+    request: Request,
+    account_id: Optional[str] = None,
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
+    connection_type: Optional[str] = None,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """List scoped connection permission mode policies."""
+    resolved_account_id = _resolve_required_account_for_write(account_id)
+    where: Dict[str, Any] = {"account_id": resolved_account_id}
+    if scope_type:
+        where["scope_type"] = normalize_scope_type(scope_type)
+    if scope_id:
+        where["scope_id"] = str(scope_id)
+    if connection_type:
+        where["connection_type"] = _normalize_connection_policy_type(connection_type)
+
+    rows = await copilot_db.connection_permission_policies.find_many(
+        where=where,
+        order_by="scope_type ASC, scope_id ASC, connection_type ASC",
+        limit=5000,
+    )
+    return {"data": rows, "total": len(rows)}
+
+
+@router.put("/permission-modes")
+async def upsert_connection_permission_mode(
+    data: ConnectionPermissionPolicyUpsert,
+    request: Request,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """Upsert scoped connection permission mode policy."""
+    resolved_account_id = _resolve_required_account_for_write(data.account_id)
+    scope_type = normalize_scope_type(data.scope_type)
+    scope_id = str(data.scope_id or "").strip()
+    if not scope_id:
+        raise HTTPException(status_code=400, detail="scope_id is required.")
+    if scope_type == "account" and scope_id != str(resolved_account_id):
+        raise HTTPException(status_code=400, detail="Account scope_id must match account_id.")
+
+    policy_connection_type = _normalize_connection_policy_type(data.connection_type)
+    permission_mode = _normalize_connection_permission_mode(data.permission_mode)
+    actor_user_id = str((_auth or {}).get("user_id") or "").strip() or None
+
+    rows = await copilot_db.connection_permission_policies.find_many(
+        where={
+            "account_id": resolved_account_id,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "connection_type": policy_connection_type,
+        },
+        limit=1,
+    )
+    if rows:
+        row = await copilot_db.connection_permission_policies.update(
+            rows[0]["id"],
+            {
+                "permission_mode": permission_mode,
+                "allow_use_admin_connections": bool(data.allow_use_admin_connections),
+                "notes": data.notes,
+                "updated_by": actor_user_id,
+            },
+        )
+        action = "update"
+    else:
+        row = await copilot_db.connection_permission_policies.create(
+            {
+                "account_id": resolved_account_id,
+                "scope_type": scope_type,
+                "scope_id": scope_id,
+                "connection_type": policy_connection_type,
+                "permission_mode": permission_mode,
+                "allow_use_admin_connections": bool(data.allow_use_admin_connections),
+                "notes": data.notes,
+                "created_by": actor_user_id,
+                "updated_by": actor_user_id,
+            }
+        )
+        action = "create"
+
+    await log_copilot_audit_event(
+        account_id=resolved_account_id,
+        event_type="copilot_connection_permission_policy",
+        resource_type="connection_permission_policy",
+        resource_id=str(row.get("id") or ""),
+        action=action,
+        message=f"{action.title()}d connection permission mode for {scope_type}:{scope_id} ({policy_connection_type}).",
+        details={
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "connection_type": policy_connection_type,
+            "permission_mode": permission_mode,
+            "allow_use_admin_connections": bool(data.allow_use_admin_connections),
+        },
+        request=request,
+    )
+    return {"data": row}
+
+
+@router.delete("/permission-modes")
+async def delete_connection_permission_mode(
+    data: ConnectionPermissionPolicyDelete,
+    request: Request,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """Delete scoped connection permission mode policy."""
+    resolved_account_id = _resolve_required_account_for_write(data.account_id)
+    scope_type = normalize_scope_type(data.scope_type)
+    scope_id = str(data.scope_id or "").strip()
+    if not scope_id:
+        raise HTTPException(status_code=400, detail="scope_id is required.")
+    if scope_type == "account" and scope_id != str(resolved_account_id):
+        raise HTTPException(status_code=400, detail="Account scope_id must match account_id.")
+
+    policy_connection_type = _normalize_connection_policy_type(data.connection_type)
+    rows = await copilot_db.connection_permission_policies.find_many(
+        where={
+            "account_id": resolved_account_id,
+            "scope_type": scope_type,
+            "scope_id": scope_id,
+            "connection_type": policy_connection_type,
+        },
+        limit=1,
+    )
+    if not rows:
+        return {"status": "ok", "deleted": False}
+
+    row = rows[0]
+    deleted = await copilot_db.connection_permission_policies.delete(row["id"])
+    if deleted:
+        await log_copilot_audit_event(
+            account_id=resolved_account_id,
+            event_type="copilot_connection_permission_policy",
+            resource_type="connection_permission_policy",
+            resource_id=str(row.get("id") or ""),
+            action="delete",
+            severity="warning",
+            message=f"Deleted connection permission mode for {scope_type}:{scope_id} ({policy_connection_type}).",
+            details={
+                "scope_type": scope_type,
+                "scope_id": scope_id,
+                "connection_type": policy_connection_type,
+            },
+            request=request,
+        )
+    return {"status": "ok", "deleted": bool(deleted)}
+
+
+@router.get("/permission-modes/resolve")
+async def resolve_connection_permission_mode(
+    request: Request,
+    account_id: Optional[str] = None,
+    connection_type: str = Query(default="mcp"),
+    scope_type: Optional[str] = None,
+    scope_id: Optional[str] = None,
+    _auth=Depends(require_copilot_user_access),
+):
+    """Resolve effective connection permission mode for actor scope."""
+    resolved_account_id = _resolve_required_account_for_write(account_id)
+    parsed_connection_type = _normalize_connection_policy_type(connection_type)
+    if parsed_connection_type == "all":
+        parsed_connection_type = "mcp"
+
+    resolved = await _resolve_connection_permission(
+        account_id=resolved_account_id,
+        connection_type=parsed_connection_type,
+        actor_claims=_auth,
+        scope_type=scope_type,
+        scope_id=scope_id,
+    )
+    return {
+        "account_id": resolved_account_id,
+        "connection_type": parsed_connection_type,
+        **resolved,
+    }
 
 
 @router.get("/integrations/catalog")
@@ -430,7 +841,7 @@ async def list_connections(
     is_active: Optional[bool] = None,
     limit: int = Query(default=100, le=500),
     offset: int = 0,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """List connections with optional filters."""
     where = {}
@@ -450,6 +861,40 @@ async def list_connections(
     )
     total = await copilot_db.account_connections.count(where=where if where else None)
 
+    is_admin = is_admin_claims(_auth)
+    if not is_admin:
+        actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+        permission_cache: Dict[str, Dict[str, Any]] = {}
+        filtered: List[Dict[str, Any]] = []
+        for conn in connections:
+            ctype = str(conn.get("connection_type") or "").strip().lower()
+            if ctype not in {"mcp", "openapi", "integration"}:
+                continue
+            if ctype not in permission_cache:
+                permission_cache[ctype] = await _resolve_connection_permission(
+                    account_id=str(conn.get("account_id") or resolved_account_id or ""),
+                    connection_type=ctype,
+                    actor_claims=_auth,
+                )
+            permission = permission_cache[ctype]
+            mgmt_mode = _connection_management_mode(conn)
+            owner_user_id = _connection_owner_user_id(conn)
+
+            if mgmt_mode == "self_managed":
+                if (
+                    actor_user_id
+                    and owner_user_id == actor_user_id
+                    and permission.get("permission_mode") == "self_managed_allowed"
+                ):
+                    filtered.append(conn)
+                continue
+
+            if permission.get("allow_use_admin_connections", True):
+                filtered.append(conn)
+
+        connections = filtered
+        total = len(connections)
+
     # Mask secrets in response
     for conn in connections:
         if "connection_data" in conn and conn["connection_data"]:
@@ -463,21 +908,11 @@ async def create_connection(
     data: ConnectionCreate,
     request: Request,
     account_id: Optional[str] = None,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """Create a new connection."""
-    from alchemi.middleware.account_middleware import decode_jwt_token, extract_token_from_request
-
-    # Get user info for created_by
-    token = extract_token_from_request(request)
-    user_id = None
-    if token:
-        from alchemi.middleware.account_middleware import _get_master_key
-
-        decoded = decode_jwt_token(token, _get_master_key())
-        if decoded:
-            user_id = decoded.get("user_id")
-
+    user_id = str((_auth or {}).get("user_id") or "").strip() or None
+    is_admin = is_admin_claims(_auth)
     create_data = data.model_dump()
     create_data["account_id"] = _resolve_required_account_for_write(account_id)
     create_data["connection_type"] = create_data["connection_type"].value
@@ -492,6 +927,50 @@ async def create_connection(
                 "Use /copilot/connections/integrations/enabled for account enablement."
             ),
         )
+
+    from litellm.proxy.proxy_server import prisma_client
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    account = await prisma_client.db.alchemi_accounttable.find_unique(
+        where={"account_id": create_data["account_id"]}
+    )
+    if not account:
+        raise HTTPException(status_code=404, detail="Account not found")
+
+    if not is_admin:
+        permission = await _resolve_connection_permission(
+            account_id=create_data["account_id"],
+            connection_type=create_data["connection_type"],
+            actor_claims=_auth,
+        )
+        if permission.get("permission_mode") != "self_managed_allowed":
+            raise HTTPException(
+                status_code=403,
+                detail="Connection creation is restricted to admin-managed use-only mode for your scope.",
+            )
+        feature_gate = await _resolve_connection_create_feature_gate(
+            account_id=create_data["account_id"],
+            account_metadata=account.metadata,
+            connection_type=create_data["connection_type"],
+            actor_claims=_auth,
+        )
+        if not feature_gate.get("enabled", True):
+            raise HTTPException(
+                status_code=403,
+                detail=f"Feature '{feature_gate.get('feature_key')}' is disabled for your scope.",
+            )
+
+    metadata = create_data.get("metadata")
+    if not isinstance(metadata, dict):
+        metadata = {}
+    if is_admin:
+        metadata["management_mode"] = "admin_managed"
+    else:
+        metadata["management_mode"] = "self_managed"
+        if user_id:
+            metadata["owner_user_id"] = user_id
+    create_data["metadata"] = metadata
 
     connection = await copilot_db.account_connections.create(
         data=create_data
@@ -522,12 +1001,31 @@ async def create_connection(
 async def get_connection(
     connection_id: str,
     request: Request,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """Get a single connection (secrets masked)."""
     connection = await copilot_db.account_connections.find_by_id(connection_id)
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found.")
+
+    if not is_admin_claims(_auth):
+        actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+        ctype = str(connection.get("connection_type") or "").strip().lower()
+        permission = await _resolve_connection_permission(
+            account_id=str(connection.get("account_id") or ""),
+            connection_type=ctype,
+            actor_claims=_auth,
+        )
+        mgmt_mode = _connection_management_mode(connection)
+        owner_user_id = _connection_owner_user_id(connection)
+        if mgmt_mode == "self_managed":
+            if owner_user_id != actor_user_id:
+                raise HTTPException(status_code=403, detail="Not allowed to view this self-managed connection.")
+            if permission.get("permission_mode") != "self_managed_allowed":
+                raise HTTPException(status_code=403, detail="Self-managed connections are disabled for your scope.")
+        else:
+            if not permission.get("allow_use_admin_connections", True):
+                raise HTTPException(status_code=403, detail="Admin-managed connections are disabled for your scope.")
 
     if connection.get("connection_data"):
         connection["connection_data"] = _mask_secrets(connection["connection_data"])
@@ -540,12 +1038,27 @@ async def update_connection(
     connection_id: str,
     data: ConnectionUpdate,
     request: Request,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """Update a connection. Masked secret values (********) are preserved."""
     existing = await copilot_db.account_connections.find_by_id(connection_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Connection not found.")
+
+    actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+    if not is_admin_claims(_auth):
+        ctype = str(existing.get("connection_type") or "").strip().lower()
+        permission = await _resolve_connection_permission(
+            account_id=str(existing.get("account_id") or ""),
+            connection_type=ctype,
+            actor_claims=_auth,
+        )
+        mgmt_mode = _connection_management_mode(existing)
+        owner_user_id = _connection_owner_user_id(existing)
+        if mgmt_mode != "self_managed" or owner_user_id != actor_user_id:
+            raise HTTPException(status_code=403, detail="Only your own self-managed connections can be edited.")
+        if permission.get("permission_mode") != "self_managed_allowed":
+            raise HTTPException(status_code=403, detail="Self-managed connections are disabled for your scope.")
 
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
 
@@ -555,14 +1068,8 @@ async def update_connection(
             existing["connection_data"], update_data["connection_data"]
         )
 
-    # Get user info for updated_by
-    from alchemi.middleware.account_middleware import decode_jwt_token, extract_token_from_request, _get_master_key
-
-    token = extract_token_from_request(request)
-    if token:
-        decoded = decode_jwt_token(token, _get_master_key())
-        if decoded:
-            update_data["updated_by"] = decoded.get("user_id")
+    if actor_user_id:
+        update_data["updated_by"] = actor_user_id
 
     connection = await copilot_db.account_connections.update(connection_id, update_data)
     if not connection:
@@ -589,10 +1096,28 @@ async def update_connection(
 async def delete_connection(
     connection_id: str,
     request: Request,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """Delete a connection."""
     existing = await copilot_db.account_connections.find_by_id(connection_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Connection not found.")
+
+    if not is_admin_claims(_auth):
+        actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+        ctype = str(existing.get("connection_type") or "").strip().lower()
+        permission = await _resolve_connection_permission(
+            account_id=str(existing.get("account_id") or ""),
+            connection_type=ctype,
+            actor_claims=_auth,
+        )
+        mgmt_mode = _connection_management_mode(existing)
+        owner_user_id = _connection_owner_user_id(existing)
+        if mgmt_mode != "self_managed" or owner_user_id != actor_user_id:
+            raise HTTPException(status_code=403, detail="Only your own self-managed connections can be deleted.")
+        if permission.get("permission_mode") != "self_managed_allowed":
+            raise HTTPException(status_code=403, detail="Self-managed connections are disabled for your scope.")
+
     deleted = await copilot_db.account_connections.delete(connection_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Connection not found.")
@@ -614,12 +1139,27 @@ async def delete_connection(
 async def test_connection(
     connection_id: str,
     request: Request,
-    _auth=Depends(require_copilot_admin_access),
+    _auth=Depends(require_copilot_user_access),
 ):
     """Test connectivity for a connection."""
     connection = await copilot_db.account_connections.find_by_id(connection_id)
     if not connection:
         raise HTTPException(status_code=404, detail="Connection not found.")
+
+    if not is_admin_claims(_auth):
+        actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+        ctype = str(connection.get("connection_type") or "").strip().lower()
+        permission = await _resolve_connection_permission(
+            account_id=str(connection.get("account_id") or ""),
+            connection_type=ctype,
+            actor_claims=_auth,
+        )
+        mgmt_mode = _connection_management_mode(connection)
+        owner_user_id = _connection_owner_user_id(connection)
+        if mgmt_mode != "self_managed" or owner_user_id != actor_user_id:
+            raise HTTPException(status_code=403, detail="Only your own self-managed connections can be tested.")
+        if permission.get("permission_mode") != "self_managed_allowed":
+            raise HTTPException(status_code=403, detail="Self-managed connections are disabled for your scope.")
 
     conn_type = connection.get("connection_type")
     conn_data = connection.get("connection_data", {})

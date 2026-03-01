@@ -30,6 +30,162 @@ def _resolve_optional_account_filter(account_id: Optional[str]) -> Optional[str]
     return resolved
 
 
+@router.get("/scim-quality")
+async def get_scim_data_quality(
+    request: Request,
+    account_id: Optional[str] = None,
+    sample_limit: int = Query(default=25, ge=1, le=200),
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    SCIM/identity data quality checks for Copilot directory readiness.
+
+    Highlights common issues:
+    - identity users without team assignments
+    - identity users referencing non-existent teams
+    - teams without org mapping
+    - teams mapped to non-existent orgs
+    - orgs with zero teams
+    """
+    resolved_account_id = _resolve_optional_account_filter(account_id)
+    if not resolved_account_id:
+        raise HTTPException(
+            status_code=400,
+            detail="account_id is required when no tenant context is available.",
+        )
+
+    from litellm.proxy.proxy_server import prisma_client
+
+    if prisma_client is None:
+        raise HTTPException(status_code=500, detail="Database not connected.")
+
+    users = await prisma_client.db.litellm_usertable.find_many(
+        where={"account_id": resolved_account_id},
+        order={"created_at": "desc"},
+    )
+    teams = await prisma_client.db.litellm_teamtable.find_many(
+        where={"account_id": resolved_account_id},
+        order={"created_at": "desc"},
+    )
+    orgs = await prisma_client.db.litellm_organizationtable.find_many(
+        where={"account_id": resolved_account_id},
+        order={"created_at": "desc"},
+    )
+
+    team_ids = {
+        str(t.team_id).strip()
+        for t in teams
+        if str(getattr(t, "team_id", "") or "").strip()
+    }
+    org_ids = {
+        str(o.organization_id).strip()
+        for o in orgs
+        if str(getattr(o, "organization_id", "") or "").strip()
+    }
+
+    users_without_teams: List[Dict[str, Any]] = []
+    users_with_missing_team_refs: List[Dict[str, Any]] = []
+    missing_team_ref_count = 0
+
+    for user in users:
+        user_teams = [
+            str(t).strip()
+            for t in (getattr(user, "teams", None) or [])
+            if str(t).strip()
+        ]
+        if not user_teams:
+            users_without_teams.append(
+                {
+                    "user_id": str(user.user_id),
+                    "user_email": user.user_email,
+                    "user_role": user.user_role,
+                }
+            )
+            continue
+
+        missing_refs = [t for t in user_teams if t not in team_ids]
+        if missing_refs:
+            missing_team_ref_count += len(missing_refs)
+            users_with_missing_team_refs.append(
+                {
+                    "user_id": str(user.user_id),
+                    "user_email": user.user_email,
+                    "missing_team_ids": missing_refs,
+                }
+            )
+
+    teams_without_org: List[Dict[str, Any]] = []
+    teams_with_missing_org: List[Dict[str, Any]] = []
+    teams_per_org: Dict[str, int] = {}
+
+    for team in teams:
+        team_id = str(team.team_id)
+        org_id = str(team.organization_id or "").strip()
+        if not org_id:
+            teams_without_org.append(
+                {
+                    "team_id": team_id,
+                    "team_alias": getattr(team, "team_alias", None),
+                }
+            )
+            continue
+
+        teams_per_org[org_id] = teams_per_org.get(org_id, 0) + 1
+        if org_id not in org_ids:
+            teams_with_missing_org.append(
+                {
+                    "team_id": team_id,
+                    "team_alias": getattr(team, "team_alias", None),
+                    "organization_id": org_id,
+                }
+            )
+
+    orgs_without_teams: List[Dict[str, Any]] = []
+    for org in orgs:
+        org_id = str(org.organization_id)
+        if teams_per_org.get(org_id, 0) == 0:
+            orgs_without_teams.append(
+                {
+                    "organization_id": org_id,
+                    "organization_alias": getattr(org, "organization_alias", None),
+                }
+            )
+
+    score_denominator = max(1, len(users) + len(teams))
+    score_penalty = (
+        len(users_without_teams)
+        + len(users_with_missing_team_refs)
+        + len(teams_without_org)
+        + len(teams_with_missing_org)
+    )
+    health_score = max(0.0, round(100.0 * (1.0 - (score_penalty / score_denominator)), 2))
+
+    return {
+        "data": {
+            "account_id": resolved_account_id,
+            "health_score": health_score,
+            "counts": {
+                "users_total": len(users),
+                "teams_total": len(teams),
+                "orgs_total": len(orgs),
+                "users_without_teams": len(users_without_teams),
+                "users_with_missing_team_refs": len(users_with_missing_team_refs),
+                "missing_team_refs_total": missing_team_ref_count,
+                "teams_without_org": len(teams_without_org),
+                "teams_with_missing_org": len(teams_with_missing_org),
+                "orgs_without_teams": len(orgs_without_teams),
+            },
+            "samples": {
+                "users_without_teams": users_without_teams[:sample_limit],
+                "users_with_missing_team_refs": users_with_missing_team_refs[:sample_limit],
+                "teams_without_org": teams_without_org[:sample_limit],
+                "teams_with_missing_org": teams_with_missing_org[:sample_limit],
+                "orgs_without_teams": orgs_without_teams[:sample_limit],
+            },
+        }
+    }
+
+
 @router.get("/alerts")
 async def get_copilot_alerts(
     request: Request,

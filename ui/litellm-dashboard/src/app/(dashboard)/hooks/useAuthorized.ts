@@ -47,6 +47,37 @@ const useAuthorized = (): any => {
   const isLoading = isUIConfigLoading;
   const isAuthorized = isTokenValid && !uiConfig?.admin_ui_disabled;
 
+  const loginRedirectUrl = useMemo(() => {
+    const proxyLoginUrl = `${getProxyBaseUrl()}/ui/login`;
+    if (typeof window === "undefined") {
+      return proxyLoginUrl;
+    }
+
+    const browserHost = window.location.hostname.toLowerCase();
+    const isLocalHost = browserHost === "localhost" || browserHost === "127.0.0.1";
+    if (!isLocalHost) {
+      return proxyLoginUrl;
+    }
+
+    const proxyBase = getProxyBaseUrl();
+    if (!proxyBase) {
+      return `${window.location.origin}/login`;
+    }
+
+    try {
+      const proxyUrl = new URL(proxyBase);
+      const proxyHost = proxyUrl.hostname.toLowerCase();
+      const proxyIsLocal = proxyHost === "localhost" || proxyHost === "127.0.0.1";
+      if (proxyIsLocal && proxyUrl.port !== window.location.port) {
+        return `${window.location.origin}/login`;
+      }
+    } catch {
+      return `${window.location.origin}/login`;
+    }
+
+    return proxyLoginUrl;
+  }, []);
+
   // Single useEffect for all redirect logic
   useEffect(() => {
     if (isLoading) return;
@@ -55,9 +86,9 @@ const useAuthorized = (): any => {
       if (token) {
         clearTokenCookies();
       }
-      router.replace(`${getProxyBaseUrl()}/ui/login`);
+      router.replace(loginRedirectUrl);
     }
-  }, [isLoading, isAuthorized, token, router]);
+  }, [isLoading, isAuthorized, token, router, loginRedirectUrl]);
 
   return {
     isLoading,

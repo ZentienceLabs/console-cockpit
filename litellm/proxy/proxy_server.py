@@ -579,6 +579,7 @@ from litellm.types.agents import AgentConfig
 
 # import alchemi modules
 enterprise_router = APIRouter()
+alchemi_router_import_error: Optional[ImportError] = None
 try:
     from alchemi.config.settings import AlchemiProxyConfig
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
@@ -599,8 +600,8 @@ try:
     from alchemi.endpoints.alchemi_legacy_endpoints import router as alchemi_legacy_router
     from alchemi.endpoints.copilot_notification_template_endpoints import router as copilot_notification_template_router
     from alchemi.endpoints.copilot_support_ticket_endpoints import router as copilot_support_ticket_router
-except ImportError:
-    pass
+except ImportError as e:
+    alchemi_router_import_error = e
 
 ###################
 # Import enterprise routes (now via Alchemi)
@@ -1076,7 +1077,19 @@ async def openai_exception_handler(request: Request, exc: ProxyException):
 
 
 router = APIRouter()
-origins = ["*"]
+_cors_origins_env = os.getenv("LITELLM_CORS_ORIGINS", "").strip()
+if _cors_origins_env:
+    origins = [origin.strip() for origin in _cors_origins_env.split(",") if origin.strip()]
+else:
+    # Split-port local dev defaults (UI on 4000, backend on 4001) + common alt ports.
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:4000",
+        "http://127.0.0.1:4000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
 
 
 # get current directory
@@ -10426,6 +10439,39 @@ async def login(request: Request):  # noqa: PLR0915
         premium_user=premium_user,
     )
 
+    # Alchemi: stamp tenant context and backfill account linkage for identity directory.
+    from alchemi.auth.account_resolver import (
+        is_default_admin,
+        reconcile_identity_account_links,
+        resolve_account_for_user,
+    )
+
+    if is_default_admin(username):
+        returned_ui_token_object["is_super_admin"] = True
+        returned_ui_token_object["account_id"] = None
+    else:
+        _account_id = await resolve_account_for_user(login_result.user_email, prisma_client)
+        returned_ui_token_object["account_id"] = _account_id
+        returned_ui_token_object["is_super_admin"] = False
+        if _account_id and prisma_client is not None:
+            try:
+                if login_result.user_id:
+                    user_row = await prisma_client.db.litellm_usertable.find_unique(
+                        where={"user_id": str(login_result.user_id)}
+                    )
+                    if user_row and not getattr(user_row, "account_id", None):
+                        await prisma_client.db.litellm_usertable.update(
+                            where={"user_id": str(login_result.user_id)},
+                            data={"account_id": _account_id},
+                        )
+                await reconcile_identity_account_links(
+                    account_id=_account_id,
+                    prisma_client=prisma_client,
+                    max_scan=2000,
+                )
+            except Exception:
+                pass
+
     # Generate JWT token
     import jwt
 
@@ -10476,7 +10522,11 @@ async def login_v2(request: Request):  # noqa: PLR0915
         )
 
         # Alchemi: Add account_id and is_super_admin to JWT
-        from alchemi.auth.account_resolver import resolve_account_for_user, is_default_admin
+        from alchemi.auth.account_resolver import (
+            is_default_admin,
+            reconcile_identity_account_links,
+            resolve_account_for_user,
+        )
         if is_default_admin(username):
             returned_ui_token_object["is_super_admin"] = True
             returned_ui_token_object["account_id"] = None
@@ -10486,6 +10536,24 @@ async def login_v2(request: Request):  # noqa: PLR0915
             )
             returned_ui_token_object["account_id"] = _account_id
             returned_ui_token_object["is_super_admin"] = False
+            if _account_id and prisma_client is not None:
+                try:
+                    if login_result.user_id:
+                        user_row = await prisma_client.db.litellm_usertable.find_unique(
+                            where={"user_id": str(login_result.user_id)}
+                        )
+                        if user_row and not getattr(user_row, "account_id", None):
+                            await prisma_client.db.litellm_usertable.update(
+                                where={"user_id": str(login_result.user_id)},
+                                data={"account_id": _account_id},
+                            )
+                    await reconcile_identity_account_links(
+                        account_id=_account_id,
+                        prisma_client=prisma_client,
+                        max_scan=2000,
+                    )
+                except Exception:
+                    pass
 
         import jwt
 
@@ -10570,10 +10638,15 @@ async def login_resolve(request: Request):
         sso_result = await resolve_sso_for_email(email, prisma_client)
 
         if sso_result and sso_result.get("sso_enabled"):
+            sso_url = str(sso_result.get("sso_url") or "")
+            if sso_url.startswith("/"):
+                # Ensure frontend clients on a separate origin (e.g. localhost:4000)
+                # get a backend-targeted absolute URL for SSO start.
+                sso_url = f"{str(request.base_url).rstrip('/')}{sso_url}"
             return JSONResponse(
                 content={
                     "method": "sso",
-                    "sso_url": sso_result.get("sso_url"),
+                    "sso_url": sso_url,
                     "account_id": sso_result.get("account_id"),
                 },
                 status_code=status.HTTP_200_OK,
@@ -12691,7 +12764,16 @@ try:
             "ALCHEMI legacy compatibility endpoints are disabled (ALCHEMI_ENABLE_LEGACY_COMPAT=false)."
         )
 except NameError:
-    pass
+    if alchemi_router_import_error is not None:
+        verbose_proxy_logger.error(
+            "Alchemi/Copilot routers were not loaded due to import error: %s. "
+            "Install missing runtime dependencies and restart the proxy.",
+            alchemi_router_import_error,
+        )
+    else:
+        verbose_proxy_logger.error(
+            "Alchemi/Copilot routers were not loaded due to unresolved router symbols."
+        )
 ########################################################
 # MCP Server
 ########################################################

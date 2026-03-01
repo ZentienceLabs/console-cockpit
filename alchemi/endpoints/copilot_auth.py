@@ -312,7 +312,25 @@ async def _require_copilot_access(
         if decoded_account_id:
             set_current_account_id(str(decoded_account_id))
         else:
-            raise HTTPException(status_code=403, detail="Authentication required.")
+            # Backward compatibility: older UI JWTs may not carry account_id.
+            # Resolve by email before rejecting.
+            decoded_email = str(decoded.get("user_email") or "").strip().lower()
+            if decoded_email:
+                try:
+                    from alchemi.auth.account_resolver import resolve_account_for_user
+                    from litellm.proxy.proxy_server import prisma_client
+
+                    fallback_account_id = await resolve_account_for_user(
+                        decoded_email, prisma_client
+                    )
+                    if fallback_account_id:
+                        set_current_account_id(str(fallback_account_id))
+                        decoded["account_id"] = str(fallback_account_id)
+                except Exception:
+                    pass
+
+            if get_current_account_id() is None:
+                raise HTTPException(status_code=403, detail="Authentication required.")
 
     user_role = str(decoded.get("user_role", "")).strip().lower()
     if user_role in _COPILOT_ADMIN_ROLES:

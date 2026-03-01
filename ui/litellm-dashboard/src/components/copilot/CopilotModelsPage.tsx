@@ -28,15 +28,24 @@ import useAuthorized from "@/app/(dashboard)/hooks/useAuthorized";
 import {
   useBulkUpdateCopilotModelSelection,
   useCopilotModelCatalog,
+  useCopilotModelPolicies,
   useCopilotModelSelectionAccounts,
   useCopilotModelSelection,
   useCreateCopilotModelCatalogEntry,
   useDeleteCopilotModelCatalogEntry,
+  useDeleteCopilotModelPolicy,
   useImportCopilotModelCatalogFromRouter,
+  useResolveCopilotModelPolicy,
+  useUpsertCopilotModelPolicy,
   useUpdateCopilotModelCatalogEntry,
   useUpdateCopilotModelSelection,
 } from "@/app/(dashboard)/hooks/copilot/useCopilotModels";
 import { useCopilotAccounts } from "@/app/(dashboard)/hooks/copilot/useCopilotAccounts";
+import {
+  useCopilotDirectoryGroups,
+  useCopilotDirectoryTeams,
+  useCopilotUsers,
+} from "@/app/(dashboard)/hooks/copilot/useCopilotDirectory";
 
 const CopilotModelsPage: React.FC = () => {
   const { isSuperAdmin } = useAuthorized();
@@ -49,6 +58,11 @@ const CopilotModelsPage: React.FC = () => {
   const [catalogModalOpen, setCatalogModalOpen] = useState(false);
   const [editingCatalogItem, setEditingCatalogItem] = useState<any | null>(null);
   const [catalogForm] = Form.useForm();
+  const [policyModalOpen, setPolicyModalOpen] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<any | null>(null);
+  const [policyForm] = Form.useForm();
+  const [resolveScopeType, setResolveScopeType] = useState<string>("account");
+  const [resolveScopeId, setResolveScopeId] = useState<string>("");
 
   const accounts = accountData?.accounts || [];
 
@@ -64,6 +78,15 @@ const CopilotModelsPage: React.FC = () => {
     }
     return undefined;
   }, [isSuperAdmin, targetAccountId]);
+
+  const accountScopedParams = useMemo(() => {
+    if (isSuperAdmin) {
+      return targetAccountId ? { account_id: targetAccountId } : undefined;
+    }
+    return undefined;
+  }, [isSuperAdmin, targetAccountId]);
+
+  const canSave = Boolean(!isSuperAdmin || targetAccountId);
 
   const { data, isLoading, refetch } = useCopilotModelSelection(selectionParams);
   const { data: catalogData, isLoading: catalogLoading, refetch: refetchCatalog } = useCopilotModelCatalog(
@@ -81,6 +104,31 @@ const CopilotModelsPage: React.FC = () => {
     limit: 500,
     offset: 0,
   });
+  const { data: modelPolicyData, isLoading: modelPolicyLoading, refetch: refetchModelPolicies } = useCopilotModelPolicies(accountScopedParams);
+  const upsertModelPolicy = useUpsertCopilotModelPolicy();
+  const deleteModelPolicy = useDeleteCopilotModelPolicy();
+
+  const { data: directoryGroupsData } = useCopilotDirectoryGroups(
+    canSave ? { ...(accountScopedParams || {}), limit: 500, offset: 0 } : undefined,
+  );
+  const { data: directoryTeamsData } = useCopilotDirectoryTeams(
+    canSave ? { ...(accountScopedParams || {}), include_group: true, limit: 500, offset: 0 } : undefined,
+  );
+  const { data: directoryUsersData } = useCopilotUsers(
+    canSave ? { ...(accountScopedParams || {}), include_memberships: false, limit: 500, offset: 0 } : undefined,
+  );
+
+  const resolveEnabled = Boolean(canSave && resolveScopeType && resolveScopeId);
+  const { data: resolvedPolicyData, refetch: refetchResolvedPolicy, isFetching: resolvingPolicy } = useResolveCopilotModelPolicy(
+    resolveEnabled
+      ? {
+          ...(accountScopedParams || {}),
+          scope_type: resolveScopeType,
+          scope_id: resolveScopeId,
+        }
+      : undefined,
+    resolveEnabled,
+  );
 
   useEffect(() => {
     const incomingSuper = data?.super_admin_selected_models;
@@ -97,13 +145,22 @@ const CopilotModelsPage: React.FC = () => {
     }
   }, [data?.super_admin_selected_models, data?.tenant_selected_models, data?.selected_models]);
 
+  useEffect(() => {
+    const accountScopeId = String(data?.account_id || targetAccountId || "").trim();
+    if (!accountScopeId) return;
+    if (resolveScopeType === "account") {
+      setResolveScopeId(accountScopeId);
+    } else if (!resolveScopeId) {
+      setResolveScopeId(accountScopeId);
+    }
+  }, [data?.account_id, targetAccountId, resolveScopeType, resolveScopeId]);
+
   const catalogModels: string[] = data?.catalog_models || [];
   const availableForTenantModels: string[] = data?.available_for_tenant_models || catalogModels;
   const effectiveModels: string[] = data?.effective_models || [];
   const superSelectedCount = superSelectedModels.length;
   const tenantSelectedCount = tenantSelectedModels.length;
 
-  const canSave = Boolean(!isSuperAdmin || targetAccountId);
   const selectionMode = data?.selection_mode;
 
   const handleSaveSuperSelection = async () => {
@@ -224,6 +281,106 @@ const CopilotModelsPage: React.FC = () => {
     const skipped = Number(result?.data?.skipped || 0);
     message.success(`Imported ${imported} models from gateway suggestions (skipped ${skipped}).`);
     refetchCatalog();
+    refetch();
+  };
+
+  const directoryGroups = directoryGroupsData?.data || [];
+  const directoryTeams = directoryTeamsData?.data || [];
+  const directoryUsers = directoryUsersData?.data?.users || [];
+  const modelPolicies = modelPolicyData?.data || [];
+
+  const accountScopeId = String(data?.account_id || targetAccountId || "").trim();
+  const policyScopeType = Form.useWatch("scope_type", policyForm) || "account";
+  const policyMode = Form.useWatch("mode", policyForm) || "inherit";
+  const policyScopeOptions = useMemo(() => {
+    if (policyScopeType === "account") {
+      return accountScopeId ? [{ label: accountScopeId, value: accountScopeId }] : [];
+    }
+    if (policyScopeType === "group") {
+      return directoryGroups.map((g: any) => ({ label: g.name || g.id, value: g.id }));
+    }
+    if (policyScopeType === "team") {
+      return directoryTeams.map((t: any) => ({ label: t.name || t.id, value: t.id }));
+    }
+    if (policyScopeType === "user") {
+      return directoryUsers.map((u: any) => ({ label: u.email || u.name || u.id, value: u.id }));
+    }
+    return [];
+  }, [policyScopeType, accountScopeId, directoryGroups, directoryTeams, directoryUsers]);
+
+  const resolveScopeOptions = useMemo(() => {
+    if (resolveScopeType === "account") {
+      return accountScopeId ? [{ label: accountScopeId, value: accountScopeId }] : [];
+    }
+    if (resolveScopeType === "group") {
+      return directoryGroups.map((g: any) => ({ label: g.name || g.id, value: g.id }));
+    }
+    if (resolveScopeType === "team") {
+      return directoryTeams.map((t: any) => ({ label: t.name || t.id, value: t.id }));
+    }
+    if (resolveScopeType === "user") {
+      return directoryUsers.map((u: any) => ({ label: u.email || u.name || u.id, value: u.id }));
+    }
+    return [];
+  }, [resolveScopeType, accountScopeId, directoryGroups, directoryTeams, directoryUsers]);
+
+  const openCreatePolicyModal = () => {
+    setEditingPolicy(null);
+    policyForm.resetFields();
+    policyForm.setFieldsValue({
+      scope_type: "account",
+      scope_id: accountScopeId || undefined,
+      mode: "inherit",
+      selected_models: [],
+      notes: "",
+    });
+    setPolicyModalOpen(true);
+  };
+
+  const openEditPolicyModal = (row: any) => {
+    setEditingPolicy(row);
+    policyForm.setFieldsValue({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      mode: row.mode || "inherit",
+      selected_models: row.selected_models || [],
+      notes: row.notes || "",
+    });
+    setPolicyModalOpen(true);
+  };
+
+  const savePolicy = async () => {
+    try {
+      const values = await policyForm.validateFields();
+      const payload = {
+        ...values,
+        account_id: isSuperAdmin ? targetAccountId : undefined,
+      };
+      if (payload.mode !== "allowlist") {
+        payload.selected_models = [];
+      }
+      await upsertModelPolicy.mutateAsync(payload);
+      message.success("Scoped model policy saved.");
+      setPolicyModalOpen(false);
+      setEditingPolicy(null);
+      policyForm.resetFields();
+      refetchModelPolicies();
+      refetchResolvedPolicy();
+      refetch();
+    } catch (e: any) {
+      if (e?.message) message.error(e.message);
+    }
+  };
+
+  const handleDeletePolicy = async (row: any) => {
+    await deleteModelPolicy.mutateAsync({
+      scope_type: row.scope_type,
+      scope_id: row.scope_id,
+      account_id: isSuperAdmin ? targetAccountId : undefined,
+    });
+    message.success("Scoped model policy deleted.");
+    refetchModelPolicies();
+    refetchResolvedPolicy();
     refetch();
   };
 
@@ -439,6 +596,109 @@ const CopilotModelsPage: React.FC = () => {
         />
       </Card>
 
+      <Card
+        title="Scoped Model Access Policies"
+        style={{ marginTop: 16 }}
+        extra={
+          <Space>
+            <Button icon={<ReloadOutlined />} onClick={() => { refetchModelPolicies(); refetchResolvedPolicy(); }}>
+              Refresh
+            </Button>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreatePolicyModal} disabled={!canSave}>
+              Add Policy
+            </Button>
+          </Space>
+        }
+      >
+        <Space direction="vertical" size={12} style={{ width: "100%" }}>
+          {!canSave ? (
+            <Empty description="Select account first to manage scoped policies." />
+          ) : (
+            <Table
+              rowKey={(r: any) => `${r.scope_type}:${r.scope_id}`}
+              loading={modelPolicyLoading}
+              dataSource={modelPolicies}
+              pagination={{ pageSize: 10 }}
+              columns={[
+                { title: "Scope Type", dataIndex: "scope_type", key: "scope_type" },
+                { title: "Scope ID", dataIndex: "scope_id", key: "scope_id" },
+                { title: "Mode", dataIndex: "mode", key: "mode", render: (v: string) => <Tag color="blue">{v || "inherit"}</Tag> },
+                {
+                  title: "Selected Models",
+                  dataIndex: "selected_models",
+                  key: "selected_models",
+                  render: (v: string[]) => Array.isArray(v) && v.length > 0 ? v.join(", ") : "-",
+                },
+                {
+                  title: "Actions",
+                  key: "actions",
+                  render: (_: any, row: any) => (
+                    <Space>
+                      <Button size="small" onClick={() => openEditPolicyModal(row)}>Edit</Button>
+                      <Popconfirm
+                        title="Delete scoped policy"
+                        description={`Remove policy for ${row.scope_type}:${row.scope_id}?`}
+                        onConfirm={() => handleDeletePolicy(row)}
+                      >
+                        <Button size="small" danger icon={<DeleteOutlined />} />
+                      </Popconfirm>
+                    </Space>
+                  ),
+                },
+              ]}
+            />
+          )}
+
+          <Alert
+            type="info"
+            showIcon
+            message="Policy Resolution Tester"
+            description="Resolve effective model access for a specific scope and inspect inheritance + overrides."
+          />
+
+          <Space wrap style={{ width: "100%" }}>
+            <Select
+              style={{ width: 170 }}
+              value={resolveScopeType}
+              onChange={(value) => {
+                setResolveScopeType(value);
+                const fallback = value === "account" ? accountScopeId : "";
+                setResolveScopeId(fallback || "");
+              }}
+              options={[
+                { label: "Account", value: "account" },
+                { label: "Group", value: "group" },
+                { label: "Team", value: "team" },
+                { label: "User", value: "user" },
+              ]}
+            />
+            <Select
+              showSearch
+              optionFilterProp="label"
+              style={{ minWidth: 380 }}
+              value={resolveScopeId || undefined}
+              onChange={(value) => setResolveScopeId(value)}
+              options={resolveScopeOptions}
+              placeholder="Select scope entity"
+            />
+            <Button onClick={() => refetchResolvedPolicy()} loading={resolvingPolicy} disabled={!resolveEnabled}>
+              Resolve
+            </Button>
+          </Space>
+
+          <Table
+            rowKey="name"
+            dataSource={(resolvedPolicyData?.effective_models || []).map((name: string) => ({ name }))}
+            pagination={{ pageSize: 10 }}
+            columns={[{ title: "Resolved Effective Models", dataIndex: "name", key: "name" }]}
+          />
+          <Typography.Text type="secondary">
+            Model access feature gate: {resolvedPolicyData?.model_access_enabled === false ? "disabled" : "enabled"}
+            {resolvedPolicyData?.model_access_resolved_from ? ` (${resolvedPolicyData.model_access_resolved_from})` : ""}
+          </Typography.Text>
+        </Space>
+      </Card>
+
       {isSuperAdmin && (
         <Card
           title="Account Selection Governance"
@@ -531,6 +791,63 @@ const CopilotModelsPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="is_active" label="Active" valuePropName="checked">
             <Switch />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        title={editingPolicy ? "Edit Scoped Model Policy" : "Add Scoped Model Policy"}
+        open={policyModalOpen}
+        onCancel={() => {
+          setPolicyModalOpen(false);
+          setEditingPolicy(null);
+        }}
+        onOk={savePolicy}
+        okText={editingPolicy ? "Update" : "Create"}
+        confirmLoading={upsertModelPolicy.isPending}
+      >
+        <Form form={policyForm} layout="vertical">
+          <Form.Item name="scope_type" label="Scope Type" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "Account", value: "account" },
+                { label: "Group", value: "group" },
+                { label: "Team", value: "team" },
+                { label: "User", value: "user" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="scope_id" label="Scope Entity" rules={[{ required: true }]}>
+            <Select
+              showSearch
+              optionFilterProp="label"
+              options={policyScopeOptions}
+              placeholder="Select scope entity"
+            />
+          </Form.Item>
+          <Form.Item name="mode" label="Mode" rules={[{ required: true }]}>
+            <Select
+              options={[
+                { label: "Inherit", value: "inherit" },
+                { label: "Allowlist", value: "allowlist" },
+                { label: "All Available", value: "all_available" },
+                { label: "Deny All", value: "deny_all" },
+              ]}
+            />
+          </Form.Item>
+          {policyMode === "allowlist" && (
+            <Form.Item name="selected_models" label="Selected Models">
+              <Select
+                mode="multiple"
+                showSearch
+                optionFilterProp="label"
+                options={availableForTenantModels.map((m) => ({ label: m, value: m }))}
+                placeholder="Choose allowed models for this scope"
+              />
+            </Form.Item>
+          )}
+          <Form.Item name="notes" label="Notes">
+            <Input.TextArea rows={3} />
           </Form.Item>
         </Form>
       </Modal>

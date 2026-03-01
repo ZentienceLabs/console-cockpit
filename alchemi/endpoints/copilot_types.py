@@ -26,6 +26,13 @@ class BudgetAllocationStrategy(str, Enum):
     OVERRIDE = "override"
 
 
+class BudgetRenewalCadence(str, Enum):
+    MONTHLY = "monthly"
+    QUARTERLY = "quarterly"
+    YEARLY = "yearly"
+    MANUAL = "manual"
+
+
 class ConnectionType(str, Enum):
     MCP = "mcp"
     OPENAPI = "openapi"
@@ -176,12 +183,31 @@ class BudgetPlanCreate(BaseModel):
     name: str = "Default Plan"
     is_active: bool = True
     distribution: Dict[str, Any] = {"groups": [], "teams": [], "users": []}
+    renewal_cadence: BudgetRenewalCadence = BudgetRenewalCadence.MONTHLY
+    renewal_day_of_month: int = Field(default=1, ge=1, le=28)
+    account_allocation: int = 0
+    account_limit_amount: Optional[int] = None
+    account_overflow_cap: Optional[int] = None
+    overflow_billing_enabled: bool = True
+    overflow_billing_note: Optional[str] = None
 
 
 class BudgetPlanUpdate(BaseModel):
     name: Optional[str] = None
     is_active: Optional[bool] = None
     distribution: Optional[Dict[str, Any]] = None
+    renewal_cadence: Optional[BudgetRenewalCadence] = None
+    renewal_day_of_month: Optional[int] = Field(default=None, ge=1, le=28)
+    account_allocation: Optional[int] = None
+    account_limit_amount: Optional[int] = None
+    account_overflow_cap: Optional[int] = None
+    overflow_billing_enabled: Optional[bool] = None
+    overflow_billing_note: Optional[str] = None
+
+
+class BudgetPlanRenewRequest(BaseModel):
+    cycle_anchor: Optional[datetime] = None
+    force: bool = False
 
 
 # ============================================
@@ -364,6 +390,20 @@ class GuardrailsPatternUpdate(BaseModel):
     category: Optional[str] = None
     description: Optional[str] = None
     severity: Optional[Severity] = None
+
+
+class GuardrailsScopePolicyUpsert(BaseModel):
+    scope_type: BudgetScopeType
+    scope_id: str
+    required_guard_types: List[GuardType] = Field(default_factory=list)
+    mode: str = "enforce"
+    notes: Optional[str] = None
+    is_enabled: bool = True
+
+
+class GuardrailsScopePolicyDelete(BaseModel):
+    scope_type: BudgetScopeType
+    scope_id: str
 
 
 # ============================================

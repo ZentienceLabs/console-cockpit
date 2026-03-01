@@ -17,6 +17,7 @@ import {
   copilotBudgetPlanCreateCall,
   copilotBudgetPlanUpdateCall,
   copilotBudgetPlanDeleteCall,
+  copilotBudgetPlanRenewCall,
 } from "@/components/networking";
 
 export const copilotBudgetKeys = createQueryKeys("copilotBudgets");
@@ -210,6 +211,21 @@ export const useDeleteCopilotBudgetPlan = () => {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: copilotBudgetPlanKeys.all });
+    },
+  });
+};
+
+export const useRenewCopilotBudgetPlan = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, data }: { id: string; data?: { cycle_anchor?: string; force?: boolean } }) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotBudgetPlanRenewCall(accessToken, id, data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotBudgetPlanKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotBudgetKeys.all });
     },
   });
 };

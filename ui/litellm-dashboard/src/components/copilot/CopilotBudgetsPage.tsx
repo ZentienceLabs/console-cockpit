@@ -2,7 +2,7 @@
 
 import React, { useEffect, useMemo, useState } from "react";
 import { Table, Button, Modal, Form, Input, InputNumber, Select, Card, Statistic, Row, Col, Tabs, message, Space, Drawer, DatePicker, Tag, Progress } from "antd";
-import { PlusOutlined, DeleteOutlined, EditOutlined } from "@ant-design/icons";
+import { PlusOutlined, DeleteOutlined, EditOutlined, ReloadOutlined } from "@ant-design/icons";
 import dayjs from "dayjs";
 import {
   useCopilotBudgets,
@@ -17,6 +17,7 @@ import {
   useCreateCopilotBudgetPlan,
   useUpdateCopilotBudgetPlan,
   useDeleteCopilotBudgetPlan,
+  useRenewCopilotBudgetPlan,
 } from "@/app/(dashboard)/hooks/copilot/useCopilotBudgets";
 import {
   useCopilotGroups,
@@ -77,6 +78,7 @@ const CopilotBudgetsPage: React.FC = () => {
   const createPlan = useCreateCopilotBudgetPlan();
   const updatePlan = useUpdateCopilotBudgetPlan();
   const deletePlan = useDeleteCopilotBudgetPlan();
+  const renewPlan = useRenewCopilotBudgetPlan();
 
   const budgets = budgetsData?.data ?? [];
   const accountBudgetRows = useMemo(() => budgets.filter((b: any) => b.scope_type === "account"), [budgets]);
@@ -85,6 +87,11 @@ const CopilotBudgetsPage: React.FC = () => {
   const accountAllocationBudget = allocationOverview?.account_budget ?? null;
   const parentBudgets = allocationOverview?.parent_budgets ?? [];
   const plans = plansData?.data ?? [];
+  const activePlan = plans.find((p: any) => p.is_active) || null;
+  const activePlanDistribution = activePlan?.distribution || {};
+  const activeRenewalPolicy = activePlanDistribution?.renewal_policy || {};
+  const activeAccountPolicy = activePlanDistribution?.account_policy || {};
+  const activeBillingPolicy = activePlanDistribution?.billing || {};
   const accounts = accountData?.accounts ?? [];
   const directoryUsers = usersData?.data?.users ?? [];
   const groups = groupsData?.data ?? [];
@@ -480,6 +487,13 @@ const CopilotBudgetsPage: React.FC = () => {
       const payload = {
         name: values.name,
         is_active: values.is_active,
+        renewal_cadence: values.renewal_cadence || "monthly",
+        renewal_day_of_month: Number(values.renewal_day_of_month || 1),
+        account_allocation: Number(values.account_allocation || 0),
+        account_limit_amount: values.account_limit_amount != null ? Number(values.account_limit_amount) : null,
+        account_overflow_cap: values.account_overflow_cap != null ? Number(values.account_overflow_cap) : null,
+        overflow_billing_enabled: Boolean(values.overflow_billing_enabled ?? true),
+        overflow_billing_note: values.overflow_billing_note?.trim?.() || "",
         distribution: {
           distribution_mode: values.distribution_mode || "manual",
           default_target_scope: values.default_target_scope || "organization",
@@ -704,6 +718,8 @@ const CopilotBudgetsPage: React.FC = () => {
         const mode = distribution?.distribution_mode || "manual";
         const target = distribution?.default_target_scope || "organization";
         const weights = distribution?.weights || {};
+        const renewal = distribution?.renewal_policy || {};
+        const accountPolicy = distribution?.account_policy || {};
         const weightSummary = [weights.group, weights.team, weights.user]
           .filter((v: any) => Number.isFinite(Number(v)))
           .map((v: any) => Number(v))
@@ -712,6 +728,11 @@ const CopilotBudgetsPage: React.FC = () => {
           <Space direction="vertical" size={0}>
             <Tag color="blue">{mode}</Tag>
             <span>Default target: {target}</span>
+            <span>Renewal: {renewal.cadence || "monthly"} (day {renewal.day_of_month || 1})</span>
+            <span>
+              Account credits: {Number(accountPolicy.allocation || 0).toLocaleString()} | Overflow cap:{" "}
+              {accountPolicy.overflow_cap == null ? "Unlimited" : Number(accountPolicy.overflow_cap || 0).toLocaleString()}
+            </span>
             {mode === "weighted" && weightSummary ? <span>Weights (Org/Team/User): {weightSummary}</span> : null}
           </Space>
         );
@@ -735,6 +756,9 @@ const CopilotBudgetsPage: React.FC = () => {
               setEditingPlan(record);
               const distribution = record?.distribution || {};
               const weights = distribution?.weights || {};
+              const renewal = distribution?.renewal_policy || {};
+              const accountPolicy = distribution?.account_policy || {};
+              const billing = distribution?.billing || {};
               planForm.setFieldsValue({
                 ...record,
                 distribution_mode: distribution.distribution_mode || "manual",
@@ -745,10 +769,27 @@ const CopilotBudgetsPage: React.FC = () => {
                 team_weight: Number(weights.team ?? 30),
                 user_weight: Number(weights.user ?? 20),
                 notes: distribution.notes || "",
+                renewal_cadence: renewal.cadence || "monthly",
+                renewal_day_of_month: Number(renewal.day_of_month ?? 1),
+                account_allocation: Number(accountPolicy.allocation ?? 0),
+                account_limit_amount: accountPolicy.limit_amount != null ? Number(accountPolicy.limit_amount) : undefined,
+                account_overflow_cap: accountPolicy.overflow_cap != null ? Number(accountPolicy.overflow_cap) : undefined,
+                overflow_billing_enabled: billing.overflow_billing_enabled !== false,
+                overflow_billing_note: billing.overflow_billing_note || "",
               });
               setPlanModalOpen(true);
             }}
           />
+          <Button
+            size="small"
+            icon={<ReloadOutlined />}
+            onClick={async () => {
+              await renewPlan.mutateAsync({ id: record.id, data: { force: true } });
+              message.success("Plan cycle refreshed");
+            }}
+          >
+            Renew
+          </Button>
           <Button
             size="small"
             icon={<DeleteOutlined />}
@@ -788,6 +829,29 @@ const CopilotBudgetsPage: React.FC = () => {
           </Card>
         </Col>
       </Row>
+
+      {activePlan && (
+        <Card style={{ marginBottom: 16 }}>
+          <Space direction="vertical" size={4}>
+            <span><strong>Active Plan:</strong> {activePlan.name}</span>
+            <span>
+              Renewal: {activeRenewalPolicy?.cadence || "monthly"} on day {activeRenewalPolicy?.day_of_month || 1}
+            </span>
+            <span>
+              Account Credits: {Number(activeAccountPolicy?.allocation || 0).toLocaleString()} | Overflow cap:{" "}
+              {activeAccountPolicy?.overflow_cap == null
+                ? "Unlimited"
+                : Number(activeAccountPolicy?.overflow_cap || 0).toLocaleString()}
+            </span>
+            <span style={{ color: "#ad6800" }}>
+              Overflow billing:{" "}
+              {activeBillingPolicy?.overflow_billing_enabled === false
+                ? "Disabled"
+                : (activeBillingPolicy?.overflow_billing_note || "Overflow usage is billed separately.")}
+            </span>
+          </Space>
+        </Card>
+      )}
 
       <Tabs defaultActiveKey="budgets">
         <TabPane tab="1. Account Budget" key="budgets">
@@ -897,6 +961,13 @@ const CopilotBudgetsPage: React.FC = () => {
                   team_weight: 30,
                   user_weight: 20,
                   notes: "",
+                  renewal_cadence: "monthly",
+                  renewal_day_of_month: 1,
+                  account_allocation: 0,
+                  account_limit_amount: 0,
+                  account_overflow_cap: 0,
+                  overflow_billing_enabled: true,
+                  overflow_billing_note: "Overflow credits are billed separately after usage.",
                 });
                 setPlanModalOpen(true);
               }}
@@ -1069,6 +1140,34 @@ const CopilotBudgetsPage: React.FC = () => {
           </Form.Item>
           <Form.Item name="is_active" label="Active" initialValue={true}>
             <Select options={[{ label: "Active", value: true }, { label: "Inactive", value: false }]} />
+          </Form.Item>
+          <Form.Item name="renewal_cadence" label="Renewal Cadence" initialValue="monthly">
+            <Select
+              options={[
+                { label: "Monthly", value: "monthly" },
+                { label: "Quarterly", value: "quarterly" },
+                { label: "Yearly", value: "yearly" },
+                { label: "Manual", value: "manual" },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="renewal_day_of_month" label="Renewal Day (UTC)" initialValue={1}>
+            <InputNumber min={1} max={28} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="account_allocation" label="Account Credits per Cycle" initialValue={0}>
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="account_limit_amount" label="Account Limit Amount" initialValue={0}>
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="account_overflow_cap" label="Account Overflow Cap" initialValue={0}>
+            <InputNumber min={0} style={{ width: "100%" }} />
+          </Form.Item>
+          <Form.Item name="overflow_billing_enabled" label="Overflow Billing Enabled" initialValue={true}>
+            <Select options={[{ label: "Yes", value: true }, { label: "No", value: false }]} />
+          </Form.Item>
+          <Form.Item name="overflow_billing_note" label="Overflow Billing Note">
+            <Input.TextArea rows={2} placeholder="Shown to account admins when overflow is used." />
           </Form.Item>
           <Form.Item name="distribution_mode" label="Distribution Mode" initialValue="manual">
             <Select

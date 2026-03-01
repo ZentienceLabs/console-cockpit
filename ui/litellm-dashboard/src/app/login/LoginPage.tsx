@@ -4,7 +4,7 @@ import { useLogin } from "@/app/(dashboard)/hooks/login/useLogin";
 import { useUIConfig } from "@/app/(dashboard)/hooks/uiConfig/useUIConfig";
 import LoadingScreen from "@/components/common_components/LoadingScreen";
 import { getProxyBaseUrl, loginResolveCall } from "@/components/networking";
-import { getCookie } from "@/utils/cookieUtils";
+import { clearTokenCookies, getCookie } from "@/utils/cookieUtils";
 import { isJwtExpired } from "@/utils/jwtUtils";
 import { InfoCircleOutlined } from "@ant-design/icons";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -26,9 +26,159 @@ function LoginPageContent() {
   const loginMutation = useLogin();
   const router = useRouter();
 
+  const shouldAllowRedirect = (key: string, maxAttempts = 2, windowMs = 10000): boolean => {
+    if (typeof window === "undefined") {
+      return true;
+    }
+
+    try {
+      const storageKey = `litellm_login_guard_${key}`;
+      const now = Date.now();
+      const raw = window.sessionStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : null;
+      const attempts = typeof parsed?.attempts === "number" ? parsed.attempts : 0;
+      const firstAt = typeof parsed?.firstAt === "number" ? parsed.firstAt : now;
+      const ageMs = now - firstAt;
+
+      if (ageMs > windowMs) {
+        window.sessionStorage.setItem(storageKey, JSON.stringify({ attempts: 1, firstAt: now }));
+        return true;
+      }
+
+      if (attempts >= maxAttempts) {
+        return false;
+      }
+
+      window.sessionStorage.setItem(
+        storageKey,
+        JSON.stringify({ attempts: attempts + 1, firstAt }),
+      );
+      return true;
+    } catch {
+      return true;
+    }
+  };
+
+  const resetRedirectGuard = (key: string) => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    try {
+      window.sessionStorage.removeItem(`litellm_login_guard_${key}`);
+    } catch {
+      // no-op
+    }
+  };
+
+  const normalizeLocalSplitUiRedirect = (targetUrl: string): string => {
+    if (typeof window === "undefined") {
+      return targetUrl;
+    }
+
+    const browserOrigin = window.location.origin;
+    const browserHost = window.location.hostname.toLowerCase();
+    const isLocalHost = browserHost === "localhost" || browserHost === "127.0.0.1";
+    if (!isLocalHost) {
+      return targetUrl;
+    }
+
+    try {
+      const parsed = new URL(targetUrl, browserOrigin);
+      let isLocalSplitMode = false;
+      try {
+        const proxyBase = getProxyBaseUrl();
+        if (proxyBase) {
+          const proxyUrl = new URL(proxyBase);
+          const proxyHost = proxyUrl.hostname.toLowerCase();
+          const proxyIsLocal = proxyHost === "localhost" || proxyHost === "127.0.0.1";
+          isLocalSplitMode = Boolean(proxyIsLocal && proxyUrl.port !== window.location.port);
+        }
+      } catch {
+        isLocalSplitMode = false;
+      }
+      const targetHost = parsed.hostname.toLowerCase();
+      const targetIsLocal = targetHost === "localhost" || targetHost === "127.0.0.1";
+
+      // In split-port local mode, keep navigation on the UI origin.
+      // Also normalize backend-style /ui paths to root UI routes.
+      if (isLocalSplitMode && parsed.pathname.startsWith("/ui")) {
+        const normalizedPath = parsed.pathname.replace(/^\/ui\/?/, "/");
+        return `${browserOrigin}${normalizedPath}${parsed.search}${parsed.hash}`;
+      }
+      if (targetIsLocal && parsed.port !== window.location.port) {
+        const normalizedPath = parsed.pathname.startsWith("/ui")
+          ? parsed.pathname.replace(/^\/ui\/?/, "/")
+          : parsed.pathname;
+        return `${browserOrigin}${normalizedPath}${parsed.search}${parsed.hash}`;
+      }
+
+      return parsed.toString();
+    } catch {
+      return targetUrl;
+    }
+  };
+
+  const resolveBackendUrl = (targetUrl: string): string => {
+    if (!targetUrl) {
+      return targetUrl;
+    }
+    if (typeof window === "undefined") {
+      return targetUrl;
+    }
+    try {
+      // Handle relative paths returned by backend login resolve APIs.
+      return new URL(targetUrl, getProxyBaseUrl() || window.location.origin).toString();
+    } catch {
+      return targetUrl;
+    }
+  };
+
+  const normalizeSsoEntryUrl = (targetUrl: string): string => {
+    if (!targetUrl || typeof window === "undefined") {
+      return targetUrl;
+    }
+
+    try {
+      const resolved = new URL(resolveBackendUrl(targetUrl));
+      const proxyBase = getProxyBaseUrl();
+      const proxyUrl = proxyBase ? new URL(proxyBase) : null;
+      const browserHost = window.location.hostname.toLowerCase();
+      const isLocalHost = browserHost === "localhost" || browserHost === "127.0.0.1";
+
+      // In split-port local dev, ensure SSO start endpoints hit backend origin.
+      if (
+        isLocalHost &&
+        proxyUrl &&
+        resolved.pathname.startsWith("/sso/") &&
+        (resolved.hostname.toLowerCase() === "localhost" || resolved.hostname.toLowerCase() === "127.0.0.1") &&
+        resolved.port !== proxyUrl.port
+      ) {
+        return `${proxyUrl.origin}${resolved.pathname}${resolved.search}${resolved.hash}`;
+      }
+      return resolved.toString();
+    } catch {
+      return targetUrl;
+    }
+  };
+
   useEffect(() => {
     if (isConfigLoading) {
       return;
+    }
+
+    const browserHost = typeof window !== "undefined" ? window.location.hostname.toLowerCase() : "";
+    const isLocalHost = browserHost === "localhost" || browserHost === "127.0.0.1";
+    let isLocalSplitMode = false;
+    if (isLocalHost && typeof window !== "undefined") {
+      try {
+        const proxyBase = getProxyBaseUrl();
+        const proxyUrl = proxyBase ? new URL(proxyBase) : null;
+        const proxyHost = proxyUrl?.hostname?.toLowerCase() || "";
+        const proxyIsLocal = proxyHost === "localhost" || proxyHost === "127.0.0.1";
+        isLocalSplitMode = Boolean(proxyIsLocal && proxyUrl && proxyUrl.port !== window.location.port);
+      } catch {
+        isLocalSplitMode = false;
+      }
     }
 
     // Check if admin UI is disabled
@@ -39,15 +189,37 @@ function LoginPageContent() {
 
     const rawToken = getCookie("token");
     if (rawToken && !isJwtExpired(rawToken)) {
-      router.replace(`${getProxyBaseUrl()}/ui`);
+      // In localhost split-port mode, avoid auto-jumps from /login -> / that can
+      // bounce back and create hard-reload loops when cookies are inconsistent.
+      if (isLocalSplitMode) {
+        setIsLoading(false);
+        return;
+      }
+      if (!shouldAllowRedirect("token")) {
+        // Stale/invalid session can cause login<->dashboard bounce loops.
+        clearTokenCookies();
+        setIsLoading(false);
+        return;
+      }
+      router.replace(normalizeLocalSplitUiRedirect(`${getProxyBaseUrl()}/ui`));
       return;
     }
 
     if (uiConfig && uiConfig.auto_redirect_to_sso) {
+      if (isLocalSplitMode) {
+        setIsLoading(false);
+        return;
+      }
+      if (!shouldAllowRedirect("sso")) {
+        setIsLoading(false);
+        return;
+      }
       router.push(`${getProxyBaseUrl()}/sso/key/generate`);
       return;
     }
 
+    resetRedirectGuard("token");
+    resetRedirectGuard("sso");
     setIsLoading(false);
   }, [isConfigLoading, router, uiConfig]);
 
@@ -58,7 +230,7 @@ function LoginPageContent() {
       const result = await loginResolveCall(email);
       if (result.method === "sso" && result.sso_url) {
         // Redirect to SSO provider
-        window.location.href = result.sso_url;
+        window.location.href = normalizeSsoEntryUrl(result.sso_url);
       } else {
         // Password login - show password form
         setUsername(email);
@@ -78,7 +250,9 @@ function LoginPageContent() {
       { username, password },
       {
         onSuccess: (data) => {
-          router.push(data.redirect_url);
+          resetRedirectGuard("token");
+          resetRedirectGuard("sso");
+          router.push(normalizeLocalSplitUiRedirect(data.redirect_url));
         },
       },
     );

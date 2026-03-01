@@ -78,7 +78,11 @@ import { jsonFields } from "./common_components/check_openapi_schema";
 import NotificationsManager from "./molecules/notifications_manager";
 
 const isLocal = process.env.NODE_ENV === "development";
-export const defaultProxyBaseUrl = isLocal ? "http://localhost:4000" : null;
+const configuredProxyBaseUrl = (process.env.NEXT_PUBLIC_PROXY_BASE_URL || "").trim();
+const hasExplicitProxyBaseUrl = configuredProxyBaseUrl.length > 0;
+const localProxyBaseUrl = configuredProxyBaseUrl || "http://localhost:4000";
+// Honor explicit NEXT_PUBLIC_PROXY_BASE_URL in all modes (including static/prod builds).
+export const defaultProxyBaseUrl = configuredProxyBaseUrl || (isLocal ? localProxyBaseUrl : null);
 const defaultServerRootPath = "/";
 export let serverRootPath = defaultServerRootPath;
 export let proxyBaseUrl = defaultProxyBaseUrl;
@@ -98,8 +102,14 @@ const updateProxyBaseUrl = (serverRootPath: string, receivedProxyBaseUrl: string
    * Special function for updating the proxy base url. Should only be called by getUiConfig.
    */
   const browserLocation = getWindowLocation();
-  const resolvedDefaultProxyBaseUrl = isLocal ? "http://localhost:4000" : browserLocation?.origin ?? null;
-  let initialProxyBaseUrl = receivedProxyBaseUrl || resolvedDefaultProxyBaseUrl;
+  const resolvedDefaultProxyBaseUrl =
+    configuredProxyBaseUrl || (isLocal ? localProxyBaseUrl : browserLocation?.origin ?? null);
+  // If NEXT_PUBLIC_PROXY_BASE_URL is explicitly configured, it is the source of truth.
+  // This prevents /litellm/.well-known responses from accidentally switching the UI
+  // to its own static origin in split-port local runs (UI:4000, backend:4001).
+  let initialProxyBaseUrl = hasExplicitProxyBaseUrl
+    ? configuredProxyBaseUrl
+    : receivedProxyBaseUrl || resolvedDefaultProxyBaseUrl;
   console.log("proxyBaseUrl:", proxyBaseUrl);
   console.log("serverRootPath:", serverRootPath);
 
@@ -280,7 +290,22 @@ export const handleError = async (errorData: string | any) => {
       clearTokenCookies();
       const browserLocation = getWindowLocation();
       if (browserLocation) {
-        window.location.href = browserLocation.pathname;
+        const currentPath = browserLocation.pathname || "/";
+        const currentHost = browserLocation.hostname.toLowerCase();
+        const isLocalHost = currentHost === "localhost" || currentHost === "127.0.0.1";
+        const isAlreadyOnLogin = currentPath === "/login" || currentPath.endsWith("/login");
+
+        if (isAlreadyOnLogin) {
+          // Avoid hard-refresh loops when the user is already on login.
+          return;
+        }
+
+        let destination = currentPath;
+        if (isLocalHost) {
+          // Split-port local dev should always land on the UI login route.
+          destination = "/login";
+        }
+        window.location.replace(destination);
       }
     }
     lastErrorTime = currentTime;
@@ -9815,6 +9840,23 @@ export const copilotBudgetPlanDeleteCall = async (accessToken: string, id: strin
   } catch (error) { console.error("Failed to delete budget plan:", error); throw error; }
 };
 
+export const copilotBudgetPlanRenewCall = async (
+  accessToken: string,
+  id: string,
+  data?: { cycle_anchor?: string; force?: boolean },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/budgets/plans/${id}/renew` : `/copilot/budgets/plans/${id}/renew`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data || {}),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to renew budget plan cycle:", error); throw error; }
+};
+
 // ============================================
 // Copilot - Agents & Groups
 // ============================================
@@ -10316,6 +10358,88 @@ export const copilotEnabledIntegrationsUpdateCall = async (
   } catch (error) { console.error("Failed to update enabled integrations:", error); throw error; }
 };
 
+export const copilotConnectionPermissionModeListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string; connection_type?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    if (params?.connection_type) query.set("connection_type", params.connection_type);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/permission-modes${qs}`
+      : `/copilot/connections/permission-modes${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list connection permission modes:", error); throw error; }
+};
+
+export const copilotConnectionPermissionModeUpsertCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/permission-modes`
+      : `/copilot/connections/permission-modes`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to upsert connection permission mode:", error); throw error; }
+};
+
+export const copilotConnectionPermissionModeDeleteCall = async (
+  accessToken: string,
+  data: { scope_type: string; scope_id: string; connection_type?: string; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/permission-modes`
+      : `/copilot/connections/permission-modes`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete connection permission mode:", error); throw error; }
+};
+
+export const copilotConnectionPermissionModeResolveCall = async (
+  accessToken: string,
+  params?: { account_id?: string; connection_type?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.connection_type) query.set("connection_type", params.connection_type);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/connections/permission-modes/resolve${qs}`
+      : `/copilot/connections/permission-modes/resolve${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to resolve connection permission mode:", error); throw error; }
+};
+
 // ============================================
 // Copilot - Guardrails
 // ============================================
@@ -10392,6 +10516,66 @@ export const copilotGuardrailsConfigToggleCall = async (
     if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
     return await response.json();
   } catch (error) { console.error("Failed to toggle guardrails config:", error); throw error; }
+};
+
+export const copilotGuardrailsPolicyListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/policies${qs}` : `/copilot/guardrails/policies${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to list guardrails policies:", error); throw error; }
+};
+
+export const copilotGuardrailsPolicyUpsertCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/policies${qs}` : `/copilot/guardrails/policies${qs}`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to upsert guardrails policy:", error); throw error; }
+};
+
+export const copilotGuardrailsPolicyDeleteCall = async (
+  accessToken: string,
+  data: { scope_type: string; scope_id: string },
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/guardrails/policies${qs}` : `/copilot/guardrails/policies${qs}`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) { const e = await response.json(); handleError(deriveErrorMessage(e)); throw new Error(deriveErrorMessage(e)); }
+    return await response.json();
+  } catch (error) { console.error("Failed to delete guardrails policy:", error); throw error; }
 };
 
 export const copilotGuardrailsPatternListCall = async (
@@ -11083,6 +11267,36 @@ export const copilotUserListCall = async (
   }
 };
 
+export const copilotUserReconcileIdentityCall = async (
+  accessToken: string,
+  params?: { account_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/users/reconcile-identity${qs}`
+      : `/copilot/users/reconcile-identity${qs}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to reconcile copilot identity users:", error);
+    throw error;
+  }
+};
+
 export const copilotUserCreateCall = async (
   accessToken: string,
   data: Record<string, any>,
@@ -11587,6 +11801,118 @@ export const copilotInviteRejectCall = async (
 };
 
 // ============================================
+// Copilot - Feature Policies
+// ============================================
+
+export const copilotFeaturePolicyListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/entitlements/features/policies${qs}`
+      : `/copilot/entitlements/features/policies${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot feature policies:", error);
+    throw error;
+  }
+};
+
+export const copilotFeaturePolicyUpsertCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/entitlements/features/policies`
+      : `/copilot/entitlements/features/policies`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to upsert copilot feature policy:", error);
+    throw error;
+  }
+};
+
+export const copilotFeaturePolicyDeleteCall = async (
+  accessToken: string,
+  data: { scope_type: string; scope_id: string; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/entitlements/features/policies`
+      : `/copilot/entitlements/features/policies`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete copilot feature policy:", error);
+    throw error;
+  }
+};
+
+export const copilotFeaturePolicyResolveCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/entitlements/features/resolve${qs}`
+      : `/copilot/entitlements/features/resolve${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to resolve copilot feature policy:", error);
+    throw error;
+  }
+};
+
+// ============================================
 // Copilot - Model Selection
 // ============================================
 
@@ -11684,6 +12010,108 @@ export const copilotModelSelectionBulkUpdateCall = async (
     return await response.json();
   } catch (error) {
     console.error("Failed to bulk update copilot model selection:", error);
+    throw error;
+  }
+};
+
+export const copilotModelPolicyListCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/policies${qs}` : `/copilot/models/policies${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to list copilot model policies:", error);
+    throw error;
+  }
+};
+
+export const copilotModelPolicyUpsertCall = async (
+  accessToken: string,
+  data: Record<string, any>,
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/policies` : `/copilot/models/policies`;
+    const response = await fetch(url, {
+      method: "PUT",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to upsert copilot model policy:", error);
+    throw error;
+  }
+};
+
+export const copilotModelPolicyDeleteCall = async (
+  accessToken: string,
+  data: { scope_type: string; scope_id: string; account_id?: string },
+) => {
+  try {
+    const url = proxyBaseUrl ? `${proxyBaseUrl}/copilot/models/policies` : `/copilot/models/policies`;
+    const response = await fetch(url, {
+      method: "DELETE",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to delete copilot model policy:", error);
+    throw error;
+  }
+};
+
+export const copilotModelPolicyResolveCall = async (
+  accessToken: string,
+  params?: { account_id?: string; scope_type?: string; scope_id?: string },
+) => {
+  try {
+    const query = new URLSearchParams();
+    if (params?.account_id) query.set("account_id", params.account_id);
+    if (params?.scope_type) query.set("scope_type", params.scope_type);
+    if (params?.scope_id) query.set("scope_id", params.scope_id);
+    const qs = query.toString() ? `?${query.toString()}` : "";
+    const url = proxyBaseUrl
+      ? `${proxyBaseUrl}/copilot/models/policies/resolve${qs}`
+      : `/copilot/models/policies/resolve${qs}`;
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { [globalLitellmHeaderName]: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    });
+    if (!response.ok) {
+      const e = await response.json();
+      handleError(deriveErrorMessage(e));
+      throw new Error(deriveErrorMessage(e));
+    }
+    return await response.json();
+  } catch (error) {
+    console.error("Failed to resolve copilot model policy:", error);
     throw error;
   }
 };

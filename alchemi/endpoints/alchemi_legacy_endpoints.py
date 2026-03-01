@@ -5,12 +5,19 @@ These routes proxy old list-style endpoints to the new /copilot data model,
 so existing clients can continue to function during migration.
 """
 from datetime import datetime, timezone
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, Query, Request
 
 from alchemi.db import copilot_db
+from alchemi.endpoints.copilot_connection_endpoints import (
+    _connection_management_mode,
+    _connection_owner_user_id,
+    _mask_secrets,
+    _resolve_connection_permission,
+)
 from alchemi.endpoints.copilot_auth import require_copilot_read_access
+from alchemi.endpoints.copilot_policy_utils import is_admin_claims
 
 router = APIRouter(prefix="/alchemi", tags=["Alchemi Legacy Compatibility"])
 
@@ -148,6 +155,40 @@ async def legacy_connection_list(
         offset=offset,
     )
     total = await copilot_db.account_connections.count(where=where if where else None)
+
+    if not is_admin_claims(_auth):
+        actor_user_id = str((_auth or {}).get("user_id") or "").strip()
+        permission_cache: Dict[str, Dict[str, Any]] = {}
+        filtered: List[Dict[str, Any]] = []
+        for row in rows:
+            ctype = str(row.get("connection_type") or "").strip().lower()
+            if ctype not in {"mcp", "openapi", "integration"}:
+                continue
+            if ctype not in permission_cache:
+                permission_cache[ctype] = await _resolve_connection_permission(
+                    account_id=str(row.get("account_id") or ""),
+                    connection_type=ctype,
+                    actor_claims=_auth,
+                )
+            permission = permission_cache[ctype]
+            mgmt_mode = _connection_management_mode(row)
+            owner_user_id = _connection_owner_user_id(row)
+            if mgmt_mode == "self_managed":
+                if (
+                    actor_user_id
+                    and owner_user_id == actor_user_id
+                    and permission.get("permission_mode") == "self_managed_allowed"
+                ):
+                    filtered.append(row)
+                continue
+            if permission.get("allow_use_admin_connections", True):
+                filtered.append(row)
+        rows = filtered
+        total = len(rows)
+
+    for row in rows:
+        if row.get("connection_data"):
+            row["connection_data"] = _mask_secrets(row["connection_data"])
     return {
         "data": rows,
         "list": rows,

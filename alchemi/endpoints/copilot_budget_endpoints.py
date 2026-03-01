@@ -3,9 +3,10 @@ Credit Budget Management endpoints.
 CRUD for credit budgets and budget plans, plus usage recording and hierarchical allocation.
 """
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Dict, List, Optional, Sequence, Set, Tuple
+import json
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
@@ -16,6 +17,8 @@ from alchemi.endpoints.copilot_types import (
     BudgetAllocateRequest,
     BudgetAllocationStrategy,
     BudgetDistributeEqualRequest,
+    BudgetPlanRenewRequest,
+    BudgetRenewalCadence,
     BudgetPlanCreate,
     BudgetPlanUpdate,
     BudgetScopeType,
@@ -56,6 +59,158 @@ def _num_int(value, default: int = 0) -> int:
         return int(float(value))
     except Exception:
         return default
+
+
+def _to_utc_start_of_day(value: datetime) -> datetime:
+    dt = value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        dt = dt.astimezone(timezone.utc)
+    return dt.replace(hour=0, minute=0, second=0, microsecond=0)
+
+
+def _add_months(dt: datetime, months: int) -> datetime:
+    year = dt.year + (dt.month - 1 + months) // 12
+    month = (dt.month - 1 + months) % 12 + 1
+    return dt.replace(year=year, month=month)
+
+
+def _resolve_cycle_bounds(
+    cadence: BudgetRenewalCadence,
+    renewal_day_of_month: int,
+    anchor: Optional[datetime] = None,
+) -> Tuple[Optional[datetime], Optional[datetime]]:
+    if cadence == BudgetRenewalCadence.MANUAL:
+        return None, None
+
+    now = _to_utc_start_of_day(anchor or datetime.now(timezone.utc))
+    renewal_day = max(1, min(int(renewal_day_of_month or 1), 28))
+
+    cycle_start = now.replace(day=renewal_day)
+    if now.day < renewal_day:
+        cycle_start = _add_months(cycle_start, -1)
+
+    months = 1
+    if cadence == BudgetRenewalCadence.QUARTERLY:
+        months = 3
+    elif cadence == BudgetRenewalCadence.YEARLY:
+        months = 12
+
+    next_cycle_start = _add_months(cycle_start, months)
+    cycle_end = next_cycle_start - timedelta(seconds=1)
+    return cycle_start, cycle_end
+
+
+def _get_plan_distribution_defaults(distribution: Optional[dict]) -> dict:
+    def _as_dict(value: Any) -> Dict[str, Any]:
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, str) and value.strip():
+            try:
+                parsed = json.loads(value)
+                if isinstance(parsed, dict):
+                    return parsed
+            except Exception:
+                return {}
+        return {}
+
+    base = _as_dict(distribution)
+    renewal = _as_dict(base.get("renewal_policy"))
+    account_policy = _as_dict(base.get("account_policy"))
+    billing = _as_dict(base.get("billing"))
+    return {
+        **base,
+        "renewal_policy": {
+            "cadence": renewal.get("cadence") or BudgetRenewalCadence.MONTHLY.value,
+            "day_of_month": _num_int(renewal.get("day_of_month"), 1) or 1,
+        },
+        "account_policy": {
+            "allocation": _num_int(account_policy.get("allocation"), 0),
+            "limit_amount": _num_int(account_policy.get("limit_amount"), _num_int(account_policy.get("allocation"), 0)),
+            "overflow_cap": (
+                None
+                if account_policy.get("overflow_cap") is None
+                else _num_int(account_policy.get("overflow_cap"), 0)
+            ),
+        },
+        "billing": {
+            "overflow_billing_enabled": bool(billing.get("overflow_billing_enabled", True)),
+            "overflow_billing_note": str(billing.get("overflow_billing_note") or "").strip()
+            or "Overflow credits are billed separately after usage.",
+        },
+    }
+
+
+async def _apply_budget_plan_cycle(
+    account_id: str,
+    plan: dict,
+    *,
+    cycle_anchor: Optional[datetime] = None,
+    force: bool = False,
+) -> Dict[str, Any]:
+    distribution = _get_plan_distribution_defaults(plan.get("distribution"))
+    renewal = distribution.get("renewal_policy") or {}
+    account_policy = distribution.get("account_policy") or {}
+
+    cadence_raw = str(renewal.get("cadence") or BudgetRenewalCadence.MONTHLY.value).lower()
+    cadence = (
+        BudgetRenewalCadence(cadence_raw)
+        if cadence_raw in [c.value for c in BudgetRenewalCadence]
+        else BudgetRenewalCadence.MONTHLY
+    )
+    cycle_start, cycle_end = _resolve_cycle_bounds(
+        cadence=cadence,
+        renewal_day_of_month=_num_int(renewal.get("day_of_month"), 1),
+        anchor=cycle_anchor,
+    )
+    if not cycle_start or not cycle_end:
+        raise HTTPException(
+            status_code=400,
+            detail="Budget plan renewal cadence is manual; explicit cycle creation is required.",
+        )
+
+    allocation = max(0, _num_int(account_policy.get("allocation"), 0))
+    limit_amount = _num_int(account_policy.get("limit_amount"), allocation)
+    if limit_amount <= 0:
+        limit_amount = allocation
+    overflow_cap = account_policy.get("overflow_cap")
+    overflow_cap = None if overflow_cap is None else max(0, _num_int(overflow_cap, 0))
+
+    existing = await _find_scope_budget_in_cycle(
+        account_id,
+        BudgetScopeType.ACCOUNT,
+        account_id,
+        cycle_start,
+        cycle_end,
+    )
+
+    payload = {
+        "allocated": allocation,
+        "limit_amount": max(limit_amount, allocation),
+        "overflow_cap": overflow_cap,
+        "budget_plan_id": str(plan.get("id")),
+        "allocation_strategy": BudgetAllocationStrategy.MANUAL.value,
+    }
+
+    if existing and not force:
+        return {"budget": existing, "created": False, "cycle_start": cycle_start, "cycle_end": cycle_end}
+
+    if existing and force:
+        updated = await copilot_db.credit_budgets.update(str(existing.get("id")), payload)
+        return {"budget": updated, "created": False, "cycle_start": cycle_start, "cycle_end": cycle_end}
+
+    created = await copilot_db.credit_budgets.create(
+        data={
+            "account_id": account_id,
+            "scope_type": BudgetScopeType.ACCOUNT.value,
+            "scope_id": account_id,
+            "cycle_start": cycle_start,
+            "cycle_end": cycle_end,
+            **payload,
+        }
+    )
+    return {"budget": created, "created": True, "cycle_start": cycle_start, "cycle_end": cycle_end}
 
 
 def _is_active_budget(budget: dict, now: datetime) -> bool:
@@ -1083,6 +1238,8 @@ async def list_plans(
     resolved_account_id = _resolve_optional_account_filter(account_id)
     where = {"account_id": resolved_account_id} if resolved_account_id else None
     plans = await copilot_db.budget_plans.find_many(where=where, order_by="created_at DESC")
+    for plan in plans:
+        plan["distribution"] = _get_plan_distribution_defaults(plan.get("distribution"))
     return {"data": plans, "plans": plans}
 
 
@@ -1095,15 +1252,48 @@ async def create_plan(
 ):
     """Create a new budget plan."""
     resolved_account_id = _resolve_required_account_for_write(account_id)
+    distribution = _get_plan_distribution_defaults(data.distribution)
+    distribution["renewal_policy"] = {
+        "cadence": data.renewal_cadence.value,
+        "day_of_month": _num_int(data.renewal_day_of_month, 1),
+    }
+    distribution["account_policy"] = {
+        "allocation": max(0, _num_int(data.account_allocation, 0)),
+        "limit_amount": _num_int(data.account_limit_amount, _num_int(data.account_allocation, 0)),
+        "overflow_cap": (
+            None
+            if data.account_overflow_cap is None
+            else max(0, _num_int(data.account_overflow_cap, 0))
+        ),
+    }
+    distribution["billing"] = {
+        "overflow_billing_enabled": bool(data.overflow_billing_enabled),
+        "overflow_billing_note": (
+            str(data.overflow_billing_note or "").strip()
+            or "Overflow credits are billed separately after usage."
+        ),
+    }
+
     plan = await copilot_db.budget_plans.create(
         data={
             "account_id": resolved_account_id,
             "name": data.name,
             "is_active": data.is_active,
-            "distribution": data.distribution,
+            "distribution": distribution,
         }
     )
-    return {"data": plan}
+    renewal_result = None
+    if bool(data.is_active):
+        try:
+            renewal_result = await _apply_budget_plan_cycle(
+                account_id=resolved_account_id,
+                plan=plan,
+                force=False,
+            )
+        except HTTPException:
+            renewal_result = None
+
+    return {"data": plan, "renewal": renewal_result}
 
 
 @router.put("/plans/{plan_id}")
@@ -1114,14 +1304,122 @@ async def update_plan(
     _auth=Depends(require_copilot_admin_access),
 ):
     """Update a budget plan."""
+    existing = await copilot_db.budget_plans.find_by_id(plan_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+
     update_data = {k: v for k, v in data.model_dump().items() if v is not None}
-    if not update_data:
+    if not update_data and "distribution" not in update_data:
         raise HTTPException(status_code=400, detail="No fields to update.")
 
-    plan = await copilot_db.budget_plans.update(plan_id, update_data)
+    merged_distribution = _get_plan_distribution_defaults(existing.get("distribution"))
+    if data.distribution is not None:
+        merged_distribution = _get_plan_distribution_defaults(
+            {**merged_distribution, **(data.distribution or {})}
+        )
+
+    if data.renewal_cadence is not None or data.renewal_day_of_month is not None:
+        renewal = dict(merged_distribution.get("renewal_policy") or {})
+        if data.renewal_cadence is not None:
+            renewal["cadence"] = data.renewal_cadence.value
+        if data.renewal_day_of_month is not None:
+            renewal["day_of_month"] = _num_int(data.renewal_day_of_month, 1)
+        merged_distribution["renewal_policy"] = renewal
+
+    if (
+        data.account_allocation is not None
+        or data.account_limit_amount is not None
+        or data.account_overflow_cap is not None
+    ):
+        account_policy = dict(merged_distribution.get("account_policy") or {})
+        if data.account_allocation is not None:
+            account_policy["allocation"] = max(0, _num_int(data.account_allocation, 0))
+        if data.account_limit_amount is not None:
+            account_policy["limit_amount"] = max(0, _num_int(data.account_limit_amount, 0))
+        if data.account_overflow_cap is not None:
+            account_policy["overflow_cap"] = max(0, _num_int(data.account_overflow_cap, 0))
+        merged_distribution["account_policy"] = account_policy
+
+    if data.overflow_billing_enabled is not None or data.overflow_billing_note is not None:
+        billing = dict(merged_distribution.get("billing") or {})
+        if data.overflow_billing_enabled is not None:
+            billing["overflow_billing_enabled"] = bool(data.overflow_billing_enabled)
+        if data.overflow_billing_note is not None:
+            billing["overflow_billing_note"] = (
+                str(data.overflow_billing_note or "").strip()
+                or "Overflow credits are billed separately after usage."
+            )
+        merged_distribution["billing"] = billing
+
+    payload = {k: v for k, v in update_data.items() if k != "distribution"}
+    payload["distribution"] = merged_distribution
+
+    plan = await copilot_db.budget_plans.update(plan_id, payload)
     if not plan:
         raise HTTPException(status_code=404, detail="Plan not found.")
-    return {"data": plan}
+
+    should_refresh_cycle = bool(plan.get("is_active")) and any(
+        [
+            data.renewal_cadence is not None,
+            data.renewal_day_of_month is not None,
+            data.account_allocation is not None,
+            data.account_limit_amount is not None,
+            data.account_overflow_cap is not None,
+            data.is_active is True,
+        ]
+    )
+    renewal = None
+    if should_refresh_cycle:
+        renewal = await _apply_budget_plan_cycle(
+            account_id=str(plan.get("account_id") or ""),
+            plan=plan,
+            force=True,
+        )
+    return {"data": plan, "renewal": renewal}
+
+
+@router.post("/plans/{plan_id}/renew")
+async def renew_plan_cycle(
+    plan_id: str,
+    data: BudgetPlanRenewRequest,
+    request: Request,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    Apply budget plan cycle renewal by creating/updating the account scope budget for the active cycle.
+    """
+    plan = await copilot_db.budget_plans.find_by_id(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found.")
+
+    account_id = str(plan.get("account_id") or "")
+    if not account_id:
+        raise HTTPException(status_code=400, detail="Plan has no account_id.")
+
+    anchor = data.cycle_anchor
+    result = await _apply_budget_plan_cycle(
+        account_id=account_id,
+        plan=plan,
+        cycle_anchor=anchor,
+        force=bool(data.force),
+    )
+
+    await log_copilot_audit_event(
+        account_id=account_id,
+        event_type="copilot_budget_plan",
+        resource_type="budget_plan",
+        resource_id=str(plan_id),
+        action="renew",
+        message="Executed budget plan cycle renewal.",
+        details={
+            "cycle_start": str(result.get("cycle_start")),
+            "cycle_end": str(result.get("cycle_end")),
+            "created": bool(result.get("created")),
+            "force": bool(data.force),
+        },
+        request=request,
+    )
+    return {"data": result}
 
 
 @router.delete("/plans/{plan_id}")

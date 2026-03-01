@@ -208,6 +208,24 @@ async def _list_identity_users(
     return {"users": normalized_users, "total": total}
 
 
+async def _reconcile_identity_users_for_account(account_id: str) -> int:
+    """
+    Best-effort backfill for identity users using domain/admin mapping.
+    Also reassigns mismatched account_id rows to the resolved account.
+    """
+    from alchemi.auth.account_resolver import reconcile_identity_account_links
+    from litellm.proxy.proxy_server import prisma_client
+
+    if prisma_client is None:
+        return 0
+    updated = await reconcile_identity_account_links(
+        account_id=account_id,
+        prisma_client=prisma_client,
+        reassign_mismatched=True,
+    )
+    return len(updated)
+
+
 async def _list_identity_groups(
     account_id: str,
     search: Optional[str],
@@ -485,8 +503,8 @@ async def _ensure_default_group_and_team(
         group = await copilot_db.groups.create(
             data={
                 "account_id": account_id,
-                "name": "Default",
-                "description": "Default group for unassigned users",
+                "name": "Global",
+                "description": "Global default organization for all users",
                 "is_default": True,
                 "created_by": acting_user,
                 "updated_by": acting_user,
@@ -504,8 +522,8 @@ async def _ensure_default_group_and_team(
             data={
                 "account_id": account_id,
                 "group_id": group["id"],
-                "name": "Default",
-                "description": "Default team for unassigned users",
+                "name": "Global",
+                "description": "Global default team for all users",
                 "is_default": True,
                 "created_by": acting_user,
                 "updated_by": acting_user,
@@ -676,6 +694,7 @@ async def list_users(
 ):
     resolved_account_id = await _resolve_account_id(account_id)
     if _is_identity_source(source):
+        await _reconcile_identity_users_for_account(resolved_account_id)
         identity = await _list_identity_users(
             account_id=resolved_account_id,
             is_active=is_active,
@@ -727,6 +746,7 @@ async def get_user(
     resolved_account_id = await _resolve_account_id(account_id)
 
     if _is_identity_source(source):
+        await _reconcile_identity_users_for_account(resolved_account_id)
         identity_users = await _list_identity_users(
             account_id=resolved_account_id,
             is_active=None,
@@ -886,6 +906,7 @@ async def list_memberships(
     resolved_account_id = await _resolve_account_id(account_id)
 
     if _is_identity_source(source):
+        await _reconcile_identity_users_for_account(resolved_account_id)
         identity_users = await _list_identity_users(
             account_id=resolved_account_id,
             is_active=is_active,
@@ -947,6 +968,7 @@ async def list_groups(
 ):
     resolved_account_id = await _resolve_account_id(account_id)
     if _is_identity_source(source):
+        await _reconcile_identity_users_for_account(resolved_account_id)
         identity = await _list_identity_groups(
             account_id=resolved_account_id,
             search=search,
@@ -1173,6 +1195,7 @@ async def list_teams(
 ):
     resolved_account_id = await _resolve_account_id(account_id)
     if _is_identity_source(source):
+        await _reconcile_identity_users_for_account(resolved_account_id)
         identity = await _list_identity_teams(
             account_id=resolved_account_id,
             group_id=group_id,
@@ -1253,6 +1276,20 @@ async def list_teams(
             team["members"] = by_team.get(str(team["id"]), [])
 
     return {"data": teams, "total": int(total or 0)}
+
+
+@router.post("/users/reconcile-identity")
+async def reconcile_identity_users(
+    request: Request,
+    account_id: Optional[str] = None,
+    _auth=Depends(require_copilot_admin_access),
+):
+    """
+    Manually reconcile identity users missing account_id into the current account.
+    """
+    resolved_account_id = await _resolve_account_id(account_id)
+    updated = await _reconcile_identity_users_for_account(resolved_account_id)
+    return {"data": {"account_id": resolved_account_id, "updated_count": updated}}
 
 
 @router.post("/teams")

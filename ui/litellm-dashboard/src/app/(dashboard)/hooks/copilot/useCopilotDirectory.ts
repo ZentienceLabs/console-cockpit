@@ -14,6 +14,7 @@ import {
   copilotTeamUpdateCall,
   copilotUserCreateCall,
   copilotUserListCall,
+  copilotUserReconcileIdentityCall,
   copilotUserMembershipUpdateCall,
   copilotUserUpdateCall,
 } from "@/components/networking";
@@ -38,6 +39,22 @@ export const useCopilotUsers = (params?: {
     queryKey: copilotUserKeys.list({ filters: params }),
     queryFn: () => copilotUserListCall(accessToken!, params),
     enabled: Boolean(accessToken),
+  });
+};
+
+export const useReconcileCopilotIdentityUsers = () => {
+  const { accessToken } = useAuthorized();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ account_id }: { account_id?: string }) => {
+      if (!accessToken) throw new Error("Access token is required");
+      return copilotUserReconcileIdentityCall(accessToken, { account_id });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: copilotUserKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotGroupDirectoryKeys.all });
+      queryClient.invalidateQueries({ queryKey: copilotTeamDirectoryKeys.all });
+    },
   });
 };
 

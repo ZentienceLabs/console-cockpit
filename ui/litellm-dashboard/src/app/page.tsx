@@ -222,8 +222,32 @@ function CreateKeyPageContent() {
 
   useEffect(() => {
     if (redirectToLogin) {
-      // Replace instead of assigning to avoid back-button loops
-      const dest = (proxyBaseUrl || "") + "/ui/login";
+      // Keep login on UI origin for localhost split-port runs (UI:4000, API:4001),
+      // otherwise preserve proxy-hosted /ui/login behavior.
+      const browserOrigin = window.location.origin;
+      const browserHost = window.location.hostname.toLowerCase();
+      const isLocalHost = browserHost === "localhost" || browserHost === "127.0.0.1";
+      let useUiOriginLogin = false;
+
+      if (isLocalHost) {
+        if (!proxyBaseUrl) {
+          useUiOriginLogin = true;
+        } else {
+          try {
+            const proxyUrl = new URL(proxyBaseUrl);
+            const proxyHost = proxyUrl.hostname.toLowerCase();
+            const proxyIsLocal = proxyHost === "localhost" || proxyHost === "127.0.0.1";
+            if (proxyIsLocal && proxyUrl.port !== window.location.port) {
+              useUiOriginLogin = true;
+            }
+          } catch {
+            useUiOriginLogin = true;
+          }
+        }
+      }
+
+      const proxyBase = (proxyBaseUrl || browserOrigin).replace(/\/$/, "");
+      const dest = useUiOriginLogin ? `${browserOrigin}/login` : `${proxyBase}/ui/login`;
       window.location.replace(dest);
     }
   }, [redirectToLogin]);

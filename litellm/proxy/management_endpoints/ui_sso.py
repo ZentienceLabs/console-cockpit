@@ -2489,11 +2489,59 @@ class SSOAuthenticationHandler:
             is_super_admin=False,
         )
 
-        # Alchemi: Resolve account_id for SSO user
+        # Alchemi: Resolve account_id for SSO user and backfill identity linkage.
         try:
-            from alchemi.auth.account_resolver import resolve_account_for_user
-            _sso_account_id = await resolve_account_for_user(user_email, prisma_client)
-            returned_ui_token_object["account_id"] = _sso_account_id
+            from alchemi.auth.account_resolver import (
+                reconcile_identity_account_links,
+                resolve_account_for_user,
+            )
+            from alchemi.auth.super_admin import is_super_admin_zitadel
+
+            _is_super_admin = bool(
+                user_email and is_super_admin_zitadel(str(user_email))
+            )
+            returned_ui_token_object["is_super_admin"] = _is_super_admin
+
+            if _is_super_admin:
+                returned_ui_token_object["account_id"] = None
+            else:
+                _sso_account_id = await resolve_account_for_user(
+                    user_email, prisma_client
+                )
+                returned_ui_token_object["account_id"] = _sso_account_id
+
+                if _sso_account_id:
+                    # Stamp the current SSO user row with account_id when missing.
+                    try:
+                        identity_user = await prisma_client.db.litellm_usertable.find_first(
+                            where={
+                                "OR": [
+                                    {"user_id": str(user_id or "")},
+                                    {
+                                        "user_email": {
+                                            "equals": str(user_email or ""),
+                                            "mode": "insensitive",
+                                        }
+                                    },
+                                ]
+                            }
+                        )
+                        if identity_user and not getattr(
+                            identity_user, "account_id", None
+                        ):
+                            await prisma_client.db.litellm_usertable.update(
+                                where={"user_id": identity_user.user_id},
+                                data={"account_id": _sso_account_id},
+                            )
+                    except Exception:
+                        pass
+
+                    # Reconcile account-linked users from same domain/admin mapping.
+                    await reconcile_identity_account_links(
+                        account_id=_sso_account_id,
+                        prisma_client=prisma_client,
+                        max_scan=2000,
+                    )
         except Exception:
             pass
 

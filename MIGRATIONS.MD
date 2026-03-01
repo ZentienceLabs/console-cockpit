@@ -1,313 +1,68 @@
-# Centralized Cockpit Migration Plan (Fresh Start)
+1. there is console part and and copilot part. copilot is what alchemi-web and alchemi-ai does, this is where uses from different tenants (basically different accounts each belonging to a company or enterprise). Console is where developers and development teams from the company or enterprise can get api access to different llm from multiple vendors, have access to guardrails, mcp, see how much it costs, see the logs.. 
 
-Last updated: 2026-02-24  
-Primary platform target: `console-cockpit` (LiteLLM + Alchemi extensions)  
-Client products: `alchemi-web`, `alchemi-ai`  
-Reference context: migration implementation + audit learnings through 2026-02-24
+Now both of these different products under the same suite need to be controlled, maintained and managed by an IT admin of the company who acts as the tenant or account admin), this is dont through cockpit. 
+For the copilot part:
+1. The account admin can create organizations, teamsn and users. Allocate credits for them (this is in dollars but just credits- credits are calucluated by multiplying the cost and credit factor, the credit factor is set by a super admin for each tenant or account).
+2. The account admin should also be be able distribute the credits between different orgs, teams and users, simly say like divide these x credits between the y orgs/teams/users equally. and then they should also be able to override it
+3. The acount admin should also be able to create these agenets and connect them to different tools and give access to these agents to specific orgs, teams and users. For example, they should be able to say that this agent can only be used by this org or this team or this user. They should also be able to set the guardrails for these agents, for example, they should be able to say that this agent should alway go through the PII guardrail or this agent should always go through the content moderation guardrail... These are preset guardrails.
+Check the code in alchemi-web and alchemi-ai, /workspaces/alchemi-ai/gen_ui_backend/api/agent_wizard_conversation_v2.py and /workspaces/alchemi-web/src/components/unapp/config-components/agent-wizard-conversational.tsx for reference on how agents are created and connected to tools. Replicate the same in cockpit but with more features and more control to the account admin.
+4. The account admin should also be able to set guardrails for the different orgs, teams and users. For example, they should be able to say that this org or this team or this user should always go through the PII guardrail or this org or this team or this user should always go through the Jail break guardrail... These are preset guardrails. alchemi-web cockpit path had these setttings check them.
+5. Similary to creating agents and giving access to them, the account admin should also be able to add connections (openapi, mcp and composio) to different orgs, teams and users. Composio supports both oauth and apikey. It should have 2 levels the account admin can give access to where they can let the users create their own connections or they can create connections for them and just give them access to use those connections without the ability edit or see them. For openapi and mcp, the users should not be able to see the credentials created by the account admin, they should only be able to use them. But users can add their own connections if the account admin allows them to. (the code is already there to add their own mcp and openapi connections)
+Check the code in alchemi-web and alchemi-ai /workspaces/alchemi-web/src/components/unapp/workspace-home/sections/IntegrationsSection.tsx to see how connections are added and managed. Replicate the same in cockpit but with more features and more control to the account admin.
+- Agent management: We can have a centralized agent management system in the cockpit, where admins can create, edit and delete agents, and assign them to specific users or teams. alchemi-web path in /cockpit/marketplace and alchemi-web path in /cockpit/agentdef in alchemi-web.
+- Tool management: Similar to agent management, we can have a centralized tool management system in the cockpit, where admins can manage the tools that are available to the users, and assign them to specific users or teams. alchemi-web path in /cockpit/connections  in alchemi-web.
+- Basically we need to move all of the management in /cockpit in alchemi-web to the console-cockpit, and make the /cockpit in alchemi-web and alchemi-ai as clients that call the centralized cockpit APIs to manage these features. 
+- Guardrails and audit logs
 
----
+6. The account admin should be able to see the logs of all the activities happening in both copilot. This also already exists in alchemi-web cockpit, /workspaces/alchemi-web/src/app/(private)/(cockpit)/cockpit/audit-logs/page.tsx
+7. The account admin should also be able to manage the llms, as is set who can access which llms. The llms are preconfigured by super admin for each tenant or account, but the account admin can decide which orgs, teams and users can access which llms. For example, they should be able to say that this org can access gpt5 and claude 4.5 but not gemini pro, or this team can only access claude haiku 4.5 and not gpt5...
+8. The account admin should also be able to see the credits incurred by different orgs, teams and users. They should be able to see the breakdown of the cost by different agents, llms,connections and guardrails used. This will help them understand where the most cost is being incurred and optimize accordingly.
+9. An admin should be able to selevively enable or disable access to certain features for different orgs, teams and users. The list of features includes: ability to create connectinons (openapi, mcp, composio) and ability to create agents themselves, image generation, access to different llms. 
+10. Let there be a default org called global for all users so something can easily set for everyone.
+11. The agents and connections created by the account admin should be available as part of the marketplace for the users where they can easily find and use them. 
+12.  I am not too keen on workspace management in /cockpit in alchemi-web, but more on the agent, connections, guardrails, tool, user management and budget management. Workspace management can be left out.
 
-## 1) Objective
+For the console part:
+We have used litellm as base and created a console on top of it. The console is where developers and development teams from the company or enterprise can get api access to different llm from multiple vendors, have access to guardrails, mcp, see how much it costs, see the logs.. The account admin will be able to created these llms, guardrails and connections in the console and then give access to them to different orgs, teams and users from the cockpit. 
 
-Build a single centralized management plane in `console-cockpit` for all Copilot admin workflows currently spread across:
-- `alchemi-web` `/cockpit/*`
-- `alchemi-admin`
 
-Keep Copilot management isolated under a dedicated `Copilot` section in console-cockpit, while preserving existing LiteLLM/BYOK console behavior for non-Copilot workloads.
+console-cockpit is a combination of console and cockpit where the account admin can manage both the console and copilot part. They can create and manage llms, guardrails, connections, agents, organizations, teams and users from the console-cockpit and then give access to them accordingly. The developers and development teams will primarily interact with the console part to use the llms, guardrails, connections and agents that are made available to them by the account admin through the console-cockpit. This is already there.
 
----
+The cockpit part for copilot where the account admin can manage the copilot part as mentioned above is also mostly there but it needs to be revamped and made more robust with more features and better control for the account admin. The idea is to have a single unified cockpit where the account admin can manage everything related to both console and copilot part of the suite. They should be able to easily navigate between managing the console part and the copilot part without feeling like they are in two different products. The user experience should be seamless and intuitive. The cockpit for copilot was largely implemented inside alchemi-web /cockpit but we want to move it to console-cockpit and revamp it with more features and better control for the account admin.
 
-## 2) Product and Role Model
+Finally there is a super admin role which is responsible for managing the tenants or accounts. The super admin can create and manage different tenants or accounts, set the credit factor for each tenant or account, allocate credits for the console to different accounts, that gets renewed every month, may also override the credits for the account. be able to set admin for accounts, set sso for these accounts and have an overview of all the activities happening across different tenants or accounts. They should be anle to manage the llm models for console part that are available for different accounts. This what is there distributed between alchemi-admin and console-cockpit but we want to move all of this to console-cockpit for better management and control. Also rationalize the features and controls available to the super admin and account admin for better user experience and ease of use. The super admin should also be able to control which account has what features. 
 
-### 2.1 Product boundaries
 
-- `console-cockpit`:
-  - Source of truth for management APIs and admin UI.
-  - Hosts two distinct management domains:
-    - Console domain (enterprise-managed model endpoints).
-    - Copilot domain (centrally governed models, budgets, agents, connections, guardrails, directory, observability).
-- `alchemi-web` and `alchemi-ai`:
-  - Client applications for end users.
-  - Must consume centralized cockpit APIs for management-derived decisions (model allowlist, agent visibility, budget enforcement, guardrails behavior, connection availability).
-
-### 2.2 Roles
-
-- Super Admin:
-  - Global across all accounts.
-  - Controls platform-level model catalog/governance, account entitlements, global operations dashboards.
-- Account/Tenant Admin:
-  - Scoped to one account.
-  - Manages users/teams/orgs, budgets/allocations, marketplace assignments, connections/integrations, guardrails.
-- End User:
-  - Uses `alchemi-web` / `alchemi-ai` only.
-  - Does not need cockpit UI access.
-  - Must be constrained by account admin selections and super-admin guardrails.
-
----
-
-## 3) Target Architecture (Non-Negotiable)
-
-### 3.1 Identity and auth
-
-- Canonical identity provider: Zitadel.
-- Console must accept:
-  - LiteLLM JWT / master-key auth for service/admin operations.
-  - Zitadel identity tokens for user-scoped Copilot endpoints.
-- Mandatory account resolution precedence:
-  1. Resolve by Zitadel org mapping (`auth_org_id`) and/or domain/email account resolution.
-  2. Use resolved account for Copilot APIs.
-  3. Do not trust stale local app membership account IDs from client session blindly.
-
-### 3.2 Data domains
-
-- Copilot data lives in `copilot.*` schema (separate from Prisma core tables).
-- BYOK / gateway runtime remains in LiteLLM core tables.
-- Copilot model governance must use dedicated Copilot catalog (not gateway router/BYOK list).
-
-### 3.3 API ownership
-
-- Management source of truth: `/copilot/*`.
-- Temporary backward compatibility: `/alchemi/*` wrappers behind feature flag.
-- Long-term: clients call only `/copilot/*`.
-
----
-
-## 4) Scope to Migrate (Fresh Start Baseline)
-
-Must migrate and centralize:
-- Directory: users, memberships, teams, groups/orgs, invites.
-- Budgets/Credits: plans, allocations, hierarchy, alerts, usage recording.
-- Models: super-admin catalog + account-level selection.
-- Agents + Marketplace: definitions, publication, assignment/install semantics.
-- Connections/Tools: OpenAPI/MCP configuration, integration catalog enablement.
-- Guardrails: config, custom patterns, audit trail.
-- Support tickets and notification templates (high-value admin ops).
-- Copilot observability: budget alerts + guardrail alerts + copilot audit logs + usage rollups.
-- Super-admin global operations: cross-account summaries + bulk actions.
-
-Out of scope for initial hard cut:
-- Workspace tracking page parity from `alchemi-web` cockpit.
-
----
-
-## 5) Copilot Credits/Budget Methodology (Required Design)
+For Copilot Credits/Budget Methodology
 
 Use a parent-child allocation model:
 
-1. Super admin allocates account-level credits.
+1. Super admin allocates account-level credits and also assigns overflow limit. The overflow limit allows accounts to exceed their allocated credits up to a certain limit, which can be useful for handling unexpected usage spikes. The super admin can set this limit based on the account's historical usage patterns and business needs. This provides flexibility while still maintaining control over overall credit usage. The overflow credits are charged later to the accounts.
 2. At account start, credits remain **Unallocated**.
 3. Account admin allocates from Unallocated to:
    - organizations/groups
    - teams
    - users
+   - Pool credits for overflow usage or to be allocated later.
 4. Support equal distribution + per-user override.
 5. Periodic renewal/cycle logic at budget plan level.
 6. Effective allocation view must show inheritance and override resolution.
 7. Credit accounting formula is tied to Copilot model cost policy (`cost * CREDITS_FACTOR`).
 
-Avoid fragmented UX terms. Standardize into:
-- Budget Plans
-- Credit Pools (Unallocated + Scoped allocations)
-- User Overrides
-- Effective Allocation
 
----
 
-## 6) Model Governance Requirements (Copilot vs BYOK)
+This is the exercise we are currently doing. but right now its a mess of things that dont make any sense and is not organized at all. We want to take a step back, understand the concept and then come up with a well thought out plan on how to implement this in a structured and organized way. We want to have a clear separation of concerns between the different roles and products, but at the same time we want to have a unified cockpit where the account admin can manage everything related to both console and copilot part of the suite. The user experience should be seamless and intuitive for both the account admin and the developers using the console part. All this with multi-tenancy in mind, so that different accounts can have their own isolated environments, with their own users, agents, tools, and budgets.
 
-### 6.1 Separation
 
-- Core console Models tab (BYOK): enterprise-supplied endpoints for gateway usage.
-- Copilot model governance:
-  - Super admin maintains centralized Copilot catalog.
-  - Super admin selects account-eligible subset.
-  - Account admin selects user-visible subset from that eligible set.
-  - End users in `alchemi-web` / `alchemi-ai` see only effective subset.
+Do a thorough analysis of the current features in alchemi-web, alchemi-ai, alchemi-admin and console-cockpit and see how we can integrate them into the centralized cockpit. We should also consider the user experience and design of the centralized cockpit, to ensure that it is intuitive and easy to use for both admins and users. I think we need not worry about legacy code or migration as this will be a fresh production.
 
-### 6.2 Data source
+Come up with a detailed plan and roadmap for the development of the centralized cockpit, changes to alchemi-web and alchemi-ai, and the integration between them. This will require diligent attention to detail and careful planning to ensure a smooth transition and successful implementation of the centralized cockpit. 
 
-- Copilot catalog comes from Copilot config tables/catalog APIs, not runtime gateway router names by default.
-- Gateway import may bootstrap catalog, but catalog remains canonical.
+Its not about just merging codebases, but basically want the alchemi-web and alchemi-ai to be clients of the centralized cockpit, where they can call the APIs of the centralized cockpit to manage users, agents, tools, budgets, and other features. This way we can have a more modular and scalable architecture, where the centralized cockpit can serve multiple products and clients, and we can also have a more consistent and unified experience for the users across all products.
 
----
 
-## 7) Agent/Marketplace Assignment Semantics (Required)
+Note: Keep the orgs, teams and users separate for console and copilot part for better management. Keep the copilot settings also separate from the console settings in the cockpit but make it easily accessible and manageable for the account admin. The console-cockpit should have a clear and intuitive navigation to switch between managing the console part and the copilot part without feeling like they are in two different products. Whenever we are recreating a feature use same code from alchemi-web and alchemi-ai but revamp it with better design, more features and better control for the account admin. Its ok to use shadcn along with antd, make sure the design is consistent across the cockpit.
+One important think to remember, for alchemi-web and alchemi-ai features we port and also to control them we sould have a separate section called copilot in console-cockpit that manages these, it can reuse backend but needs to have separate, orgs and teams that need to be managed separately from the main console-cockpit orgs and teams, manage budgets, managent marketplace of agents, and tools and even audit logs as they are specific to alchemi-web and alchemi-ai. Also the llms (models) that are used in alchemi-web and alchemi-ai are specific to copilot, so we need to have a way to manage them separately in the centralized cockpit. Basically for the AI gateway in  console-cockpit version, enterprises (accounts) bring their own llms, so we need to have a way to manage those llms separately from the ones used in alchemi-web and alchemi-ai, which are more focused on providing agentic workspaces for enterprise users.
 
-- Assignment scopes must support:
-  - account
-  - organization/group
-  - team
-  - user (id or email)
-- End-user agent visibility is strict assignment-filtered where required by product UX.
-- “Install” semantics must be clear:
-  - install as account availability vs user/team/org assignment are separate actions.
-- Tenant admin should be able to target all users in account or selected orgs/teams/users.
 
----
-
-## 8) Connections and Tools Requirements
-
-- OpenAPI/MCP configuration UX and payloads must align with `alchemi-web` integrations behavior (`/spaces/<id>?section=integrations`) for practical parity.
-- Composio in cockpit is primarily a feature-toggle/enablement governance layer for what end users can access, not forcing per-tenant raw connection setup unless explicitly needed.
-
----
-
-## 9) Migration Execution Plan (Start Fresh)
-
-## Phase 0: Foundations and Freeze
-- Finalize target API/data contracts for all modules.
-- Define canonical account/user identity mapping rules.
-- Inventory all legacy endpoints and UI dependencies.
-- Add feature flags for dual-read/dual-write and compatibility endpoints.
-
-Exit criteria:
-- Signed interface contract for `/copilot/*`.
-- Explicit deprecation map for `/alchemi/*`.
-
-## Phase 1: Identity and Tenant Resolution First
-- Complete Zitadel integration in console.
-- Ensure account resolution endpoint always returns account where resolvable.
-- Implement first-login membership reconciliation:
-  - user exists in IdP but missing local app membership should be auto-created/reconciled.
-
-Exit criteria:
-- No login dead-ends for valid SSO users.
-- No stale-account-induced 403/404 in Copilot APIs.
-
-## Phase 2: Data Schema and Migration
-- Create/validate `copilot.*` schema and indexes.
-- Run idempotent migration scripts from source DBs.
-- Never drop shared production tables.
-- Track source-to-target row counts and anomaly report.
-
-Exit criteria:
-- Migration repeatable and safe.
-- Count variance documented with reasons.
-
-## Phase 3: Core Copilot Modules
-- Budget hierarchy and allocation workflow.
-- Directory from identity source (Zitadel + SCIM teams/orgs).
-- Agents/marketplace assignment model.
-- Connections/tools catalog + enablement.
-- Guardrails + audit storage.
-
-Exit criteria:
-- Tenant admin can complete all critical workflows end-to-end.
-
-## Phase 4: Client Cutover (`alchemi-web`, `alchemi-ai`)
-- Replace local cockpit management calls with console client adapters.
-- Enforce model allowlist and marketplace visibility in user runtime paths.
-- Keep workspace tracking separate (as agreed).
-
-Exit criteria:
-- User runtime (`/spaces`, new conversation, thread page) reflects selected models/agents.
-
-## Phase 5: Super Admin Parity
-- Port high-value `alchemi-admin` workflows:
-  - global ticket operations
-  - notification operations
-  - platform catalog/model governance
-- Add account-scoped filters across all modules.
-
-Exit criteria:
-- Super admin can operate all targeted Copilot governance from console.
-
-## Phase 6: Global Operations
-- Add explicit all-account aggregation APIs and dashboards.
-- Add safe bulk actions with audit trails and guardrails.
-
-Exit criteria:
-- Cross-account operational visibility and action parity achieved.
-
-## Phase 7: Cutover and Retirement
-- Remove residual legacy client calls.
-- Keep compatibility routes behind flag for rollback window.
-- Retire compatibility routes after stable period.
-
-Exit criteria:
-- No production dependency on legacy cockpit APIs.
-
-## Phase 8: Hardening
-- UI regression tests for Copilot pages.
-- Role-gating and tenant-isolation tests.
-- Deploy smoke + E2E in CI per merge.
-
-Exit criteria:
-- CI gate blocks merges on Copilot regressions.
-
----
-
-## 10) Acceptance Criteria (Definition of Done)
-
-- Auth/account mapping:
-  - No “invalid token” for valid Zitadel sessions on Copilot read APIs.
-  - No account mismatch between client session and resolved console account.
-- Models:
-  - Super-admin selection -> account admin selection -> end-user visible models works deterministically.
-- Marketplace:
-  - Tenant-admin assignment to user/team/group/account is reflected in end-user agent lists.
-- Budgets:
-  - Account credits, unallocated pool, scoped allocations, user overrides, and effective views are consistent.
-- Observability:
-  - Copilot-only alerts and audit logs are queryable and visible in Copilot observability UI.
-- Directory:
-  - Users from Zitadel and groups/teams from SCIM/identity source are visible and actionable.
-- No critical legacy dependency in `alchemi-web`/`alchemi-ai` management paths.
-
----
-
-## 11) Operational Runbook
-
-### 11.1 Required env vars
-- `DATABASE_URL` (console-cockpit target DB)
-- `ALCHEMI_WEB_DATABASE_URL` (source DB for migration/backfill)
-- Zitadel vars (`ZITADEL_*`, `NEXT_PUBLIC_ZITADEL_*` where applicable)
-
-### 11.2 Migration command
-- `python -m alchemi.scripts.migrate_copilot_data`
-
-### 11.3 Deployment
-- `./scripts/deploy.sh migrate`
-- `./scripts/deploy.sh build-ui`
-- `./scripts/deploy.sh start`
-
-### 11.4 Validation checklist
-- Account resolution API returns account_id for known emails.
-- `/copilot/models/selection` returns 200 for resolved account.
-- Marketplace strict assignment queries return expected agents for test users.
-- Budget summary/effective allocation APIs align with expected hierarchy.
-
----
-
-## 12) Learnings From This Migration (Do This)
-
-- Resolve account by email/org via console APIs at runtime; treat client-stored account as hint only.
-- Keep Copilot model catalog separate from BYOK models from day one.
-- Implement identity-source directory adapters early (users/teams/orgs).
-- Enforce explicit assignment semantics for marketplace and test with real users.
-- Build observability and audit trails as first-class features, not afterthoughts.
-- Keep migration scripts idempotent and count-verified.
-- Add compatibility endpoints only with clear expiry plan and feature flags.
-- Validate with real cross-product flows (`console -> alchemi-web/alchemi-ai`) every sprint.
-
----
-
-## 13) What To Avoid
-
-- Do not mix Copilot and BYOK model governance concepts in one table/UX.
-- Do not rely only on local `session.accountId` in clients.
-- Do not require manual scope IDs in UI where searchable selectors are required.
-- Do not expose installation as the only marketplace action when assignment is the real control plane.
-- Do not hide failures behind silent fallbacks that make wrong data look “fine”.
-- Do not auto-generate/apply schema diffs on every startup in shared environments.
-- Do not perform destructive DB operations in shared databases.
-- Do not ship without tenant-isolation and role-gating regression tests.
-
----
-
-## 14) Remaining Strategic Work After Current Foundation
-
-- Full product-level parity for every legacy `alchemi-admin` workflow.
-- Deeper global operations analytics and bulk tooling coverage.
-- Complete cutover retirement of all compatibility routes.
-- CI-enforced E2E and regression suites for Copilot governance and runtime reflection.
+Note: console-cockpit is built on top of litellm, so we need to maintain the modularity as mentioned in the instructions.md file. 
