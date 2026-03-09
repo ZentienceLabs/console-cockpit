@@ -7,7 +7,7 @@ import { XIcon } from "lucide-react";
 import { useMCPServers } from "../../app/(dashboard)/hooks/mcpServers/useMCPServers";
 
 interface MCPToolPermissionsProps {
-  accessToken: string;
+  accessToken: string | null;
   selectedServers: string[];
   toolPermissions: Record<string, string[]>;
   onChange: (toolPermissions: Record<string, string[]>) => void;

@@ -94,9 +94,8 @@ async def authenticate_user(  # noqa: PLR0915
     """
     Authenticate a user and generate an API key for UI access.
 
-    This function handles two login scenarios:
-    1. Admin login using UI_USERNAME and UI_PASSWORD
-    2. User login using email and password from database
+    This function handles one supported username/password scenario:
+    1. Break-glass admin login using UI_USERNAME and UI_PASSWORD
 
     Args:
         username: Username or email from the login form
@@ -120,7 +119,8 @@ async def authenticate_user(  # noqa: PLR0915
 
     ui_username, ui_password = get_ui_credentials(master_key)
 
-    # Check if we can find the `username` in the db. On the UI, users can enter username=their email
+    # Check if we can find the `username` in the db. This is only used for
+    # enriching break-glass admin sessions when a matching user row exists.
     _user_row: Optional[LiteLLM_UserTable] = None
     user_role: Optional[
         Literal[
@@ -139,11 +139,7 @@ async def authenticate_user(  # noqa: PLR0915
             ),
         )
 
-    """
-    To login to Admin UI, we support the following
-    - Login with UI_USERNAME and UI_PASSWORD
-    - Login with Invite Link `user_email` and `password` combination
-    """
+    """Only break-glass super-admin login remains supported in Phase 1."""
     if secrets.compare_digest(
         username.encode("utf-8"), ui_username.encode("utf-8")
     ) and secrets.compare_digest(password.encode("utf-8"), ui_password.encode("utf-8")):
@@ -233,74 +229,9 @@ async def authenticate_user(  # noqa: PLR0915
             login_method="username_password",
         )
 
-    elif _user_row is not None:
-        """
-        When sharing invite links
-
-        -> if the user has no role in the DB assume they are only a viewer
-        """
-        user_id = getattr(_user_row, "user_id", "unknown")
-        user_role = getattr(
-            _user_row, "user_role", LitellmUserRoles.INTERNAL_USER_VIEW_ONLY
-        )
-        user_email = getattr(_user_row, "user_email", "unknown")
-        _password = getattr(_user_row, "password", "unknown")
-
-        if _password is None:
-            raise ProxyException(
-                message="User has no password set. Please set a password for the user via `/user/update`.",
-                type=ProxyErrorTypes.auth_error,
-                param="password",
-                code=401,
-            )
-
-        # check if password == _user_row.password
-        hash_password = hash_token(token=password)
-        if secrets.compare_digest(
-            password.encode("utf-8"), _password.encode("utf-8")
-        ) or secrets.compare_digest(hash_password.encode("utf-8"), _password.encode("utf-8")):
-            if os.getenv("DATABASE_URL") is not None:
-                response = await generate_key_helper_fn(
-                    request_type="key",
-                    **{  # type: ignore
-                        "user_role": user_role,
-                        "duration": "24hr",
-                        "key_max_budget": litellm.max_ui_session_budget,
-                        "models": [],
-                        "aliases": {},
-                        "config": {},
-                        "spend": 0,
-                        "user_id": user_id,
-                        "team_id": "litellm-dashboard",
-                    },
-                )
-            else:
-                raise ProxyException(
-                    message="No Database connected. Set DATABASE_URL in .env. If set, use `--detailed_debug` to debug issue.",
-                    type=ProxyErrorTypes.auth_error,
-                    param="DATABASE_URL",
-                    code=500,
-                )
-
-            key = response["token"]  # type: ignore
-
-            return LoginResult(
-                user_id=user_id,
-                key=key,
-                user_email=user_email,
-                user_role=cast(str, user_role),
-                login_method="username_password",
-            )
-        else:
-            raise ProxyException(
-                message=f"Invalid credentials used to access UI.\nNot valid credentials for {username}",
-                type=ProxyErrorTypes.auth_error,
-                param="invalid_credentials",
-                code=401,
-            )
     else:
         raise ProxyException(
-            message="Invalid credentials used to access UI.\nCheck 'UI_USERNAME', 'UI_PASSWORD' in .env file",
+            message="Username/password login is restricted to the Console break-glass super admin. Use Zitadel SSO for normal access.",
             type=ProxyErrorTypes.auth_error,
             param="invalid_credentials",
             code=401,
@@ -339,5 +270,10 @@ def create_ui_token_object(
         ),
         disabled_non_admin_personal_key_creation=disabled_non_admin_personal_key_creation,
         server_root_path=get_server_root_path(),
+        account_id=None,
+        active_account_id=None,
+        is_super_admin=False,
+        platform_roles=[],
+        product_grants=[],
+        is_break_glass=False,
     )
-

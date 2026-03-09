@@ -49,34 +49,6 @@ describe("networking - expired session handling", () => {
     expect(clearTokenCookies).not.toHaveBeenCalled();
   });
 
-  it("should surface backend detail error when updateSSOSettings fails", async () => {
-    expect.hasAssertions();
-
-    const backendError = {
-      detail: {
-        error: "Set `'STORE_MODEL_IN_DB='True'` in your env to enable this feature.",
-      },
-    };
-
-    const mockFetch = vi.fn().mockResolvedValue({
-      ok: false,
-      json: vi.fn().mockResolvedValue(backendError),
-    } as any);
-
-    global.fetch = mockFetch as any;
-
-    try {
-      await Networking.updateSSOSettings("token", { some: "setting" });
-    } catch (error) {
-      const thrownError = error as any;
-      expect(thrownError).toBeInstanceOf(Error);
-      expect(thrownError.message).toBe(backendError.detail.error);
-      expect(thrownError.detail).toEqual(backendError.detail);
-      expect(thrownError.rawError).toEqual(backendError);
-    }
-
-    expect(mockFetch).toHaveBeenCalledOnce();
-  });
 });
 
 describe("daily activity helpers", () => {

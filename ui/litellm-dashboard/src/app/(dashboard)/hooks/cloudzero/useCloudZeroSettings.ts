@@ -49,10 +49,15 @@ const getCloudZeroSettings = async (accessToken: string): Promise<CloudZeroSetti
   return data;
 };
 
-export const useCloudZeroSettings = (accessToken: string) => {
+export const useCloudZeroSettings = (accessToken: string | null) => {
   return useQuery<CloudZeroSettings | null>({
     queryKey: cloudZeroSettingsKeys.list({}),
-    queryFn: async () => await getCloudZeroSettings(accessToken),
+    queryFn: async () => {
+      if (!accessToken) {
+        throw new Error("Access token is required");
+      }
+      return await getCloudZeroSettings(accessToken);
+    },
     enabled: !!accessToken,
     staleTime: 60 * 60 * 1000, // 1 hour - data rarely changes
     gcTime: 60 * 60 * 1000, // 1 hour - keep in cache for 1 hour
@@ -116,7 +121,7 @@ const updateCloudZeroSettings = async (accessToken: string, params: UpdateParams
   return data;
 };
 
-export const useCloudZeroUpdateSettings = (accessToken: string) => {
+export const useCloudZeroUpdateSettings = (accessToken: string | null) => {
   const queryClient = useQueryClient();
 
   return useMutation<UpdateResponse, Error, UpdateParams>({
@@ -169,7 +174,7 @@ const deleteCloudZeroSettings = async (accessToken: string): Promise<DeleteRespo
   return data;
 };
 
-export const useCloudZeroDeleteSettings = (accessToken: string) => {
+export const useCloudZeroDeleteSettings = (accessToken: string | null) => {
   const queryClient = useQueryClient();
 
   return useMutation<DeleteResponse, Error, void>({

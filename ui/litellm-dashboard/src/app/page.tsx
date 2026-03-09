@@ -4,10 +4,11 @@ import APIReferenceView from "@/app/(dashboard)/api-reference/APIReferenceView";
 import SidebarProvider from "@/app/(dashboard)/components/SidebarProvider";
 import OldModelDashboard from "@/app/(dashboard)/models-and-endpoints/ModelsAndEndpointsView";
 import PlaygroundPage from "@/app/(dashboard)/playground/page";
-import AdminPanel from "@/components/AdminPanel";
 import AgentsPanel from "@/components/agents";
 import BudgetPanel from "@/components/budgets/budget_panel";
 import CacheDashboard from "@/components/cache_dashboard";
+import TenantDirectoryPanel from "@/components/control_plane/TenantDirectoryPanel";
+import TenantMembersPanel from "@/components/control_plane/TenantMembersPanel";
 import ClaudeCodePluginsPanel from "@/components/claude_code_plugins";
 import { fetchTeams } from "@/components/common_components/fetch_teams";
 import LoadingScreen from "@/components/common_components/LoadingScreen";
@@ -38,7 +39,6 @@ import UserDashboard from "@/components/user_dashboard";
 import { AccessGroupsPage } from "@/components/AccessGroups/AccessGroupsPage";
 import VectorStoreManagement from "@/components/vector_store_management";
 import SpendLogsTable from "@/components/view_logs";
-import ViewUserDashboard from "@/components/view_users";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { isJwtExpired } from "@/utils/jwtUtils";
 import { isAdminRole } from "@/utils/roles";
@@ -484,15 +484,9 @@ function CreateKeyPageContent() {
                   ) : page == "llm-playground" ? (
                     <PlaygroundPage />
                   ) : page == "users" ? (
-                    <ViewUserDashboard
-                      userID={userID}
-                      userRole={userRole}
-                      token={token}
-                      keys={keys}
-                      teams={teams}
-                      accessToken={accessToken}
-                      setKeys={setKeys}
-                    />
+                    <TenantMembersPanel />
+                  ) : page == "admin-panel" ? (
+                    <TenantDirectoryPanel />
                   ) : page == "teams" ? (
                     <OldTeams
                       teams={teams}
@@ -512,10 +506,6 @@ function CreateKeyPageContent() {
                       accessToken={accessToken}
                       userRole={userRole}
                       premiumUser={premiumUser}
-                    />
-                  ) : page == "admin-panel" ? (
-                    <AdminPanel
-                      proxySettings={proxySettings}
                     />
                   ) : page == "api_ref" ? (
                     <APIReferenceView proxySettings={proxySettings} />

@@ -1,78 +1,123 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Table,
+  Alert,
   Button,
-  Modal,
+  Card,
+  Col,
+  Descriptions,
+  Drawer,
   Form,
   Input,
   InputNumber,
-  Tag,
-  Space,
+  Modal,
   Popconfirm,
-  message,
-  Drawer,
-  Typography,
-  Card,
-  Statistic,
   Row,
-  Col,
-  Tooltip,
-  Divider,
   Select,
-  Switch,
-  Tabs,
-  Alert,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+  message,
 } from "antd";
 import {
-  PlusOutlined,
   EditOutlined,
-  StopOutlined,
-  CheckCircleOutlined,
-  TeamOutlined,
-  DeleteOutlined,
-  ReloadOutlined,
   LockOutlined,
-  SafetyCertificateOutlined,
-  ExclamationCircleOutlined,
-  SettingOutlined,
+  ReloadOutlined,
+  TeamOutlined,
 } from "@ant-design/icons";
-import PriceDataReload from "@/components/price_data_reload";
 
-const { Title, Text } = Typography;
-const { TabPane } = Tabs;
+const { Paragraph, Text, Title } = Typography;
 
-interface Account {
+type IdentityBinding = {
+  identity_binding_id?: string;
+  provider?: string;
+  zitadel_org_id?: string;
+  issuer_url?: string;
+  client_id?: string;
+  default_redirect_url?: string;
+  sso_enabled?: boolean;
+  config?: Record<string, any>;
+  metadata?: Record<string, any>;
+};
+
+type AccountAdmin = {
+  user_id: string;
+  user_email: string;
+  display_name?: string;
+  membership_role?: string;
+  role_code?: string;
+};
+
+type Account = {
   account_id: string;
   account_name: string;
   account_alias?: string;
   domain?: string;
   status: string;
   metadata: Record<string, any>;
-  max_budget?: number;
-  spend: number;
+  max_budget?: number | null;
   created_at: string;
-  created_by?: string;
-  admins?: AccountAdmin[];
-  sso_config?: AccountSSOConfig | null;
-}
+  admins: AccountAdmin[];
+  identity_binding?: IdentityBinding | null;
+};
 
-interface AccountAdmin {
-  id: string;
-  account_id: string;
+type Member = {
+  user_id: string;
   user_email: string;
-  role: string;
-  created_at: string;
-}
+  display_name?: string;
+  membership_role: string;
+  membership_status: string;
+  zitadel_sub?: string;
+};
 
-interface AccountSSOConfig {
-  id: string;
-  account_id: string;
-  sso_provider?: string;
-  enabled: boolean;
-  sso_settings: Record<string, any>;
-}
+type DirectorySummary = {
+  account: {
+    account_id: string;
+    account_name: string;
+    account_alias?: string | null;
+    domain?: string | null;
+    status: string;
+  };
+  identity_binding: IdentityBinding | null;
+  management: {
+    configured: boolean;
+    issuer?: string | null;
+    mode?: string | null;
+    error?: string | null;
+    console_url?: string | null;
+  };
+  directory: {
+    org_id?: string | null;
+    bootstrap_status?: string | null;
+    provider_status?: string | null;
+    managed_via_console: boolean;
+    bootstrap_login?: string | null;
+    sso_enabled: boolean;
+    provider?: Record<string, any> | null;
+    providers?: Record<string, any>[] | null;
+    scim?: Record<string, any> | null;
+    supports_group_scim: boolean;
+    group_sync_strategy: string;
+    management_url?: string | null;
+    primary_domain?: string | null;
+    additional_domains?: string[];
+    domains?: Array<Record<string, any>>;
+    login_policy?: Record<string, any> | null;
+  };
+  capabilities: {
+    can_bootstrap: boolean;
+    can_manage_users: boolean;
+    scim_support: string;
+  };
+};
+
+type ModalPayload = {
+  title: string;
+  body: React.ReactNode;
+};
 
 function getCookie(name: string): string | null {
   if (typeof document === "undefined") return null;
@@ -82,1020 +127,798 @@ function getCookie(name: string): string | null {
   return null;
 }
 
+async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const token = getCookie("token") || "";
+  const response = await fetch(url, {
+    ...init,
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(init?.headers || {}),
+    },
+  });
+  if (!response.ok) {
+    let detail = "Request failed";
+    try {
+      const data = await response.json();
+      detail = data?.detail || data?.error || detail;
+    } catch {
+      // Keep fallback detail.
+    }
+    throw new Error(typeof detail === "string" ? detail : JSON.stringify(detail));
+  }
+  return response.json();
+}
+
 export default function TenantAdminPage() {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [members, setMembers] = useState<Member[]>([]);
   const [loading, setLoading] = useState(true);
-  const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [editModalOpen, setEditModalOpen] = useState(false);
-  const [adminDrawerOpen, setAdminDrawerOpen] = useState(false);
-  const [ssoDrawerOpen, setSsoDrawerOpen] = useState(false);
+  const [membersLoading, setMembersLoading] = useState(false);
+  const [directoryLoading, setDirectoryLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<Account | null>(null);
-  const [createForm] = Form.useForm();
+  const [selectedDirectory, setSelectedDirectory] = useState<DirectorySummary | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
+  const [directoryOpen, setDirectoryOpen] = useState(false);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [modalPayload, setModalPayload] = useState<ModalPayload | null>(null);
   const [editForm] = Form.useForm();
-  const [adminForm] = Form.useForm();
-  const [ssoForm] = Form.useForm();
-  const [editAdminModalOpen, setEditAdminModalOpen] = useState(false);
-  const [editAdminForm] = Form.useForm();
-  const [selectedAdminEmail, setSelectedAdminEmail] = useState("");
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [deleteConfirmName, setDeleteConfirmName] = useState("");
-  const [accountToDelete, setAccountToDelete] = useState<Account | null>(null);
-  const [ssoConfig, setSsoConfig] = useState<Record<string, any> | null>(null);
-  const [ssoLoading, setSsoLoading] = useState(false);
-
-  const accessToken = getCookie("token") || "";
+  const [directoryLinkForm] = Form.useForm();
+  const [memberForm] = Form.useForm();
 
   const fetchAccounts = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/account/list", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      });
-      if (response.ok) {
-        const data = await response.json();
-        setAccounts(data.accounts || []);
-      } else {
-        message.error("Failed to load accounts");
-      }
+      const data = await requestJson<{ accounts: Account[] }>("/control-plane/accounts");
+      setAccounts(data.accounts || []);
     } catch (error) {
-      message.error("Error loading accounts");
+      message.error(error instanceof Error ? error.message : "Failed to load accounts");
     } finally {
       setLoading(false);
     }
-  }, [accessToken]);
+  }, []);
 
   useEffect(() => {
-    fetchAccounts();
+    void fetchAccounts();
   }, [fetchAccounts]);
 
-  const handleCreateAccount = async (values: any) => {
-    try {
-      const response = await fetch("/account/new", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
-        body: JSON.stringify(values),
-      });
-      if (response.ok) {
-        message.success("Account created successfully");
-        setCreateModalOpen(false);
-        createForm.resetFields();
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to create account");
+  const showModal = (title: string, body: React.ReactNode) => {
+    setModalPayload({ title, body });
+  };
+
+  const fetchDirectorySummary = useCallback(
+    async (account: Account) => {
+      setDirectoryLoading(true);
+      try {
+        const summary = await requestJson<DirectorySummary>(
+          `/control-plane/accounts/${account.account_id}/directory`,
+        );
+        const resolvedOrgId =
+          summary.directory.org_id || account.metadata?.zitadel_org_id || undefined;
+        setSelectedDirectory(summary);
+        directoryLinkForm.setFieldsValue({
+          zitadel_org_id: resolvedOrgId,
+          admin_user_email:
+            summary.identity_binding?.metadata?.directory?.tenant_admin_email ||
+            account.admins?.[0]?.user_email ||
+            "",
+          admin_user_id:
+            summary.identity_binding?.metadata?.directory?.tenant_admin_user_id || "",
+          admin_display_name:
+            account.admins?.find(
+              (admin) =>
+                admin.user_email ===
+                summary.identity_binding?.metadata?.directory?.tenant_admin_email,
+            )?.display_name ||
+            account.admins?.[0]?.display_name ||
+            "",
+          membership_role: "owner",
+          product_grants: ["console", "copilot"],
+        });
+      } catch (error) {
+        message.error(error instanceof Error ? error.message : "Failed to load directory");
+      } finally {
+        setDirectoryLoading(false);
       }
+    },
+    [directoryLinkForm],
+  );
+
+  const openMembers = async (account: Account) => {
+    setSelectedAccount(account);
+    setMembersOpen(true);
+    setMembersLoading(true);
+    try {
+      const data = await requestJson<{ members: Member[] }>(
+        `/control-plane/accounts/${account.account_id}/members`,
+      );
+      setMembers(data.members || []);
     } catch (error) {
-      message.error("Error creating account");
+      message.error(error instanceof Error ? error.message : "Failed to load members");
+    } finally {
+      setMembersLoading(false);
     }
   };
 
-  const handleUpdateAccount = async (values: any) => {
+  const openDirectory = async (account: Account) => {
+    setSelectedAccount(account);
+    setDirectoryOpen(true);
+    await fetchDirectorySummary(account);
+  };
+
+  const handleEditAccount = async (values: any) => {
     if (!selectedAccount) return;
+    setSaving(true);
     try {
-      const response = await fetch(`/account/${selectedAccount.account_id}`, {
+      await requestJson(`/control-plane/accounts/${selectedAccount.account_id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
-        },
         body: JSON.stringify(values),
       });
-      if (response.ok) {
-        message.success("Account updated successfully");
-        setEditModalOpen(false);
-        editForm.resetFields();
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to update account");
+      message.success("Account updated");
+      setEditOpen(false);
+      editForm.resetFields();
+      await fetchAccounts();
+      if (directoryOpen) {
+        await fetchDirectorySummary(selectedAccount);
       }
     } catch (error) {
-      message.error("Error updating account");
+      message.error(error instanceof Error ? error.message : "Failed to update account");
+    } finally {
+      setSaving(false);
     }
   };
 
   const handleToggleStatus = async (account: Account) => {
-    const newStatus = account.status === "active" ? "suspended" : "active";
     try {
-      if (newStatus === "suspended") {
-        const response = await fetch(`/account/${account.account_id}`, {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        });
-        if (response.ok) {
-          message.success("Account suspended");
-          fetchAccounts();
-        }
-      } else {
-        const response = await fetch(`/account/${account.account_id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ status: "active" }),
-        });
-        if (response.ok) {
-          message.success("Account activated");
-          fetchAccounts();
-        }
-      }
-    } catch (error) {
-      message.error("Error updating account status");
-    }
-  };
-
-  const handleAddAdmin = async (values: { user_email: string; password?: string }) => {
-    if (!selectedAccount) return;
-    try {
-      const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(values),
-        }
-      );
-      if (response.ok) {
-        message.success("Admin added successfully");
-        adminForm.resetFields();
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to add admin");
-      }
-    } catch (error) {
-      message.error("Error adding admin");
-    }
-  };
-
-  const handleRemoveAdmin = async (email: string) => {
-    if (!selectedAccount) return;
-    try {
-      const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(email)}`,
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
-      );
-      if (response.ok) {
-        message.success("Admin removed");
-        fetchAccounts();
-      } else {
-        message.error("Failed to remove admin");
-      }
-    } catch (error) {
-      message.error("Error removing admin");
-    }
-  };
-
-  const handleUpdateAdmin = async (values: { new_email?: string; password?: string }) => {
-    if (!selectedAccount || !selectedAdminEmail) return;
-    const payload: Record<string, string> = {};
-    if (values.new_email && values.new_email !== selectedAdminEmail) {
-      payload.new_email = values.new_email;
-    }
-    if (values.password) {
-      payload.password = values.password;
-    }
-    if (Object.keys(payload).length === 0) {
-      message.info("No changes to save");
-      return;
-    }
-    try {
-      const response = await fetch(
-        `/account/${selectedAccount.account_id}/admin/${encodeURIComponent(selectedAdminEmail)}`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify(payload),
-        }
-      );
-      if (response.ok) {
-        message.success("Admin updated successfully");
-        setEditAdminModalOpen(false);
-        editAdminForm.resetFields();
-        setSelectedAdminEmail("");
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to update admin");
-      }
-    } catch (error) {
-      message.error("Error updating admin");
-    }
-  };
-
-  const handleDeleteAccount = async () => {
-    if (!accountToDelete) return;
-    if (deleteConfirmName !== accountToDelete.account_name) {
-      message.error("Account name does not match");
-      return;
-    }
-    try {
-      const response = await fetch(
-        `/account/${accountToDelete.account_id}/delete`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({ account_name: deleteConfirmName }),
-        }
-      );
-      if (response.ok) {
-        message.success(`Account '${accountToDelete.account_name}' permanently deleted`);
-        setDeleteModalOpen(false);
-        setDeleteConfirmName("");
-        setAccountToDelete(null);
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to delete account");
-      }
-    } catch (error) {
-      message.error("Error deleting account");
-    }
-  };
-
-  // SSO Config handlers
-  const fetchSSOConfig = async (accountId: string) => {
-    setSsoLoading(true);
-    try {
-      const response = await fetch(`/account/${accountId}/sso`, {
-        headers: { Authorization: `Bearer ${accessToken}` },
+      await requestJson(`/control-plane/accounts/${account.account_id}`, {
+        method: "DELETE",
       });
-      if (response.ok) {
-        const data = await response.json();
-        setSsoConfig(data);
-        ssoForm.setFieldsValue({
-          sso_provider: data.sso_provider || undefined,
-          enabled: data.enabled || false,
-          ...flattenSSOSettings(data.sso_settings || {}),
-        });
-      }
+      message.success(account.status === "active" ? "Account suspended" : "Account activated");
+      await fetchAccounts();
     } catch (error) {
-      message.error("Error loading SSO config");
-    } finally {
-      setSsoLoading(false);
+      message.error(error instanceof Error ? error.message : "Failed to update account");
     }
   };
 
-  const flattenSSOSettings = (settings: Record<string, any>) => {
-    return {
-      google_client_id: settings.google_client_id || "",
-      google_client_secret: settings.google_client_secret || "",
-      microsoft_client_id: settings.microsoft_client_id || "",
-      microsoft_client_secret: settings.microsoft_client_secret || "",
-      microsoft_tenant: settings.microsoft_tenant || "",
-      generic_client_id: settings.generic_client_id || "",
-      generic_client_secret: settings.generic_client_secret || "",
-      generic_authorization_endpoint: settings.generic_authorization_endpoint || "",
-      generic_token_endpoint: settings.generic_token_endpoint || "",
-      generic_userinfo_endpoint: settings.generic_userinfo_endpoint || "",
-    };
-  };
-
-  const handleSaveSSOConfig = async (values: any) => {
+  const handleLinkDirectory = async (values: any) => {
     if (!selectedAccount) return;
-    const { sso_provider, enabled, ...settingsFields } = values;
-
-    // Build sso_settings from the form fields
-    const sso_settings: Record<string, any> = {};
-    for (const [key, val] of Object.entries(settingsFields)) {
-      if (val) sso_settings[key] = val;
-    }
-
+    setSaving(true);
     try {
-      const response = await fetch(
-        `/account/${selectedAccount.account_id}/sso`,
+      const response = await requestJson<any>(
+        `/control-plane/accounts/${selectedAccount.account_id}/directory/link-existing`,
         {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-          },
-          body: JSON.stringify({
-            sso_provider: sso_provider || null,
-            enabled: enabled || false,
-            sso_settings,
-          }),
-        }
+          method: "POST",
+          body: JSON.stringify(values),
+        },
       );
-      if (response.ok) {
-        message.success("SSO configuration saved successfully");
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to save SSO config");
-      }
+      message.success("Zitadel organization linked");
+      await fetchAccounts();
+      await fetchDirectorySummary(selectedAccount);
+      showModal(
+        "Zitadel Link Complete",
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Text>
+            Organization ID:{" "}
+            {response.result?.organization?.organization_id || values.zitadel_org_id}
+          </Text>
+          <Text>
+            Tenant Admin:{" "}
+            {response.result?.tenant_admin?.user_email ||
+              values.admin_user_email ||
+              values.admin_user_id}
+          </Text>
+          {(response.result?.warnings || []).length ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="Link warnings"
+              description={(response.result.warnings || []).join("\n")}
+            />
+          ) : null}
+        </Space>,
+      );
     } catch (error) {
-      message.error("Error saving SSO config");
+      message.error(error instanceof Error ? error.message : "Failed to link Zitadel organization");
+    } finally {
+      setSaving(false);
     }
   };
 
-  const handleDeleteSSOConfig = async () => {
+  const handleInviteMember = async (values: any) => {
     if (!selectedAccount) return;
     try {
-      const response = await fetch(
-        `/account/${selectedAccount.account_id}/sso`,
+      const response = await requestJson<any>(
+        `/control-plane/accounts/${selectedAccount.account_id}/members/invite`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            user_email: values.user_email,
+            display_name: values.display_name || values.user_email,
+            membership_role: values.membership_role,
+            product_grants: values.product_grants,
+            platform_roles:
+              values.membership_role === "admin" || values.membership_role === "owner"
+                ? ["account_admin"]
+                : [],
+          }),
+        },
+      );
+      if (response.directory?.managed) {
+        message.success(
+          response.directory.reused_existing_user
+            ? "Existing Zitadel user granted account access"
+            : "User created in Zitadel and granted account access",
+        );
+        if (
+          response.directory.temporary_password ||
+          response.directory.invite_code ||
+          (response.directory.warnings || []).length
+        ) {
+          showModal(
+            "Member Provisioned",
+            <Space direction="vertical" style={{ width: "100%" }}>
+              <Paragraph style={{ marginBottom: 0 }}>
+                The tenant member now exists in Zitadel and has been granted account access in
+                Console.
+              </Paragraph>
+              {response.directory.temporary_password ? (
+                <Card size="small">
+                  <Text strong>Temporary Password</Text>
+                  <Paragraph copyable style={{ marginBottom: 0 }}>
+                    {response.directory.temporary_password}
+                  </Paragraph>
+                </Card>
+              ) : null}
+              {response.directory.invite_code ? (
+                <Card size="small">
+                  <Text strong>Invite Code</Text>
+                  <Paragraph copyable style={{ marginBottom: 0 }}>
+                    {response.directory.invite_code}
+                  </Paragraph>
+                </Card>
+              ) : null}
+              {(response.directory.warnings || []).length ? (
+                <Alert
+                  type="warning"
+                  showIcon
+                  message="Provisioning warnings"
+                  description={(response.directory.warnings || []).join("\n")}
+                />
+              ) : null}
+            </Space>,
+          );
+        }
+      } else {
+        message.success("Member synced");
+      }
+      memberForm.resetFields();
+      await openMembers(selectedAccount);
+      await fetchAccounts();
+    } catch (error) {
+      message.error(error instanceof Error ? error.message : "Failed to sync member");
+    }
+  };
+
+  const handleRemoveMember = async (member: Member) => {
+    if (!selectedAccount) return;
+    try {
+      await requestJson(
+        `/control-plane/accounts/${selectedAccount.account_id}/members/${encodeURIComponent(member.user_email)}`,
         {
           method: "DELETE",
-          headers: { Authorization: `Bearer ${accessToken}` },
-        }
+        },
       );
-      if (response.ok) {
-        message.success("SSO configuration deleted");
-        ssoForm.resetFields();
-        setSsoConfig(null);
-        fetchAccounts();
-      } else {
-        const err = await response.json();
-        message.error(err.detail || "Failed to delete SSO config");
-      }
+      message.success("Member removed");
+      await openMembers(selectedAccount);
+      await fetchAccounts();
     } catch (error) {
-      message.error("Error deleting SSO config");
+      message.error(error instanceof Error ? error.message : "Failed to remove member");
     }
   };
 
-  // Watch sso_provider to show/hide provider-specific fields
-  const ssoProvider = Form.useWatch("sso_provider", ssoForm);
+  const summary = useMemo(() => {
+    const activeAccounts = accounts.filter((account) => account.status === "active").length;
+    const linkedDirectories = accounts.filter(
+      (account) =>
+        Boolean(
+          account.identity_binding?.metadata?.directory?.tenant_admin_user_id ||
+            account.identity_binding?.metadata?.directory?.tenant_admin_email,
+        ),
+    ).length;
+    const adminCount = accounts.reduce(
+      (total, account) => total + (account.admins?.length || 0),
+      0,
+    );
+    return { activeAccounts, linkedDirectories, adminCount };
+  }, [accounts]);
 
-  const columns = [
+  const accountColumns = [
     {
-      title: "Account Name",
-      dataIndex: "account_name",
-      key: "account_name",
-      render: (text: string, record: Account) => (
+      title: "Account",
+      key: "account",
+      render: (_: any, account: Account) => (
         <Space direction="vertical" size={0}>
-          <Text strong>{text}</Text>
-          {record.account_alias && (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {record.account_alias}
-            </Text>
-          )}
+          <Text strong>{account.account_name}</Text>
+          <Text type="secondary">{account.account_alias || account.domain || "No alias"}</Text>
         </Space>
       ),
-    },
-    {
-      title: "Domain",
-      dataIndex: "domain",
-      key: "domain",
-      render: (domain: string) =>
-        domain ? <Tag color="blue">{domain}</Tag> : <Text type="secondary">-</Text>,
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status: string) => (
-        <Tag color={status === "active" ? "green" : status === "suspended" ? "red" : "default"}>
-          {status.toUpperCase()}
-        </Tag>
+      render: (value: string) => (
+        <Tag color={value === "active" ? "green" : "orange"}>{value.toUpperCase()}</Tag>
       ),
     },
     {
-      title: "SSO",
-      key: "sso",
-      render: (_: any, record: Account) => {
-        if (record.sso_config && record.sso_config.enabled) {
-          return (
-            <Tag color="green" icon={<SafetyCertificateOutlined />}>
-              {record.sso_config.sso_provider?.toUpperCase() || "Enabled"}
+      title: "Directory",
+      key: "identity",
+      render: (_: any, account: Account) => {
+        const orgId =
+          account.identity_binding?.zitadel_org_id || account.metadata?.zitadel_org_id;
+        const tenantAdmin =
+          account.identity_binding?.metadata?.directory?.tenant_admin_email ||
+          account.identity_binding?.metadata?.directory?.tenant_admin_user_id;
+        return orgId ? (
+          <Space direction="vertical" size={0}>
+            <Tag color={tenantAdmin ? "blue" : "gold"}>
+              {tenantAdmin ? "LINKED" : "DISCOVERED"}
             </Tag>
-          );
-        }
-        return <Text type="secondary">Off</Text>;
+            <Text type="secondary">
+              {orgId}
+              {account.domain ? ` · ${account.domain}` : ""}
+            </Text>
+          </Space>
+        ) : (
+          <Tag>Not linked</Tag>
+        );
       },
     },
     {
       title: "Admins",
       key: "admins",
-      render: (_: any, record: Account) => (
-        <Space wrap>
-          {(record.admins || []).map((admin) => (
-            <Tag key={admin.id} color="purple">
-              {admin.user_email}
-            </Tag>
-          ))}
-          {(!record.admins || record.admins.length === 0) && (
-            <Text type="secondary">No admins</Text>
-          )}
-        </Space>
-      ),
-    },
-    {
-      title: "Budget",
-      key: "budget",
-      render: (_: any, record: Account) => (
-        <Space direction="vertical" size={0}>
-          <Text>
-            ${record.spend.toFixed(2)} / ${record.max_budget?.toFixed(2) || "Unlimited"}
-          </Text>
-        </Space>
-      ),
+      render: (_: any, account: Account) => account.admins?.length || 0,
     },
     {
       title: "Created",
       dataIndex: "created_at",
       key: "created_at",
-      render: (date: string) => new Date(date).toLocaleDateString(),
+      render: (value: string) => new Date(value).toLocaleDateString(),
     },
     {
       title: "Actions",
       key: "actions",
-      render: (_: any, record: Account) => (
-        <Space>
-          <Tooltip title="Edit">
-            <Button
-              type="text"
-              icon={<EditOutlined />}
-              onClick={() => {
-                setSelectedAccount(record);
-                editForm.setFieldsValue({
-                  account_name: record.account_name,
-                  account_alias: record.account_alias,
-                  domain: record.domain,
-                  max_budget: record.max_budget,
-                });
-                setEditModalOpen(true);
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="Manage Admins">
-            <Button
-              type="text"
-              icon={<TeamOutlined />}
-              onClick={() => {
-                setSelectedAccount(record);
-                setAdminDrawerOpen(true);
-              }}
-            />
-          </Tooltip>
-          <Tooltip title="SSO Config">
-            <Button
-              type="text"
-              icon={<SafetyCertificateOutlined />}
-              onClick={() => {
-                setSelectedAccount(record);
-                setSsoDrawerOpen(true);
-                fetchSSOConfig(record.account_id);
-              }}
-            />
-          </Tooltip>
-          <Popconfirm
-            title={
-              record.status === "active"
-                ? "Suspend this account?"
-                : "Activate this account?"
-            }
-            onConfirm={() => handleToggleStatus(record)}
+      render: (_: any, account: Account) => (
+        <Space wrap>
+          <Button
+            icon={<EditOutlined />}
+            onClick={() => {
+              setSelectedAccount(account);
+              editForm.setFieldsValue({
+                account_name: account.account_name,
+                account_alias: account.account_alias,
+                domain: account.domain,
+                max_budget: account.max_budget,
+                status: account.status,
+              });
+              setEditOpen(true);
+            }}
           >
-            <Tooltip title={record.status === "active" ? "Suspend" : "Activate"}>
-              <Button
-                type="text"
-                danger={record.status === "active"}
-                icon={
-                  record.status === "active" ? (
-                    <StopOutlined />
-                  ) : (
-                    <CheckCircleOutlined />
-                  )
-                }
-              />
-            </Tooltip>
+            Edit
+          </Button>
+          <Button icon={<LockOutlined />} onClick={() => void openDirectory(account)}>
+            Directory &amp; SSO
+          </Button>
+          <Button icon={<TeamOutlined />} onClick={() => void openMembers(account)}>
+            Members
+          </Button>
+          <Popconfirm
+            title={account.status === "active" ? "Suspend this account?" : "Reactivate this account?"}
+            onConfirm={() => handleToggleStatus(account)}
+          >
+            <Button danger={account.status === "active"}>
+              {account.status === "active" ? "Suspend" : "Activate"}
+            </Button>
           </Popconfirm>
-          <Tooltip title="Delete permanently">
-            <Button
-              type="text"
-              danger
-              icon={<DeleteOutlined />}
-              onClick={() => {
-                setAccountToDelete(record);
-                setDeleteConfirmName("");
-                setDeleteModalOpen(true);
-              }}
-            />
-          </Tooltip>
         </Space>
       ),
     },
   ];
 
-  const activeAccounts = accounts.filter((a) => a.status === "active").length;
-  const totalSpend = accounts.reduce((sum, a) => sum + a.spend, 0);
+  const memberColumns = [
+    {
+      title: "User",
+      key: "user",
+      render: (_: any, member: Member) => (
+        <Space direction="vertical" size={0}>
+          <Text strong>{member.display_name || member.user_email}</Text>
+          <Text type="secondary">{member.user_email}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: "Role",
+      dataIndex: "membership_role",
+      key: "membership_role",
+      render: (value: string) => (
+        <Tag color={value === "admin" || value === "owner" ? "blue" : "default"}>{value}</Tag>
+      ),
+    },
+    {
+      title: "Status",
+      dataIndex: "membership_status",
+      key: "membership_status",
+      render: (value: string) => (
+        <Tag color={value === "active" ? "green" : "orange"}>{value}</Tag>
+      ),
+    },
+    {
+      title: "Identity",
+      key: "identity",
+      render: (_: any, member: Member) =>
+        member.zitadel_sub ? (
+          <Text type="secondary">{member.zitadel_sub}</Text>
+        ) : (
+          <Text type="secondary">Local account access only</Text>
+        ),
+    },
+    {
+      title: "Actions",
+      key: "actions",
+      render: (_: any, member: Member) => (
+        <Popconfirm title="Remove this member?" onConfirm={() => handleRemoveMember(member)}>
+          <Button danger size="small">
+            Remove
+          </Button>
+        </Popconfirm>
+      ),
+    },
+  ];
 
-  // Keep selectedAccount in sync when accounts refresh
-  useEffect(() => {
-    if (selectedAccount) {
-      const updated = accounts.find(
-        (a) => a.account_id === selectedAccount.account_id
-      );
-      if (updated) setSelectedAccount(updated);
-    }
-  }, [accounts]); // eslint-disable-line react-hooks/exhaustive-deps
-
+  const tenantAdminAssigned = Boolean(
+    selectedDirectory?.identity_binding?.metadata?.directory?.tenant_admin_user_id ||
+      selectedDirectory?.identity_binding?.metadata?.directory?.tenant_admin_email,
+  );
   return (
-    <div style={{ padding: 24, maxWidth: 1400, margin: "0 auto" }}>
-      <div style={{ marginBottom: 24 }}>
-        <Title level={2} style={{ marginBottom: 4 }}>
-          Tenant Management
-        </Title>
-        <Text type="secondary">
-          Manage tenant accounts, admins, SSO configuration, and resource allocation
-        </Text>
-      </div>
-
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={6}>
-          <Card>
-            <Statistic title="Total Accounts" value={accounts.length} />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Active Accounts"
-              value={activeAccounts}
-              valueStyle={{ color: "#3f8600" }}
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Total Spend"
-              value={totalSpend}
-              precision={2}
-              prefix="$"
-            />
-          </Card>
-        </Col>
-        <Col span={6}>
-          <Card>
-            <Statistic
-              title="Suspended"
-              value={accounts.length - activeAccounts}
-              valueStyle={
-                accounts.length - activeAccounts > 0
-                  ? { color: "#cf1322" }
-                  : undefined
-              }
-            />
-          </Card>
-        </Col>
-      </Row>
-
-      <Card>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <Title level={4} style={{ margin: 0 }}>
-            Accounts
-          </Title>
+    <div className="p-6">
+      <Space direction="vertical" size="large" className="w-full">
+        <div className="flex items-center justify-between">
+          <div>
+            <Title level={2} style={{ marginBottom: 0 }}>
+              Platform Control Plane
+            </Title>
+            <Text type="secondary">
+              Console reflects shared accounts and links them to tenant organizations that already
+              exist in Zitadel.
+            </Text>
+          </div>
           <Space>
-            <Button icon={<ReloadOutlined />} onClick={fetchAccounts}>
+            <Button icon={<ReloadOutlined />} onClick={() => void fetchAccounts()}>
               Refresh
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateModalOpen(true)}
-            >
-              Create Account
-            </Button>
           </Space>
         </div>
 
-        <Table
-          columns={columns}
-          dataSource={accounts}
-          rowKey="account_id"
-          loading={loading}
-          pagination={{ pageSize: 10 }}
-        />
-      </Card>
-
-      {/* System Settings - Price Data Reload */}
-      <Card style={{ marginTop: 24 }}>
-        <div style={{ marginBottom: 16 }}>
-          <Title level={4} style={{ margin: 0 }}>
-            <SettingOutlined style={{ marginRight: 8 }} />
-            System Settings
-          </Title>
-          <Text type="secondary">
-            Global system configuration for all tenants
-          </Text>
-        </div>
-        <Divider />
-        <div>
-          <Title level={5}>Price Data Management</Title>
-          <Text type="secondary" style={{ display: "block", marginBottom: 16 }}>
-            Manage model pricing data and configure automatic reload schedules
-          </Text>
-          <PriceDataReload
-            accessToken={accessToken}
-            onReloadSuccess={() => {}}
-            buttonText="Reload Price Data"
-            size="middle"
-            type="primary"
-            className="w-full"
-          />
-        </div>
-      </Card>
-
-      {/* Create Account Modal */}
-      <Modal
-        title="Create New Account"
-        open={createModalOpen}
-        onCancel={() => {
-          setCreateModalOpen(false);
-          createForm.resetFields();
-        }}
-        onOk={() => createForm.submit()}
-        okText="Create"
-        width={560}
-      >
-        <Form form={createForm} layout="vertical" onFinish={handleCreateAccount}>
-          <Form.Item
-            name="account_name"
-            label="Account Name"
-            rules={[{ required: true, message: "Please enter account name" }]}
-          >
-            <Input placeholder="e.g., Acme Corporation" />
-          </Form.Item>
-          <Form.Item name="domain" label="Email Domain (for SSO routing)">
-            <Input placeholder="e.g., acme.com" />
-          </Form.Item>
-          <Divider orientation="left" plain>
-            Initial Admin
-          </Divider>
-          <Form.Item name="admin_email" label="Admin Email">
-            <Input placeholder="e.g., admin@acme.com" />
-          </Form.Item>
-          <Form.Item
-            name="admin_password"
-            label="Admin Password"
-            extra="Set a password so the admin can log in. They can also use SSO if configured."
-          >
-            <Input.Password
-              placeholder="Set initial password for admin"
-              prefix={<LockOutlined />}
-            />
-          </Form.Item>
-          <Divider orientation="left" plain>
-            Budget
-          </Divider>
-          <Form.Item name="max_budget" label="Max Budget (USD)">
-            <InputNumber
-              style={{ width: "100%" }}
-              min={0}
-              step={100}
-              placeholder="Leave empty for unlimited"
-            />
-          </Form.Item>
-          <Form.Item name="account_alias" label="Account Alias (optional)">
-            <Input placeholder="Optional display name" />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Edit Account Modal */}
-      <Modal
-        title={`Edit Account: ${selectedAccount?.account_name || ""}`}
-        open={editModalOpen}
-        onCancel={() => {
-          setEditModalOpen(false);
-          editForm.resetFields();
-        }}
-        onOk={() => editForm.submit()}
-        okText="Save"
-      >
-        <Form form={editForm} layout="vertical" onFinish={handleUpdateAccount}>
-          <Form.Item name="account_name" label="Account Name">
-            <Input />
-          </Form.Item>
-          <Form.Item name="account_alias" label="Account Alias">
-            <Input />
-          </Form.Item>
-          <Form.Item name="domain" label="Email Domain">
-            <Input />
-          </Form.Item>
-          <Form.Item name="max_budget" label="Max Budget (USD)">
-            <InputNumber style={{ width: "100%" }} min={0} step={100} />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Admin Management Drawer */}
-      <Drawer
-        title={`Manage Admins: ${selectedAccount?.account_name || ""}`}
-        open={adminDrawerOpen}
-        onClose={() => {
-          setAdminDrawerOpen(false);
-          adminForm.resetFields();
-        }}
-        width={520}
-      >
-        <div style={{ marginBottom: 24 }}>
-          <Text strong>Add New Admin</Text>
-          <Form
-            form={adminForm}
-            layout="vertical"
-            onFinish={handleAddAdmin}
-            style={{ marginTop: 8 }}
-          >
-            <Form.Item
-              name="user_email"
-              label="Email"
-              rules={[{ required: true, message: "Email is required" }]}
-            >
-              <Input placeholder="admin@example.com" />
-            </Form.Item>
-            <Form.Item
-              name="password"
-              label="Password (optional)"
-              extra="Set a password for username/password login. Leave blank if admin will only use SSO."
-            >
-              <Input.Password
-                placeholder="Set initial password"
-                prefix={<LockOutlined />}
-              />
-            </Form.Item>
-            <Form.Item>
-              <Button type="primary" htmlType="submit" icon={<PlusOutlined />}>
-                Add Admin
-              </Button>
-            </Form.Item>
-          </Form>
-        </div>
-
-        <Divider />
-
-        <Text strong>Current Admins</Text>
-        <div style={{ marginTop: 12 }}>
-          {(selectedAccount?.admins || []).length === 0 ? (
-            <Text type="secondary">No admins assigned</Text>
-          ) : (
-            (selectedAccount?.admins || []).map((admin) => (
-              <div
-                key={admin.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "8px 0",
-                  borderBottom: "1px solid #f0f0f0",
-                }}
-              >
-                <Space direction="vertical" size={0}>
-                  <Text>{admin.user_email}</Text>
-                  <Text type="secondary" style={{ fontSize: 12 }}>
-                    {admin.role} - Added{" "}
-                    {new Date(admin.created_at).toLocaleDateString()}
-                  </Text>
-                </Space>
-                <Space>
-                  <Tooltip title="Edit email / password">
-                    <Button
-                      type="text"
-                      icon={<EditOutlined />}
-                      size="small"
-                      onClick={() => {
-                        setSelectedAdminEmail(admin.user_email);
-                        editAdminForm.setFieldsValue({
-                          new_email: admin.user_email,
-                          password: "",
-                        });
-                        setEditAdminModalOpen(true);
-                      }}
-                    />
-                  </Tooltip>
-                  <Popconfirm
-                    title="Remove this admin?"
-                    onConfirm={() => handleRemoveAdmin(admin.user_email)}
-                  >
-                    <Button
-                      type="text"
-                      danger
-                      icon={<DeleteOutlined />}
-                      size="small"
-                    />
-                  </Popconfirm>
-                </Space>
-              </div>
-            ))
-          )}
-        </div>
-      </Drawer>
-
-      {/* Edit Admin Modal */}
-      <Modal
-        title={`Edit Admin: ${selectedAdminEmail}`}
-        open={editAdminModalOpen}
-        onCancel={() => {
-          setEditAdminModalOpen(false);
-          editAdminForm.resetFields();
-          setSelectedAdminEmail("");
-        }}
-        onOk={() => editAdminForm.submit()}
-        okText="Save Changes"
-      >
-        <Form form={editAdminForm} layout="vertical" onFinish={handleUpdateAdmin}>
-          <Form.Item
-            name="new_email"
-            label="Email"
-            rules={[
-              { required: true, message: "Email is required" },
-              { type: "email", message: "Please enter a valid email" },
-            ]}
-          >
-            <Input placeholder="admin@example.com" />
-          </Form.Item>
-          <Form.Item
-            name="password"
-            label="New Password"
-            extra="Leave blank to keep the current password."
-            rules={[
-              { min: 8, message: "Password must be at least 8 characters" },
-            ]}
-          >
-            <Input.Password
-              placeholder="Enter new password (optional)"
-              prefix={<LockOutlined />}
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-
-      {/* Delete Account Confirmation Modal */}
-      <Modal
-        title={
-          <Space>
-            <ExclamationCircleOutlined style={{ color: "#ff4d4f" }} />
-            <span>Delete Account Permanently</span>
-          </Space>
-        }
-        open={deleteModalOpen}
-        onCancel={() => {
-          setDeleteModalOpen(false);
-          setDeleteConfirmName("");
-          setAccountToDelete(null);
-        }}
-        okText="Delete Permanently"
-        okButtonProps={{
-          danger: true,
-          disabled: deleteConfirmName !== accountToDelete?.account_name,
-        }}
-        onOk={handleDeleteAccount}
-      >
         <Alert
-          message="This action cannot be undone"
-          description="Deleting this account will permanently remove it along with all its admins and SSO configuration. This cannot be reversed."
-          type="error"
-          showIcon
-          style={{ marginBottom: 16 }}
-        />
-        <Text>
-          To confirm, type the account name{" "}
-          <Text strong code>{accountToDelete?.account_name}</Text>{" "}
-          below:
-        </Text>
-        <Input
-          style={{ marginTop: 8 }}
-          placeholder="Type account name to confirm"
-          value={deleteConfirmName}
-          onChange={(e) => setDeleteConfirmName(e.target.value)}
-        />
-      </Modal>
-
-      {/* SSO Configuration Drawer */}
-      <Drawer
-        title={`SSO Configuration: ${selectedAccount?.account_name || ""}`}
-        open={ssoDrawerOpen}
-        onClose={() => {
-          setSsoDrawerOpen(false);
-          ssoForm.resetFields();
-          setSsoConfig(null);
-        }}
-        width={560}
-      >
-        <Alert
-          message="SSO Configuration"
-          description="Configure Single Sign-On for this account. Users with matching email domains will be redirected to the SSO provider during login. Account admins can also configure this from their Admin Settings page."
           type="info"
           showIcon
-          style={{ marginBottom: 16 }}
+          message="Zitadel-managed tenant identity"
+          description="Create the organization, domains, IdPs, SCIM setup, and tenant users in Zitadel. Console mirrors those tenant organizations automatically and is used only to assign the tenant admin and manage shared product grants."
         />
 
-        <Form
-          form={ssoForm}
-          layout="vertical"
-          onFinish={handleSaveSSOConfig}
-          initialValues={{ enabled: false }}
-        >
-          <Form.Item
-            name="sso_provider"
-            label="SSO Provider"
-          >
+        <Row gutter={16}>
+          <Col span={8}>
+            <Card>
+              <Statistic title="Accounts" value={accounts.length} />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card>
+              <Statistic title="Active Accounts" value={summary.activeAccounts} />
+            </Card>
+          </Col>
+          <Col span={8}>
+            <Card>
+              <Statistic
+                title="Linked Directories"
+                value={summary.linkedDirectories}
+                suffix={`/ ${accounts.length || 1}`}
+              />
+            </Card>
+          </Col>
+        </Row>
+
+        <Card>
+          <Table
+            rowKey="account_id"
+            dataSource={accounts}
+            columns={accountColumns}
+            loading={loading}
+            pagination={{ pageSize: 10 }}
+          />
+        </Card>
+      </Space>
+
+      <Modal
+        title={`Edit ${selectedAccount?.account_name || "Account"}`}
+        open={editOpen}
+        onCancel={() => setEditOpen(false)}
+        footer={null}
+        destroyOnClose
+      >
+        <Form layout="vertical" form={editForm} onFinish={handleEditAccount}>
+          <Form.Item name="account_name" label="Account Name" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="account_alias" label="Alias">
+            <Input />
+          </Form.Item>
+          <Form.Item name="domain" label="Primary Domain">
+            <Input />
+          </Form.Item>
+          <Form.Item name="max_budget" label="Max Budget">
+            <InputNumber className="w-full" min={0} />
+          </Form.Item>
+          <Form.Item name="status" label="Status">
             <Select
-              placeholder="Select SSO provider"
-              allowClear
               options={[
-                { value: "google", label: "Google" },
-                { value: "microsoft", label: "Microsoft / Azure AD" },
-                { value: "okta", label: "Okta" },
-                { value: "generic", label: "Generic OIDC" },
+                { label: "Active", value: "active" },
+                { label: "Suspended", value: "suspended" },
               ]}
             />
           </Form.Item>
-
-          <Form.Item
-            name="enabled"
-            label="Enable SSO"
-            valuePropName="checked"
-          >
-            <Switch />
-          </Form.Item>
-
-          {/* Google fields */}
-          {ssoProvider === "google" && (
-            <>
-              <Form.Item name="google_client_id" label="Google Client ID">
-                <Input placeholder="Enter Google OAuth Client ID" />
-              </Form.Item>
-              <Form.Item name="google_client_secret" label="Google Client Secret">
-                <Input.Password placeholder="Enter Google OAuth Client Secret" />
-              </Form.Item>
-            </>
-          )}
-
-          {/* Microsoft fields */}
-          {ssoProvider === "microsoft" && (
-            <>
-              <Form.Item name="microsoft_client_id" label="Microsoft Client ID">
-                <Input placeholder="Enter Microsoft Client ID" />
-              </Form.Item>
-              <Form.Item name="microsoft_client_secret" label="Microsoft Client Secret">
-                <Input.Password placeholder="Enter Microsoft Client Secret" />
-              </Form.Item>
-              <Form.Item name="microsoft_tenant" label="Microsoft Tenant">
-                <Input placeholder="Enter Microsoft Tenant ID" />
-              </Form.Item>
-            </>
-          )}
-
-          {/* Okta / Generic OIDC fields */}
-          {(ssoProvider === "okta" || ssoProvider === "generic") && (
-            <>
-              <Form.Item name="generic_client_id" label="Client ID">
-                <Input placeholder="Enter OIDC Client ID" />
-              </Form.Item>
-              <Form.Item name="generic_client_secret" label="Client Secret">
-                <Input.Password placeholder="Enter OIDC Client Secret" />
-              </Form.Item>
-              <Form.Item name="generic_authorization_endpoint" label="Authorization Endpoint">
-                <Input placeholder="https://your-provider.com/authorize" />
-              </Form.Item>
-              <Form.Item name="generic_token_endpoint" label="Token Endpoint">
-                <Input placeholder="https://your-provider.com/token" />
-              </Form.Item>
-              <Form.Item name="generic_userinfo_endpoint" label="User Info Endpoint">
-                <Input placeholder="https://your-provider.com/userinfo" />
-              </Form.Item>
-            </>
-          )}
-
-          <Space style={{ marginTop: 16 }}>
-            <Button type="primary" htmlType="submit" loading={ssoLoading}>
-              Save SSO Config
+          <Form.Item>
+            <Button type="primary" htmlType="submit" block loading={saving}>
+              Save
             </Button>
-            {ssoConfig && ssoConfig.sso_provider && (
-              <Popconfirm
-                title="Remove SSO configuration for this account?"
-                onConfirm={handleDeleteSSOConfig}
-              >
-                <Button danger>Delete SSO Config</Button>
-              </Popconfirm>
-            )}
-          </Space>
+          </Form.Item>
         </Form>
+      </Modal>
+
+      <Drawer
+        title={`Directory & SSO: ${selectedAccount?.account_name || ""}`}
+        open={directoryOpen}
+        width={720}
+        onClose={() => setDirectoryOpen(false)}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="large" className="w-full">
+          {selectedDirectory && !selectedDirectory.management.configured ? (
+            <Alert
+              type="warning"
+              showIcon
+              message="Zitadel management credentials are not configured for Console"
+              description={
+                selectedDirectory.management.error ||
+                "Set ALCHEMI_ZITADEL_PAT or service-account credentials on the backend before linking tenant directories."
+              }
+            />
+          ) : null}
+
+          <Card loading={directoryLoading} title="Current Status">
+            <Descriptions column={1} size="small">
+              <Descriptions.Item label="Organization ID">
+                {selectedDirectory?.directory.org_id || "Not linked"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Primary Domain">
+                {selectedDirectory?.directory.primary_domain ||
+                  selectedDirectory?.account.domain ||
+                  "Not configured"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Tenant Admin">
+                {selectedDirectory?.identity_binding?.metadata?.directory?.tenant_admin_email ||
+                  selectedAccount?.admins?.[0]?.user_email ||
+                  "Not set"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Directory Owner">
+                {selectedDirectory?.directory.managed_via_console
+                  ? "Console"
+                  : "Zitadel"}
+              </Descriptions.Item>
+              <Descriptions.Item label="Management URL">
+                {selectedDirectory?.directory.management_url ||
+                  selectedDirectory?.management.console_url ||
+                  "Not available"}
+              </Descriptions.Item>
+            </Descriptions>
+          </Card>
+
+          {!tenantAdminAssigned ? (
+            <Card title="Assign Tenant Admin" loading={directoryLoading}>
+              <Space direction="vertical" size="middle" style={{ width: "100%" }}>
+                <Paragraph>
+                  This account was discovered from Zitadel. Assign which existing Zitadel user
+                  should be treated as the tenant admin in Console and receive shared product
+                  grants here.
+                </Paragraph>
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Zitadel remains the source of truth"
+                  description="Domains, login policy, IdP setup, SCIM, and user lifecycle are managed in Zitadel. Console only stores the account-to-organization link and shared account access."
+                />
+                {selectedDirectory?.management.console_url ? (
+                  <Button href={selectedDirectory.management.console_url} target="_blank">
+                    Open Zitadel Console
+                  </Button>
+                ) : null}
+                <Form layout="vertical" form={directoryLinkForm} onFinish={handleLinkDirectory}>
+                  <Form.Item
+                    name="zitadel_org_id"
+                    label="Zitadel Organization"
+                    rules={[{ required: true, message: "Organization is required" }]}
+                  >
+                    <Input disabled />
+                  </Form.Item>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item name="admin_user_email" label="Tenant Admin Email">
+                        <Input placeholder="admin@customer.com" />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="admin_user_id" label="Tenant Admin User ID">
+                        <Input placeholder="Optional Zitadel user id" />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Row gutter={12}>
+                    <Col span={12}>
+                      <Form.Item name="admin_display_name" label="Tenant Admin Name">
+                        <Input />
+                      </Form.Item>
+                    </Col>
+                    <Col span={12}>
+                      <Form.Item name="membership_role" label="Account Role" initialValue="owner">
+                        <Select
+                          options={[
+                            { label: "Owner", value: "owner" },
+                            { label: "Admin", value: "admin" },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Col>
+                  </Row>
+                  <Form.Item
+                    name="product_grants"
+                    label="Product Access"
+                    initialValue={["console", "copilot"]}
+                  >
+                    <Select
+                      mode="multiple"
+                      options={[
+                        { label: "Console", value: "console" },
+                        { label: "Copilot", value: "copilot" },
+                      ]}
+                    />
+                  </Form.Item>
+                  <Button type="primary" htmlType="submit" loading={saving}>
+                    Save Tenant Admin
+                  </Button>
+                </Form>
+              </Space>
+            </Card>
+          ) : (
+            <Card title="Zitadel Managed Directory" loading={directoryLoading}>
+              <Space direction="vertical" style={{ width: "100%" }}>
+                <Alert
+                  type="success"
+                  showIcon
+                  message="This tenant directory is linked"
+                  description="Tenant admins should manage users, groups, domains, IdPs, login policy, and SCIM directly in Zitadel."
+                />
+                <Paragraph>
+                  Console keeps the account linkage, tenant admin mapping, and shared product
+                  access. It does not own the tenant directory configuration.
+                </Paragraph>
+                {selectedDirectory?.directory.management_url ? (
+                  <Button
+                    type="primary"
+                    href={selectedDirectory.directory.management_url}
+                    target="_blank"
+                  >
+                    Open Tenant In Zitadel
+                  </Button>
+                ) : null}
+              </Space>
+            </Card>
+          )}
+        </Space>
       </Drawer>
+
+      <Drawer
+        title={`Members: ${selectedAccount?.account_name || ""}`}
+        open={membersOpen}
+        width={720}
+        onClose={() => setMembersOpen(false)}
+        destroyOnClose
+      >
+        <Space direction="vertical" size="large" className="w-full">
+          <Alert
+            type="info"
+            showIcon
+            message="Account access mapping"
+            description="For Zitadel-linked tenants, adding a member here will create or reuse the underlying user in the tenant organization first, then grant Console/Copilot account access."
+          />
+
+          <Form layout="vertical" form={memberForm} onFinish={handleInviteMember}>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item name="user_email" label="User Email" rules={[{ required: true }]}>
+                  <Input />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item name="display_name" label="Display Name">
+                  <Input />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Row gutter={12}>
+              <Col span={12}>
+                <Form.Item
+                  name="membership_role"
+                  label="Membership Role"
+                  initialValue="member"
+                  rules={[{ required: true }]}
+                >
+                  <Select
+                    options={[
+                      { label: "Member", value: "member" },
+                      { label: "Admin", value: "admin" },
+                      { label: "Owner", value: "owner" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+              <Col span={12}>
+                <Form.Item
+                  name="product_grants"
+                  label="Product Grants"
+                  initialValue={["console", "copilot"]}
+                >
+                  <Select
+                    mode="multiple"
+                    options={[
+                      { label: "Console", value: "console" },
+                      { label: "Copilot", value: "copilot" },
+                      { label: "Platform Admin", value: "platform-admin" },
+                    ]}
+                  />
+                </Form.Item>
+              </Col>
+            </Row>
+            <Form.Item>
+              <Button type="primary" htmlType="submit">
+                Add or Sync Member
+              </Button>
+            </Form.Item>
+          </Form>
+
+          <Table
+            rowKey="user_id"
+            dataSource={members}
+            columns={memberColumns}
+            loading={membersLoading}
+            pagination={false}
+          />
+        </Space>
+      </Drawer>
+
+      <Modal
+        open={Boolean(modalPayload)}
+        title={modalPayload?.title}
+        onCancel={() => setModalPayload(null)}
+        footer={[
+          <Button key="close" type="primary" onClick={() => setModalPayload(null)}>
+            Close
+          </Button>,
+        ]}
+      >
+        {modalPayload?.body}
+      </Modal>
     </div>
   );
 }

@@ -112,8 +112,10 @@ def resolve_tenant_from_request(request: Request) -> None:
         if decoded.get("is_super_admin", False):
             set_super_admin(True)
             set_current_account_id(None)
-        elif decoded.get("account_id"):
-            set_current_account_id(decoded["account_id"])
+        elif decoded.get("active_account_id") or decoded.get("account_id"):
+            set_current_account_id(
+                decoded.get("active_account_id") or decoded.get("account_id")
+            )
 
 
 class AccountContextMiddleware:

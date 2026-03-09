@@ -7,6 +7,24 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo } from "react";
 import { useUIConfig } from "./uiConfig/useUIConfig";
 
+interface AuthorizedState {
+  isLoading: boolean;
+  isAuthorized: boolean;
+  token: string | null;
+  accessToken: string | null;
+  userId: string | null;
+  userEmail: string | null;
+  userRole: string;
+  premiumUser: boolean;
+  disabledPersonalKeyCreation: boolean;
+  showSSOBanner: boolean;
+  accountId?: string | null;
+  activeAccountId?: string | null;
+  isSuperAdmin?: boolean;
+  platformRoles?: string[];
+  productGrants?: string[];
+}
+
 function formatUserRole(userRole: string) {
   if (!userRole) {
     return "Undefined Role";
@@ -36,7 +54,7 @@ function formatUserRole(userRole: string) {
   }
 }
 
-const useAuthorized = () => {
+const useAuthorized = (): AuthorizedState => {
   const router = useRouter();
   const { data: uiConfig, isLoading: isUIConfigLoading } = useUIConfig();
 
@@ -67,12 +85,15 @@ const useAuthorized = () => {
     userId: decoded?.user_id ?? null,
     userEmail: decoded?.user_email ?? null,
     userRole: formatUserRole(decoded?.user_role),
-    premiumUser: decoded?.premium_user ?? null,
-    disabledPersonalKeyCreation: decoded?.disabled_non_admin_personal_key_creation ?? null,
+    premiumUser: decoded?.premium_user === true,
+    disabledPersonalKeyCreation: decoded?.disabled_non_admin_personal_key_creation === true,
     showSSOBanner: decoded?.login_method === "username_password",
     // Alchemi: Multi-tenant fields
     accountId: decoded?.account_id ?? null,
+    activeAccountId: decoded?.active_account_id ?? decoded?.account_id ?? null,
     isSuperAdmin: decoded?.is_super_admin ?? false,
+    platformRoles: decoded?.platform_roles ?? [],
+    productGrants: decoded?.product_grants ?? [],
   };
 };
 

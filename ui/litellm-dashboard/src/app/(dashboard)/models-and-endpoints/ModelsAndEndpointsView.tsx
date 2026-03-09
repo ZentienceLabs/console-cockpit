@@ -227,6 +227,10 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
 
   const handleOk = async () => {
     try {
+      if (!accessToken) {
+        NotificationsManager.fromBackend("Missing access token");
+        return;
+      }
       const values = await addModelForm.validateFields();
       await handleAddModelSubmit(values, accessToken, addModelForm, handleRefreshClick);
     } catch (error: any) {
@@ -374,7 +378,7 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
                       setShowAdvancedSettings={setShowAdvancedSettings}
                       teams={teams}
                       credentials={credentialsList}
-                      accessToken={accessToken}
+                      accessToken={accessToken ?? ""}
                       userRole={userRole}
                     />
                   </TabPanel>
@@ -414,7 +418,7 @@ const ModelsAndEndpointsView: React.FC<ModelDashboardProps> = ({ premiumUser, te
                 />
                 <TabPanel>
                   <ModelGroupAliasSettings
-                    accessToken={accessToken}
+                    accessToken={accessToken ?? ""}
                     initialModelGroupAlias={modelGroupAlias}
                     onAliasUpdate={setModelGroupAlias}
                   />

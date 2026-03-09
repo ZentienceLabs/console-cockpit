@@ -19,7 +19,11 @@ class ReturnedUITokenObject(TypedDict):
     server_root_path: str  # e.g. `/litellm`
     # Alchemi: Multi-tenant fields
     account_id: Optional[str]
+    active_account_id: Optional[str]
     is_super_admin: bool
+    platform_roles: list[str]
+    product_grants: list[str]
+    is_break_glass: bool
 
 
 class ParsedOpenIDResult(TypedDict, total=False):

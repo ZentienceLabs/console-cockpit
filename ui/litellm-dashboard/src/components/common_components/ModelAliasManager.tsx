@@ -5,7 +5,7 @@ import ModelSelector from "./ModelSelector";
 import NotificationsManager from "../molecules/notifications_manager";
 
 interface ModelAliasManagerProps {
-  accessToken: string;
+  accessToken: string | null;
   initialModelAliases?: { [key: string]: string };
   onAliasUpdate?: (updatedAliases: { [key: string]: string }) => void;
   showExampleConfig?: boolean;

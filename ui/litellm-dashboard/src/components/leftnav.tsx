@@ -41,6 +41,21 @@ interface SidebarProps {
   enabledPagesInternalUsers?: string[] | null;
 }
 
+function normalizeBasePrefix(raw: string | undefined | null): string {
+  const trimmed = (raw ?? "").trim();
+  if (!trimmed) return "";
+  const core = trimmed.replace(/^\/+/, "").replace(/\/+$/, "");
+  return core ? `/${core}/` : "/";
+}
+
+const BASE_PREFIX = normalizeBasePrefix(process.env.NEXT_PUBLIC_BASE_URL);
+
+function withBase(path: string): string {
+  const body = path.startsWith("/") ? path.slice(1) : path;
+  const combined = `${BASE_PREFIX}${body}`;
+  return combined.startsWith("/") ? combined : `/${combined}`;
+}
+
 // Menu item configuration
 interface MenuItem {
   key: string;
@@ -161,8 +176,22 @@ const menuGroups: MenuGroup[] = [
       {
         key: "users",
         page: "users",
-        label: "Internal Users",
+        label: "Members",
         icon: <UserOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "copilot-admin",
+        page: "copilot-admin",
+        label: "Copilot Admin",
+        icon: <AppstoreOutlined />,
+        roles: all_admin_roles,
+      },
+      {
+        key: "admin-panel",
+        page: "admin-panel",
+        label: "Directory & SSO",
+        icon: <SafetyOutlined />,
         roles: all_admin_roles,
       },
       {
@@ -289,13 +318,6 @@ const menuGroups: MenuGroup[] = [
             roles: all_admin_roles,
           },
           {
-            key: "admin-panel",
-            page: "admin-panel",
-            label: "Admin Settings",
-            icon: <SettingOutlined />,
-            roles: all_admin_roles,
-          },
-          {
             key: "cost-tracking",
             page: "cost-tracking",
             label: "Cost Tracking",
@@ -329,6 +351,11 @@ const Sidebar: React.FC<SidebarProps> = ({ setPage, defaultSelectedKey, collapse
 
   // Navigate to page helper
   const navigateToPage = (page: string) => {
+    if (page === "copilot-admin") {
+      window.location.assign(withBase("/copilot-admin"));
+      return;
+    }
+
     const newSearchParams = new URLSearchParams(window.location.search);
     newSearchParams.set("page", page);
     window.history.pushState(null, "", `?${newSearchParams.toString()}`);

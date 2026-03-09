@@ -22,9 +22,6 @@ function withBase(path: string): string {
 }
 /** -------------------------------- */
 
-// Alchemi: Lazy-load Tenant Admin page for super admins
-const TenantAdminPage = React.lazy(() => import("@/app/(dashboard)/tenant-admin/page"));
-
 function LayoutContent({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -47,7 +44,6 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
 
   const toggleSidebar = () => setSidebarCollapsed((v) => !v);
 
-  // Alchemi: Super admin sees only the Tenant Management page
   if (isSuperAdmin) {
     return (
       <ThemeProvider accessToken={""}>
@@ -66,11 +62,7 @@ function LayoutContent({ children }: { children: React.ReactNode }) {
             isDarkMode={false}
             toggleDarkMode={() => {}}
           />
-          <main className="flex-1">
-            <React.Suspense fallback={<div className="flex items-center justify-center p-8">Loading Tenant Admin...</div>}>
-              <TenantAdminPage />
-            </React.Suspense>
-          </main>
+          <main className="flex-1 overflow-auto">{children}</main>
         </div>
       </ThemeProvider>
     );

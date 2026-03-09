@@ -23,6 +23,22 @@ else:
 
 class UserAPIKeyAuthExceptionHandler:
     @staticmethod
+    def _is_expected_auth_failure(e: Exception) -> bool:
+        if isinstance(e, HTTPException) and getattr(e, "status_code", None) in (401, 403):
+            return True
+        if isinstance(e, ProxyException) and str(getattr(e, "code", "")) in ("401", "403"):
+            return True
+
+        message = str(e or "")
+        expected_fragments = (
+            "Only proxy admin can be used to generate, delete, update info for new keys/users/teams.",
+            "Access denied. Admin role required.",
+            "Account admin access required.",
+            "This endpoint is only accessible to super admins.",
+        )
+        return any(fragment in message for fragment in expected_fragments)
+
+    @staticmethod
     async def _handle_authentication_error(
         e: Exception,
         request: Request,
@@ -75,7 +91,16 @@ class UserAPIKeyAuthExceptionHandler:
                 request=request,
                 use_x_forwarded_for=general_settings.get("use_x_forwarded_for", False),
             )
-            verbose_proxy_logger.exception(
+            is_expected_auth_failure = (
+                UserAPIKeyAuthExceptionHandler._is_expected_auth_failure(e)
+            )
+
+            log_fn = (
+                verbose_proxy_logger.warning
+                if is_expected_auth_failure
+                else verbose_proxy_logger.exception
+            )
+            log_fn(
                 "litellm.proxy.proxy_server.user_api_key_auth(): Exception occured - {}\nRequester IP Address:{}".format(
                     str(e),
                     requester_ip,

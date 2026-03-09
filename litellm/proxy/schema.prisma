@@ -1082,3 +1082,132 @@ model Alchemi_AccountSSOConfig {
     updated_at   DateTime @default(now()) @updatedAt
     account      Alchemi_AccountTable @relation(fields: [account_id], references: [account_id])
 }
+
+// ============================================
+// Alchemi Control Plane - Canonical Shared Data
+// ============================================
+
+model Alchemi_ControlPlaneUserTable {
+    user_id             String   @id
+    user_email          String   @unique
+    display_name        String?
+    zitadel_sub         String?  @unique
+    status              String   @default("active")
+    primary_account_id  String?
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@index([primary_account_id])
+    @@index([status])
+}
+
+model Alchemi_AccountMembershipTable {
+    membership_id       String   @id @default(uuid())
+    account_id          String
+    user_id             String
+    membership_role     String   @default("member")
+    membership_status   String   @default("active")
+    is_default          Boolean  @default(false)
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@unique([account_id, user_id])
+    @@index([account_id])
+    @@index([user_id])
+    @@index([membership_status])
+}
+
+model Alchemi_ControlPlaneGroupTable {
+    group_id            String   @id @default(uuid())
+    account_id          String
+    group_name          String
+    group_slug          String?
+    group_kind          String   @default("org")
+    parent_group_id     String?
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@unique([account_id, group_name])
+    @@index([account_id])
+    @@index([group_kind])
+    @@index([parent_group_id])
+}
+
+model Alchemi_ControlPlaneTeamTable {
+    team_id             String   @id @default(uuid())
+    account_id          String
+    group_id            String?
+    team_name           String
+    team_slug           String?
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@unique([account_id, team_name])
+    @@index([account_id])
+    @@index([group_id])
+}
+
+model Alchemi_RoleBindingTable {
+    role_binding_id     String   @id @default(uuid())
+    account_id          String
+    principal_type      String
+    principal_id        String
+    scope_type          String   @default("account")
+    scope_id            String?
+    product_code        String?
+    role_code           String
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@unique([account_id, principal_type, principal_id, scope_type, role_code, product_code])
+    @@index([account_id])
+    @@index([principal_type, principal_id])
+    @@index([scope_type, scope_id])
+    @@index([product_code])
+}
+
+model Alchemi_ProductGrantTable {
+    product_grant_id    String   @id @default(uuid())
+    account_id          String
+    user_id             String
+    product_code        String
+    grant_status        String   @default("active")
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@unique([account_id, user_id, product_code])
+    @@index([account_id])
+    @@index([user_id])
+    @@index([grant_status])
+}
+
+model Alchemi_IdentityBindingTable {
+    identity_binding_id String   @id @default(uuid())
+    account_id          String   @unique
+    provider            String   @default("zitadel")
+    zitadel_org_id      String?  @unique
+    issuer_url          String?
+    client_id           String?
+    default_redirect_url String?
+    sso_enabled         Boolean  @default(false)
+    config              Json     @default("{}")
+    metadata            Json     @default("{}")
+    created_at          DateTime @default(now())
+    created_by          String?
+    updated_at          DateTime @default(now()) @updatedAt
+    updated_by          String?
+    @@index([provider])
+    @@index([sso_enabled])
+}

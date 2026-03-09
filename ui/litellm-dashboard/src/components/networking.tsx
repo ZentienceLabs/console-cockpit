@@ -679,10 +679,13 @@ export const budgetUpdateCall = async (
 };
 
 export const invitationCreateCall = async (
-  accessToken: string,
+  accessToken: string | null,
   userID: string, // Assuming formValues is an object
 ) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     const url = proxyBaseUrl ? `${proxyBaseUrl}/invitation/new` : `/invitation/new`;
     const response = await fetch(url, {
       method: "POST",
@@ -783,10 +786,13 @@ export const alertingSettingsCall = async (accessToken: string) => {
 };
 
 export const keyCreateServiceAccountCall = async (
-  accessToken: string,
+  accessToken: string | null,
   formValues: Record<string, any>, // Assuming formValues is an object
 ) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     console.log("Form Values in keyCreateServiceAccountCall:", formValues); // Log the form values before making the API call
 
     // check if formValues.description is not undefined, make it a string and add it to formValues.metadata
@@ -845,11 +851,14 @@ export const keyCreateServiceAccountCall = async (
 };
 
 export const keyCreateCall = async (
-  accessToken: string,
-  userID: string,
+  accessToken: string | null,
+  userID: string | null,
   formValues: Record<string, any>, // Assuming formValues is an object
 ) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     console.log("Form Values in keyCreateCall:", formValues); // Log the form values before making the API call
 
     // check if formValues.description is not undefined, make it a string and add it to formValues.metadata
@@ -909,11 +918,14 @@ export const keyCreateCall = async (
 };
 
 export const userCreateCall = async (
-  accessToken: string,
+  accessToken: string | null,
   userID: string | null,
   formValues: Record<string, any>, // Assuming formValues is an object
 ) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     console.log("Form Values in keyCreateCall:", formValues); // Log the form values before making the API call
 
     // check if formValues.description is not undefined, make it a string and add it to formValues.metadata
@@ -2153,11 +2165,14 @@ export const mcpHubPublicServersCall = async () => {
   return response.json();
 };
 
-export const modelHubCall = async (accessToken: string) => {
+export const modelHubCall = async (accessToken: string | null) => {
   /**
    * Get all models on proxy
    */
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     let url = proxyBaseUrl ? `${proxyBaseUrl}/model_group/info` : `/model_group/info`;
 
     //NotificationsManager.info("Requesting model data");
@@ -2305,8 +2320,8 @@ export const updateUsefulLinksCall = async (
 };
 
 export const modelAvailableCall = async (
-  accessToken: string,
-  userID: string,
+  accessToken: string | null,
+  userID: string | null,
   userRole: string,
   return_wildcard_routes: boolean = false,
   teamID: string | null = null,
@@ -2319,6 +2334,9 @@ export const modelAvailableCall = async (
    */
   console.log("in /models calls, globalLitellmHeaderName", globalLitellmHeaderName);
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     let url = proxyBaseUrl ? `${proxyBaseUrl}/models` : `/models`;
     const params = new URLSearchParams();
     params.append("include_model_access_groups", "True");
@@ -4722,8 +4740,11 @@ export const updateCacheSettingsCall = async (accessToken: string, cacheSettings
   }
 };
 
-export const getPassThroughEndpointsCall = async (accessToken: string, teamId?: string | null) => {
+export const getPassThroughEndpointsCall = async (accessToken: string | null, teamId?: string | null) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     let url = proxyBaseUrl ? `${proxyBaseUrl}/config/pass_through_endpoint` : `/config/pass_through_endpoint`;
 
     if (teamId) {
@@ -5170,11 +5191,14 @@ export const latestHealthChecksCall = async (accessToken: string) => {
   }
 };
 
-export const getProxyUISettings = async (accessToken: string) => {
+export const getProxyUISettings = async (accessToken: string | null) => {
   /**
    * Get all the models user has access to
    */
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     console.log("Getting proxy UI settings");
     console.log("proxyBaseUrl in getProxyUISettings:", proxyBaseUrl);
     let url = proxyBaseUrl ? `${proxyBaseUrl}/sso/get/ui_settings` : `/sso/get/ui_settings`;
@@ -5387,8 +5411,11 @@ export const testMCPSemanticFilter = async (accessToken: string, model: string, 
   }
 };
 
-export const getGuardrailsList = async (accessToken: string) => {
+export const getGuardrailsList = async (accessToken: string | null) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     const url = proxyBaseUrl ? `${proxyBaseUrl}/v2/guardrails/list` : `/v2/guardrails/list`;
     const response = await fetch(url, {
       method: "GET",
@@ -5417,8 +5444,11 @@ export const getGuardrailsList = async (accessToken: string) => {
 // Policy CRUD API Calls
 // ─────────────────────────────────────────────────────────────────────────────
 
-export const getPoliciesList = async (accessToken: string) => {
+export const getPoliciesList = async (accessToken: string | null) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     const url = proxyBaseUrl ? `${proxyBaseUrl}/policies/list` : `/policies/list`;
     const response = await fetch(url, {
       method: "GET",
@@ -5805,8 +5835,11 @@ export const estimateAttachmentImpactCall = async (
   }
 };
 
-export const getPromptsList = async (accessToken: string): Promise<ListPromptsResponse> => {
+export const getPromptsList = async (accessToken: string | null): Promise<ListPromptsResponse> => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     const url = proxyBaseUrl ? `${proxyBaseUrl}/prompts/list` : `/prompts/list`;
     const response = await fetch(url, {
       method: "GET",
@@ -6639,8 +6672,11 @@ export const testSearchToolConnection = async (accessToken: string, litellmParam
   }
 };
 
-export const listMCPTools = async (accessToken: string, serverId: string) => {
+export const listMCPTools = async (accessToken: string | null, serverId: string) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     // Construct base URL
     let url = proxyBaseUrl
       ? `${proxyBaseUrl}/mcp-rest/tools/list?server_id=${serverId}`
@@ -7088,11 +7124,14 @@ export const vectorStoreCreateCall = async (accessToken: string, formValues: Rec
 };
 
 export const vectorStoreListCall = async (
-  accessToken: string,
+  accessToken: string | null,
   page: number = 1,
   page_size: number = 100,
 ): Promise<any> => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     let url = proxyBaseUrl ? `${proxyBaseUrl}/vector_store/list` : `/vector_store/list`;
 
     const response = await fetch(url, {
@@ -7566,8 +7605,11 @@ export const getCategoryYaml = async (accessToken: string, categoryName: string)
   }
 };
 
-export const getAgentsList = async (accessToken: string) => {
+export const getAgentsList = async (accessToken: string | null) => {
   try {
+    if (!accessToken) {
+      throw new Error("Access token is required");
+    }
     const url = proxyBaseUrl ? `${proxyBaseUrl}/v1/agents` : `/v1/agents`;
 
     const response = await fetch(url, {
@@ -7890,143 +7932,6 @@ export const validateBlockedWordsFile = async (accessToken: string, fileContent:
     console.error("Failed to validate blocked words file:", error);
     throw error;
   }
-};
-
-export const getSSOSettings = async (accessToken: string) => {
-  try {
-    // Construct base URL
-    let url = proxyBaseUrl ? `${proxyBaseUrl}/get/sso_settings` : `/get/sso_settings`;
-
-    console.log("Fetching SSO configuration from:", url);
-
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage = deriveErrorMessage(errorData);
-      handleError(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    const data = await response.json();
-    console.log("Fetched SSO configuration:", data);
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch SSO configuration:", error);
-    throw error;
-  }
-};
-
-export const updateSSOSettings = async (accessToken: string, settings: Record<string, any>) => {
-  try {
-    // Construct base URL
-    let url = proxyBaseUrl ? `${proxyBaseUrl}/update/sso_settings` : `/update/sso_settings`;
-
-    console.log("Updating SSO configuration:", settings);
-
-    const response = await fetch(url, {
-      method: "PATCH",
-      headers: {
-        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(settings),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      const detailMessage =
-        typeof errorData?.detail === "object"
-          ? errorData.detail?.error || errorData.detail?.message
-          : errorData?.detail;
-      const errorMessage =
-        typeof detailMessage === "string" && detailMessage.length > 0 ? detailMessage : deriveErrorMessage(errorData);
-
-      handleError(errorMessage);
-
-      const enhancedError = new Error(errorMessage);
-      if (errorData?.detail !== undefined) {
-        (enhancedError as any).detail = errorData.detail;
-      }
-      (enhancedError as any).rawError = errorData;
-
-      throw enhancedError;
-    }
-
-    const data = await response.json();
-    console.log("Updated SSO configuration:", data);
-    return data;
-  } catch (error) {
-    console.error("Failed to update SSO configuration:", error);
-    throw error;
-  }
-};
-
-// Alchemi: Per-account SSO config endpoints
-export const getAccountSSOConfig = async (accessToken: string, accountId: string) => {
-  const url = proxyBaseUrl
-    ? `${proxyBaseUrl}/account/${accountId}/sso`
-    : `/account/${accountId}/sso`;
-  const response = await fetch(url, {
-    method: "GET",
-    headers: {
-      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    const errorData = await response.json();
-    throw new Error(deriveErrorMessage(errorData));
-  }
-  return response.json();
-};
-
-export const updateAccountSSOConfig = async (
-  accessToken: string,
-  accountId: string,
-  data: { sso_provider?: string | null; enabled?: boolean; sso_settings?: Record<string, any> },
-) => {
-  const url = proxyBaseUrl
-    ? `${proxyBaseUrl}/account/${accountId}/sso`
-    : `/account/${accountId}/sso`;
-  const response = await fetch(url, {
-    method: "PUT",
-    headers: {
-      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(data),
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(deriveErrorMessage(errorData));
-  }
-  return response.json();
-};
-
-export const deleteAccountSSOConfig = async (accessToken: string, accountId: string) => {
-  const url = proxyBaseUrl
-    ? `${proxyBaseUrl}/account/${accountId}/sso`
-    : `/account/${accountId}/sso`;
-  const response = await fetch(url, {
-    method: "DELETE",
-    headers: {
-      [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-  });
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(deriveErrorMessage(errorData));
-  }
-  return response.json();
 };
 
 export const uiAuditLogsCall = async (
@@ -9473,69 +9378,6 @@ export const accountDeleteCall = async (accessToken: string, accountId: string) 
     return await response.json();
   } catch (error) {
     console.error("Failed to suspend account:", error);
-    throw error;
-  }
-};
-
-export const accountAdminAddCall = async (
-  accessToken: string,
-  accountId: string,
-  userEmail: string,
-  role: string = "account_admin",
-) => {
-  try {
-    const url = proxyBaseUrl
-      ? `${proxyBaseUrl}/account/${accountId}/admin`
-      : `/account/${accountId}/admin`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ user_email: userEmail, role }),
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json();
-      const errorMessage = deriveErrorMessage(errorData);
-      handleError(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to add account admin:", error);
-    throw error;
-  }
-};
-
-export const accountAdminRemoveCall = async (
-  accessToken: string,
-  accountId: string,
-  email: string,
-) => {
-  try {
-    const url = proxyBaseUrl
-      ? `${proxyBaseUrl}/account/${accountId}/admin/${encodeURIComponent(email)}`
-      : `/account/${accountId}/admin/${encodeURIComponent(email)}`;
-    const response = await fetch(url, {
-      method: "DELETE",
-      headers: {
-        [globalLitellmHeaderName]: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorData = await response.text();
-      handleError(errorData);
-      throw new Error(`Error removing admin: ${errorData}`);
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error("Failed to remove account admin:", error);
     throw error;
   }
 };

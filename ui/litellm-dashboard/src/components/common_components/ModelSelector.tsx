@@ -5,7 +5,7 @@ import { RobotOutlined } from "@ant-design/icons";
 import { fetchAvailableModels, ModelGroup } from "../playground/llm_calls/fetch_models";
 
 interface ModelSelectorProps {
-  accessToken: string;
+  accessToken: string | null;
   value?: string;
   placeholder?: string;
   onChange?: (value: string) => void;

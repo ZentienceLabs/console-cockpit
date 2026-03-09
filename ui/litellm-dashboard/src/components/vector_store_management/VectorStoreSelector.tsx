@@ -6,7 +6,7 @@ interface VectorStoreSelectorProps {
   onChange: (selectedVectorStores: string[]) => void;
   value?: string[];
   className?: string;
-  accessToken: string;
+  accessToken: string | null;
   placeholder?: string;
   disabled?: boolean;
 }

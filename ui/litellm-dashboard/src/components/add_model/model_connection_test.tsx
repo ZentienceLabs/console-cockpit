@@ -8,7 +8,7 @@ const { Text } = Typography;
 
 interface ModelConnectionTestProps {
   formValues: Record<string, any>;
-  accessToken: string;
+  accessToken: string | null;
   testMode: string;
   modelName?: string;
   onClose?: () => void;
@@ -42,6 +42,9 @@ const ModelConnectionTest: React.FC<ModelConnectionTestProps> = ({
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     try {
+      if (!accessToken) {
+        throw new Error("Access token is required");
+      }
       console.log("Testing connection with form values:", formValues);
       const result = await prepareModelAddRequest(formValues, accessToken, null);
 

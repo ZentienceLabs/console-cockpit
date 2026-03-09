@@ -484,7 +484,7 @@ const AllModelsTab = ({
             <AllModelsDataTable
               columns={columns(
                 userRole,
-                userId,
+                userId ?? "",
                 premiumUser,
                 setSelectedModelId,
                 setSelectedTeamId,

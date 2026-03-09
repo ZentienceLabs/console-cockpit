@@ -92,6 +92,8 @@ const routeFor = (slug: string): string => {
       return "teams";
     case "organizations":
       return "organizations";
+    case "copilot-admin":
+      return "copilot-admin";
     case "users":
       return "users";
     case "api_ref":
@@ -186,8 +188,22 @@ const menuItems: MenuItemCfg[] = [
   {
     key: "5",
     page: "users",
-    label: "Internal Users",
+    label: "Members",
     icon: <UserOutlined style={{ fontSize: 18 }} />,
+    roles: all_admin_roles,
+  },
+  {
+    key: "30",
+    page: "copilot-admin",
+    label: "Copilot Admin",
+    icon: <AppstoreOutlined style={{ fontSize: 18 }} />,
+    roles: all_admin_roles,
+  },
+  {
+    key: "29",
+    page: "admin-panel",
+    label: "Directory & SSO",
+    icon: <SafetyOutlined style={{ fontSize: 18 }} />,
     roles: all_admin_roles,
   },
   { key: "14", page: "api_ref", label: "API Reference", icon: <ApiOutlined style={{ fontSize: 18 }} /> },
@@ -296,13 +312,6 @@ const menuItems: MenuItemCfg[] = [
         key: "8",
         page: "settings",
         label: "Logging & Alerts",
-        icon: <SettingOutlined style={{ fontSize: 18 }} />,
-        roles: all_admin_roles,
-      },
-      {
-        key: "13",
-        page: "admin-panel",
-        label: "Admin Settings",
         icon: <SettingOutlined style={{ fontSize: 18 }} />,
         roles: all_admin_roles,
       },

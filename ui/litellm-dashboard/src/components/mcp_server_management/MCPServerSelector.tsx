@@ -10,7 +10,7 @@ interface MCPServerSelectorProps {
     accessGroups: string[];
   };
   className?: string;
-  accessToken: string;
+  accessToken: string | null;
   placeholder?: string;
   disabled?: boolean;
 }

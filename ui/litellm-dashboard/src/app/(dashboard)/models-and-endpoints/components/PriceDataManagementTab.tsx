@@ -17,16 +17,18 @@ const PriceDataManagementTab = () => {
             Manage model pricing data and configure automatic reload schedules
           </Text>
         </div>
-        <PriceDataReload
-          accessToken={accessToken}
-          onReloadSuccess={() => {
-            refetchModelCostMap();
-          }}
-          buttonText="Reload Price Data"
-          size="middle"
-          type="primary"
-          className="w-full"
-        />
+        {accessToken ? (
+          <PriceDataReload
+            accessToken={accessToken}
+            onReloadSuccess={() => {
+              refetchModelCostMap();
+            }}
+            buttonText="Reload Price Data"
+            size="middle"
+            type="primary"
+            className="w-full"
+          />
+        ) : null}
       </div>
     </TabPanel>
   );

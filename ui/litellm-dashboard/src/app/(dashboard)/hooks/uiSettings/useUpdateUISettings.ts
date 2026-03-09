@@ -4,7 +4,7 @@ import { createQueryKeys } from "../common/queryKeysFactory";
 
 const uiSettingsKeys = createQueryKeys("uiSettings");
 
-export const useUpdateUISettings = (accessToken: string) => {
+export const useUpdateUISettings = (accessToken: string | null) => {
   const queryClient = useQueryClient();
 
   return useMutation({

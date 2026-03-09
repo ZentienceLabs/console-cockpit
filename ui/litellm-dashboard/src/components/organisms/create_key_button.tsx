@@ -22,7 +22,6 @@ import RateLimitTypeFormItem from "../common_components/RateLimitTypeFormItem";
 import RouterSettingsAccordion, { RouterSettingsAccordionValue } from "../common_components/RouterSettingsAccordion";
 import AccessGroupSelector from "../common_components/AccessGroupSelector";
 import TeamDropdown from "../common_components/team_dropdown";
-import { CreateUserButton } from "../CreateUserButton";
 import { getModelDisplayName } from "../key_team_helpers/fetch_available_models_team_key";
 import { Team } from "../key_team_helpers/key_list";
 import MCPServerSelector from "../mcp_server_management/MCPServerSelector";
@@ -31,7 +30,6 @@ import NotificationsManager from "../molecules/notifications_manager";
 import {
   getGuardrailsList,
   getPoliciesList,
-  getPossibleUserRoles,
   getPromptsList,
   keyCreateCall,
   keyCreateServiceAccountCall,
@@ -156,9 +154,6 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
   const [promptsList, setPromptsList] = useState<string[]>([]);
   const [loggingSettings, setLoggingSettings] = useState<any[]>([]);
   const [selectedCreateKeyTeam, setSelectedCreateKeyTeam] = useState<Team | null>(team);
-  const [isCreateUserModalVisible, setIsCreateUserModalVisible] = useState(false);
-  const [newlyCreatedUserId, setNewlyCreatedUserId] = useState<string | null>(null);
-  const [possibleUIRoles, setPossibleUIRoles] = useState<Record<string, Record<string, string>>>({});
   const [userOptions, setUserOptions] = useState<UserOption[]>([]);
   const [userSearchLoading, setUserSearchLoading] = useState<boolean>(false);
   const [mcpAccessGroups, setMcpAccessGroups] = useState<string[]>([]);
@@ -238,32 +233,13 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
     fetchPrompts();
   }, [accessToken]);
 
-  // Fetch possible user roles when component mounts
-  useEffect(() => {
-    const fetchPossibleRoles = async () => {
-      try {
-        if (accessToken) {
-          // Check if roles are cached in session storage
-          const cachedRoles = sessionStorage.getItem("possibleUserRoles");
-          if (cachedRoles) {
-            setPossibleUIRoles(JSON.parse(cachedRoles));
-          } else {
-            const availableUserRoles = await getPossibleUserRoles(accessToken);
-            sessionStorage.setItem("possibleUserRoles", JSON.stringify(availableUserRoles));
-            setPossibleUIRoles(availableUserRoles);
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching possible user roles:", error);
-      }
-    };
-
-    fetchPossibleRoles();
-  }, [accessToken]);
-
   // Check if team selection is required
   const isTeamSelectionRequired = modelsToPick.includes("no-default-models");
   const isFormDisabled = isTeamSelectionRequired && !selectedCreateKeyTeam;
+
+  const openMembersPage = () => {
+    window.location.assign("/users");
+  };
 
   const handleCreate = async (formValues: Record<string, any>) => {
     try {
@@ -458,13 +434,6 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
     form.setFieldValue("models", []);
   }, [selectedCreateKeyTeam, accessToken, userID, userRole]);
 
-  // Add a callback function to handle user creation
-  const handleUserCreated = (userId: string) => {
-    setNewlyCreatedUserId(userId);
-    form.setFieldsValue({ user_id: userId });
-    setIsCreateUserModalVisible(false);
-  };
-
   const fetchUsers = async (searchText: string): Promise<void> => {
     if (!searchText) {
       setUserOptions([]);
@@ -575,11 +544,13 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
                       style={{ width: "100%" }}
                       notFoundContent={userSearchLoading ? "Searching..." : "No users found"}
                     />
-                    <Button2 onClick={() => setIsCreateUserModalVisible(true)} style={{ marginLeft: "8px" }}>
-                      Create User
+                    <Button2 onClick={openMembersPage} style={{ marginLeft: "8px" }}>
+                      Manage Members
                     </Button2>
                   </div>
-                  <div className="text-xs text-gray-500">Search by email to find users</div>
+                  <div className="text-xs text-gray-500">
+                    Search by email to find existing users. Add new users from the Members page.
+                  </div>
                 </div>
               </Form.Item>
             )}
@@ -1352,26 +1323,6 @@ const CreateKey: React.FC<CreateKeyProps> = ({ team, teams, data, addKey }) => {
           </div>
         </Form>
       </Modal>
-
-      {/* Add the Create User Modal */}
-      {isCreateUserModalVisible && (
-        <Modal
-          title="Create New User"
-          open={isCreateUserModalVisible}
-          onCancel={() => setIsCreateUserModalVisible(false)}
-          footer={null}
-          width={800}
-        >
-          <CreateUserButton
-            userID={userID}
-            accessToken={accessToken}
-            teams={teams}
-            possibleUIRoles={possibleUIRoles}
-            onUserCreated={handleUserCreated}
-            isEmbedded={true}
-          />
-        </Modal>
-      )}
 
       {apiKey && (
         <Modal open={isModalVisible} onOk={handleOk} onCancel={handleCancel} footer={null}>

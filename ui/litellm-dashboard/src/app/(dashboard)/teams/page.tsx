@@ -13,7 +13,12 @@ const TeamsPage = () => {
   const [organizations, setOrganizations] = useState<Organization[]>([]);
 
   useEffect(() => {
-    fetchOrganizations(accessToken, setOrganizations).then(() => {});
+    if (!accessToken) {
+      setOrganizations([]);
+      return;
+    }
+
+    void fetchOrganizations(accessToken, setOrganizations);
   }, [accessToken]);
 
   return (

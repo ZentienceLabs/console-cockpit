@@ -12,7 +12,12 @@ const useTeams = () => {
   const { accessToken, userId: userID, userRole } = useAuthorized();
 
   useEffect(() => {
-    (async () => {
+    if (!accessToken) {
+      setTeams([]);
+      return;
+    }
+
+    void (async () => {
       const fetched = await fetchTeams(accessToken, userID, userRole, null);
       setTeams(fetched);
     })();

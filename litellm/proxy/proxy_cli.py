@@ -794,6 +794,7 @@ def run_server(  # noqa: PLR0915
                     PrismaManager,
                     should_update_prisma_schema,
                 )
+                from litellm.secret_managers.main import str_to_bool
 
                 if (
                     should_update_prisma_schema(
@@ -801,7 +802,13 @@ def run_server(  # noqa: PLR0915
                     )
                     is False
                 ):
-                    check_prisma_schema_diff(db_url=None)
+                    if not str_to_bool(
+                        os.getenv(
+                            "LITELLM_SKIP_POST_MIGRATION_SANITY_CHECK",
+                            "false",
+                        )
+                    ):
+                        check_prisma_schema_diff(db_url=None)
                 else:
                     PrismaManager.setup_database(use_migrate=not use_prisma_db_push)
             else:

@@ -17,6 +17,7 @@ export const pageDescriptions: Record<string, string> = {
   new_usage: "View usage analytics and metrics",
   logs: "Access request and response logs",
   users: "Manage internal user accounts and permissions",
+  "copilot-admin": "Access the centralized Copilot administration landing page",
   teams: "Create and manage teams for access control",
   organizations: "Manage organizations and their members",
   "access-groups": "Manage access groups for role-based permissions",

@@ -3,12 +3,11 @@ import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import LoginPage from "./LoginPage";
 
-const mockPush = vi.fn();
 const mockReplace = vi.fn();
 
 vi.mock("next/navigation", () => ({
   useRouter: vi.fn(() => ({
-    push: mockPush,
+    push: vi.fn(),
     replace: mockReplace,
   })),
 }));
@@ -30,16 +29,9 @@ vi.mock("@/components/networking", async (importOriginal) => {
   return {
     ...actual,
     getProxyBaseUrl: vi.fn().mockReturnValue("http://localhost:4000"),
+    loginResolveCall: vi.fn(),
   };
 });
-
-vi.mock("@/app/(dashboard)/hooks/login/useLogin", () => ({
-  useLogin: vi.fn(() => ({
-    mutate: vi.fn(),
-    isPending: false,
-    error: null,
-  })),
-}));
 
 import { useUIConfig } from "@/app/(dashboard)/hooks/uiConfig/useUIConfig";
 import { getCookie } from "@/utils/cookieUtils";
@@ -58,17 +50,16 @@ const createQueryClient = () =>
 describe("LoginPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockPush.mockClear();
     mockReplace.mockClear();
   });
 
-  it("should render", async () => {
+  it("renders tenant login content", async () => {
     (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         auto_redirect_to_sso: false,
         server_root_path: "/",
         proxy_base_url: null,
-        sso_configured: false,
+        sso_configured: true,
       },
       isLoading: false,
     });
@@ -82,96 +73,23 @@ describe("LoginPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Login" })).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", { name: "Tenant Login" }),
+      ).toBeInTheDocument();
     });
+    expect(
+      screen.getByRole("button", { name: "Continue with SSO" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Platform admin login" }),
+    ).toHaveAttribute("href", "http://localhost:4000/ui/admin/login");
   });
 
-  it("should call router.replace to dashboard when jwt is valid", async () => {
+  it("redirects to dashboard when jwt is valid", async () => {
     const validToken = "valid-token";
     (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         auto_redirect_to_sso: false,
-        server_root_path: "/",
-        proxy_base_url: null,
-        sso_configured: false,
-      },
-      isLoading: false,
-    });
-    (getCookie as ReturnType<typeof vi.fn>).mockReturnValue(validToken);
-    (isJwtExpired as ReturnType<typeof vi.fn>).mockReturnValue(false);
-
-    const queryClient = createQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(mockReplace).toHaveBeenCalledWith("http://localhost:4000/ui");
-    });
-  });
-
-  it("should call router.push to SSO when jwt is invalid and auto_redirect_to_sso is true", async () => {
-    const invalidToken = "invalid-token";
-    (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        auto_redirect_to_sso: true,
-        server_root_path: "/",
-        proxy_base_url: null,
-        sso_configured: true,
-      },
-      isLoading: false,
-    });
-    (getCookie as ReturnType<typeof vi.fn>).mockReturnValue(invalidToken);
-    (isJwtExpired as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
-    const queryClient = createQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(mockPush).toHaveBeenCalledWith("http://localhost:4000/sso/key/generate");
-    });
-  });
-
-  it("should not call router when jwt is invalid and auto_redirect_to_sso is false", async () => {
-    const invalidToken = "invalid-token";
-    (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        auto_redirect_to_sso: false,
-        server_root_path: "/",
-        proxy_base_url: null,
-        sso_configured: false,
-      },
-      isLoading: false,
-    });
-    (getCookie as ReturnType<typeof vi.fn>).mockReturnValue(invalidToken);
-    (isJwtExpired as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
-    const queryClient = createQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Login" })).toBeInTheDocument();
-    });
-
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(mockReplace).not.toHaveBeenCalled();
-  });
-
-  it("should send user to dashboard when jwt is valid even if auto_redirect_to_sso is true", async () => {
-    const validToken = "valid-token";
-    (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        auto_redirect_to_sso: true,
         server_root_path: "/",
         proxy_base_url: null,
         sso_configured: true,
@@ -191,11 +109,9 @@ describe("LoginPage", () => {
     await waitFor(() => {
       expect(mockReplace).toHaveBeenCalledWith("http://localhost:4000/ui");
     });
-
-    expect(mockPush).not.toHaveBeenCalled();
   });
 
-  it("should show alert when admin_ui_disabled is true", async () => {
+  it("shows disabled message when admin ui is disabled", async () => {
     (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
       data: {
         admin_ui_disabled: true,
@@ -215,67 +131,7 @@ describe("LoginPage", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByRole("alert")).toBeInTheDocument();
       expect(screen.getByText("Admin UI Disabled")).toBeInTheDocument();
     });
-
-    expect(mockPush).not.toHaveBeenCalled();
-    expect(mockReplace).not.toHaveBeenCalled();
-  });
-
-  it("should show Login with SSO button when sso_configured is true", async () => {
-    (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        auto_redirect_to_sso: false,
-        server_root_path: "/",
-        proxy_base_url: null,
-        sso_configured: true,
-      },
-      isLoading: false,
-    });
-    (getCookie as ReturnType<typeof vi.fn>).mockReturnValue(null);
-    (isJwtExpired as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
-    const queryClient = createQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Login" })).toBeInTheDocument();
-    });
-
-    expect(screen.getByRole("button", { name: "Login with SSO" })).toBeInTheDocument();
-  });
-
-  it("should show disabled Login with SSO button with popover when sso_configured is false", async () => {
-    (useUIConfig as ReturnType<typeof vi.fn>).mockReturnValue({
-      data: {
-        auto_redirect_to_sso: false,
-        server_root_path: "/",
-        proxy_base_url: null,
-        sso_configured: false,
-      },
-      isLoading: false,
-    });
-    (getCookie as ReturnType<typeof vi.fn>).mockReturnValue(null);
-    (isJwtExpired as ReturnType<typeof vi.fn>).mockReturnValue(true);
-
-    const queryClient = createQueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <LoginPage />
-      </QueryClientProvider>,
-    );
-
-    await waitFor(() => {
-      expect(screen.getByRole("heading", { name: "Login" })).toBeInTheDocument();
-    });
-
-    const ssoButton = screen.getByRole("button", { name: "Login with SSO" });
-    expect(ssoButton).toBeInTheDocument();
-    expect(ssoButton).toBeDisabled();
   });
 });

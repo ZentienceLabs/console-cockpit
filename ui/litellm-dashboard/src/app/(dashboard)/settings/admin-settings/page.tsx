@@ -1,13 +1,5 @@
-"use client";
+import TenantDirectoryPanel from "@/components/control_plane/TenantDirectoryPanel";
 
-import AdminPanel from "@/components/AdminPanel";
-
-const AdminSettings = () => {
-
-  return (
-    <AdminPanel
-    />
-  );
-};
+const AdminSettings = () => <TenantDirectoryPanel />;
 
 export default AdminSettings;

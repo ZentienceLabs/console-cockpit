@@ -6,7 +6,7 @@ interface PassThroughRoutesSelectorProps {
   onChange: (selectedRoutes: string[]) => void;
   value?: string[];
   className?: string;
-  accessToken: string;
+  accessToken: string | null;
   placeholder?: string;
   disabled?: boolean;
   teamId?: string | null;
@@ -67,4 +67,3 @@ const PassThroughRoutesSelector: React.FC<PassThroughRoutesSelectorProps> = ({
 };
 
 export default PassThroughRoutesSelector;
-

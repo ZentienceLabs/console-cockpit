@@ -19,7 +19,7 @@ interface AgentSelectorProps {
     accessGroups: string[];
   };
   className?: string;
-  accessToken: string;
+  accessToken: string | null;
   placeholder?: string;
   disabled?: boolean;
 }
@@ -145,4 +145,3 @@ const AgentSelector: React.FC<AgentSelectorProps> = ({
 };
 
 export default AgentSelector;
-

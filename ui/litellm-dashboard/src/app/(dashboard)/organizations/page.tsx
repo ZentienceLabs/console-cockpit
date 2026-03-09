@@ -12,11 +12,21 @@ const OrganizationsPage = () => {
   const [userModels, setUserModels] = useState<string[]>([]);
 
   useEffect(() => {
-    fetchOrganizations(accessToken, setOrganizations).then(() => {});
+    if (!accessToken) {
+      setOrganizations([]);
+      return;
+    }
+
+    void fetchOrganizations(accessToken, setOrganizations);
   }, [accessToken]);
 
   useEffect(() => {
-    fetchUserModels(userID, userRole, accessToken, setUserModels).then(() => {});
+    if (!accessToken || !userID) {
+      setUserModels([]);
+      return;
+    }
+
+    void fetchUserModels(userID, userRole, accessToken, setUserModels);
   }, [userID, userRole, accessToken]);
 
   return (

@@ -18,15 +18,15 @@ export const isProxyAdminRole = (role: string): boolean => {
   return role === "proxy_admin" || role === "Admin";
 };
 
-export const isUserTeamAdminForAnyTeam = (teams: Team[] | null, userID: string): boolean => {
-  if (teams == null) {
+export const isUserTeamAdminForAnyTeam = (teams: Team[] | null, userID: string | null): boolean => {
+  if (teams == null || !userID) {
     return false;
   }
   return teams.some((team) => isUserTeamAdminForSingleTeam(team.members_with_roles, userID));
 };
 
-export const isUserTeamAdminForSingleTeam = (teamMemberWithRoles: Member[] | null, userID: string): boolean => {
-  if (teamMemberWithRoles == null) {
+export const isUserTeamAdminForSingleTeam = (teamMemberWithRoles: Member[] | null, userID: string | null): boolean => {
+  if (teamMemberWithRoles == null || !userID) {
     return false;
   }
   return teamMemberWithRoles.some((member) => member.user_id === userID && member.role === "admin");

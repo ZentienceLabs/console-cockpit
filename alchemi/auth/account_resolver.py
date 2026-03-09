@@ -1,27 +1,48 @@
-"""
-Account resolver - determines which account a user belongs to
-based on email domain, API key, or admin credentials.
-"""
+"""Account resolver for the Console control plane."""
 import os
 from typing import Optional
+
+from alchemi.control_plane.service import resolve_account_for_user as resolve_cp_account
 
 
 async def resolve_account_for_user(
     user_email: Optional[str],
     prisma_client=None,
+    zitadel_sub: Optional[str] = None,
 ) -> Optional[str]:
     """
-    Resolve the account_id for a user based on their email domain.
-    Returns None for super admins.
+    Resolve the active account for a user.
+
+    Preference order:
+    1. Control-plane user + membership graph
+    2. Legacy account-admin table fallback
+    3. Legacy email-domain fallback
     """
+    if prisma_client is None:
+        return None
+
+    resolved = await resolve_cp_account(
+        prisma_client,
+        user_email=user_email,
+        zitadel_sub=zitadel_sub,
+    )
+    if resolved:
+        return resolved
+
     if user_email is None:
         return None
 
+    try:
+        admin_record = await prisma_client.db.alchemi_accountadmintable.find_first(
+            where={"user_email": user_email}
+        )
+        if admin_record:
+            return admin_record.account_id
+    except Exception:
+        pass
+
     domain = user_email.split("@")[-1] if "@" in user_email else None
     if domain is None:
-        return None
-
-    if prisma_client is None:
         return None
 
     try:
@@ -30,16 +51,6 @@ async def resolve_account_for_user(
         )
         if account:
             return account.account_id
-    except Exception:
-        pass
-
-    # Check if user is an account admin
-    try:
-        admin_record = await prisma_client.db.alchemi_accountadmintable.find_first(
-            where={"user_email": user_email}
-        )
-        if admin_record:
-            return admin_record.account_id
     except Exception:
         pass
 

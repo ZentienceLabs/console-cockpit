@@ -11,6 +11,7 @@ import subprocess
 import sys
 import time
 import traceback
+import urllib.parse
 import warnings
 from datetime import datetime, timedelta, timezone
 from typing import (
@@ -583,6 +584,9 @@ try:
     from alchemi.config.settings import AlchemiProxyConfig
     from alchemi.endpoints.account_endpoints import router as alchemi_account_router
     from alchemi.endpoints.audit_log_endpoints import router as alchemi_audit_router
+    from alchemi.endpoints.control_plane_endpoints import (
+        router as alchemi_control_plane_router,
+    )
     from alchemi.endpoints.email_event_endpoints import router as alchemi_email_event_router
 except ImportError:
     pass
@@ -10333,6 +10337,18 @@ async def fallback_login(request: Request):
         )
 
 
+@app.get("/admin/login", tags=["experimental"], include_in_schema=False)
+async def admin_login_redirect(request: Request):
+    from fastapi.responses import RedirectResponse
+
+    redirect_url = get_custom_url(str(request.base_url))
+    if redirect_url.endswith("/"):
+        redirect_url += "ui/admin/login"
+    else:
+        redirect_url += "/ui/admin/login"
+    return RedirectResponse(url=redirect_url, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
+
+
 @router.post(
     "/login", include_in_schema=False
 )  # hidden since this is a helper for UI sso login
@@ -10409,17 +10425,37 @@ async def login_v2(request: Request):  # noqa: PLR0915
             premium_user=premium_user,
         )
 
-        # Alchemi: Add account_id and is_super_admin to JWT
-        from alchemi.auth.account_resolver import resolve_account_for_user, is_default_admin
+        # Alchemi: add control-plane claims to the UI JWT
+        from alchemi.auth.account_resolver import is_default_admin
+        from alchemi.control_plane.service import get_user_context
+
         if is_default_admin(username):
             returned_ui_token_object["is_super_admin"] = True
             returned_ui_token_object["account_id"] = None
+            returned_ui_token_object["active_account_id"] = None
+            returned_ui_token_object["platform_roles"] = ["platform_super_admin"]
+            returned_ui_token_object["product_grants"] = [
+                "console",
+                "copilot",
+                "platform-admin",
+            ]
+            returned_ui_token_object["is_break_glass"] = True
         else:
-            _account_id = await resolve_account_for_user(
-                login_result.user_email, prisma_client
+            user_context = await get_user_context(
+                prisma_client,
+                user_email=login_result.user_email,
             )
+            _account_id = user_context.get("active_account_id")
             returned_ui_token_object["account_id"] = _account_id
+            returned_ui_token_object["active_account_id"] = _account_id
             returned_ui_token_object["is_super_admin"] = False
+            returned_ui_token_object["platform_roles"] = user_context.get(
+                "platform_roles", []
+            )
+            returned_ui_token_object["product_grants"] = user_context.get(
+                "product_grants", []
+            )
+            returned_ui_token_object["is_break_glass"] = False
 
         import jwt
 
@@ -10481,21 +10517,24 @@ async def login_resolve(request: Request):
 
         if not email or "@" not in email:
             return JSONResponse(
-                content={"method": "password"},
+                content={"method": "sso", "error": "Please enter a valid email address."},
                 status_code=status.HTTP_200_OK,
             )
 
-        # Check if this is the super admin
+        # Check if this is the break-glass super admin
         from alchemi.auth.account_resolver import is_default_admin
         if is_default_admin(email):
             return JSONResponse(
-                content={"method": "password"},
+                content={"method": "password", "admin_login_url": "/ui/admin/login"},
                 status_code=status.HTTP_200_OK,
             )
 
         if prisma_client is None:
             return JSONResponse(
-                content={"method": "password"},
+                content={
+                    "method": "sso",
+                    "sso_url": f"/sso/key/generate?login_hint={urllib.parse.quote(email)}",
+                },
                 status_code=status.HTTP_200_OK,
             )
 
@@ -10504,17 +10543,23 @@ async def login_resolve(request: Request):
         sso_result = await resolve_sso_for_email(email, prisma_client)
 
         if sso_result and sso_result.get("sso_enabled"):
+            sso_url = str(sso_result.get("sso_url") or "/sso/key/generate")
+            separator = "&" if "?" in sso_url else "?"
+            sso_url = f"{sso_url}{separator}login_hint={urllib.parse.quote(email)}"
             return JSONResponse(
                 content={
                     "method": "sso",
-                    "sso_url": sso_result.get("sso_url"),
+                    "sso_url": sso_url,
                     "account_id": sso_result.get("account_id"),
                 },
                 status_code=status.HTTP_200_OK,
             )
 
         return JSONResponse(
-            content={"method": "password"},
+            content={
+                "method": "sso",
+                "sso_url": f"/sso/key/generate?login_hint={urllib.parse.quote(email)}",
+            },
             status_code=status.HTTP_200_OK,
         )
 
@@ -10523,7 +10568,7 @@ async def login_resolve(request: Request):
             "litellm.proxy.proxy_server.login_resolve(): Exception - {}".format(str(e))
         )
         return JSONResponse(
-            content={"method": "password"},
+            content={"method": "sso", "sso_url": "/sso/key/generate"},
             status_code=status.HTTP_200_OK,
         )
 
@@ -10634,6 +10679,12 @@ async def onboarding(invite_link: str, request: Request):
         ),
         disabled_non_admin_personal_key_creation=disabled_non_admin_personal_key_creation,
         server_root_path=get_server_root_path(),
+        account_id=None,
+        active_account_id=None,
+        is_super_admin=False,
+        platform_roles=[],
+        product_grants=[],
+        is_break_glass=False,
     )
     jwt_token = jwt.encode(  # type: ignore
         cast(dict, returned_ui_token_object),
@@ -12591,6 +12642,7 @@ app.include_router(access_group_router)
 try:
     app.include_router(alchemi_account_router)
     app.include_router(alchemi_audit_router)
+    app.include_router(alchemi_control_plane_router)
     app.include_router(alchemi_email_event_router)
 except NameError:
     pass
